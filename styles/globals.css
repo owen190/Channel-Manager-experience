@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --color-tcs-teal: #157A6E;
+  --color-tcs-bg: #F7F5F2;
+  --color-tcs-dark: #0F1115;
+  --color-tcs-border: #e0e0e0;
+  --color-tcs-light: #fafafa;
+  --color-pulse-strong: #388e3c;
+  --color-pulse-steady: #1976d2;
+  --color-pulse-rising: #f57c00;
+  --color-pulse-fading: #c2185b;
+  --color-pulse-flatline: #757575;
+  --color-friction-low: #388e3c;
+  --color-friction-moderate: #f57c00;
+  --color-friction-high: #e64a19;
+  --color-friction-critical: #d32f2f;
+  --color-sentiment-warm: #4caf50;
+  --color-sentiment-neutral: #9e9e9e;
+  --color-sentiment-cool: #1976d2;
+  --color-deal-healthy: #388e3c;
+  --color-deal-monitor: #f57c00;
+  --color-deal-atrisk: #e64a19;
+  --color-deal-stalled: #9c27b0;
+  --font-heading: 'Newsreader', serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-tcs-bg);
+  color: #1a1a1a;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
