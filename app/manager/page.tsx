@@ -54,7 +54,7 @@ import { Advisor, Deal, DealHealth, FrictionLevel, DiagnosticRow, EngagementScor
 type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Stalled';
 
 export default function ManagerPage() {
-  const [activeView, setActiveView] = useState('command-center');
+  const [activeView, setActiveViewRaw] = useState('command-center');
   const [selectedAdvisor, setSelectedAdvisor] = useState<Advisor | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [expandedKPI, setExpandedKPI] = useState<string | null>(null);
@@ -67,6 +67,21 @@ export default function ManagerPage() {
   const [relationshipFilter, setRelationshipFilter] = useState('All');
   const [pipelineKPIExpanded, setPipelineKPIExpanded] = useState<string | null>(null);
   const [expandedStage, setExpandedStage] = useState<DealStage | null>(null);
+
+  // Clear transient state when switching views
+  const setActiveView = (view: string) => {
+    setActiveViewRaw(view);
+    if (view !== 'relationships') {
+      setSelectedAdvisor(null);
+      setPanelOpen(false);
+    }
+    setExpandedKPIPanel(null);
+    setExpandedKPI(null);
+    setDrillDown(null);
+    setPipelineKPIExpanded(null);
+    setExpandedStage(null);
+    setInlineTab('overview');
+  };
 
   const calculateEngagementScore = (pulse: string): number => {
     const scoreMap: Record<string, number> = {
@@ -97,7 +112,7 @@ export default function ManagerPage() {
     const tier = advisor.tier || 'other';
     const baseFactor = tierMultiplier[tier] || 12;
     const submitted = Math.floor(5 + (baseFactor * (advisor.mrr / 10000)));
-    const conversionRate = Math.random() * 0.4 + 0.3;
+    const conversionRate = 0.3 + ((advisor.mrr % 7) / 7) * 0.4;
     const won = Math.floor(submitted * conversionRate);
     return { submitted, won };
   };
@@ -831,7 +846,7 @@ export default function ManagerPage() {
             {/* ========== RELATIONSHIPS VIEW ========== */}
             {activeView === 'relationships' && (
               <div className="flex gap-6 h-full max-w-7xl mx-auto">
-                <div className="w-80 flex flex-col bg-white rounded-xl border border-[#e8e5e1]">
+                <div className="w-64 flex flex-col bg-white rounded-xl border border-[#e8e5e1]">
                   <div className="px-6 py-4 border-b border-[#f0ede9] flex gap-2 flex-wrap">
                     {['All', 'At Risk', 'Top 10', 'New'].map(filter => (
                       <button

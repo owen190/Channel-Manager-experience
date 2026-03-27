@@ -33,9 +33,22 @@ function EngLabel({ score }: { score: EngagementScore }) {
 }
 
 export default function LeaderDashboard() {
-  const [activeView, setActiveView] = useState('command-center');
+  const [activeView, setActiveViewRaw] = useState('command-center');
   const [selectedAdvisor, setSelectedAdvisor] = useState<Advisor | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+
+  // Clear transient state when switching views
+  const setActiveView = (view: string) => {
+    setActiveViewRaw(view);
+    if (view !== 'relationships') {
+      setSelectedAdvisor(null);
+      setPanelOpen(false);
+    }
+    setExpandedKPIPanel(null);
+    setExpandedForecastRep(null);
+    setExpandedStage(null);
+    setExpandedPipelineRep(null);
+  };
   const [expandedReps, setExpandedReps] = useState<string[]>([]);
   const [inlineTab, setInlineTab] = useState<'overview' | 'personal' | 'deals' | 'notes' | 'activity'>('overview');
   const [expandedKPIPanel, setExpandedKPIPanel] = useState<string | null>(null);
@@ -280,7 +293,7 @@ export default function LeaderDashboard() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div
                     className="bg-white border border-[#e8e5e1] rounded-[10px] p-5 cursor-pointer hover:shadow-md transition-shadow"
                     onClick={() => setExpandedKPIPanel(expandedKPIPanel === 'team-mrr' ? null : 'team-mrr')}
@@ -583,18 +596,18 @@ export default function LeaderDashboard() {
                     <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Commit vs Target Tracker</h3>
                   </div>
                   <div className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div className="grid grid-cols-3 gap-4 mb-6">
                       <div>
                         <p className="text-11px text-gray-600 uppercase mb-1">Target</p>
-                        <p className="text-3xl font-bold text-gray-900">{formatCurrency(teamTarget)}</p>
+                        <p className="text-2xl font-bold text-gray-900">{formatCurrency(teamTarget)}</p>
                       </div>
                       <div>
-                        <p className="text-11px text-gray-600 uppercase mb-1">Current Commit</p>
-                        <p className="text-3xl font-bold" style={{ color: '#157A6E' }}>{formatCurrency(teamCommit)}</p>
+                        <p className="text-11px text-gray-600 uppercase mb-1">Current</p>
+                        <p className="text-2xl font-bold" style={{ color: '#157A6E' }}>{formatCurrency(teamCommit)}</p>
                       </div>
                       <div>
                         <p className="text-11px text-gray-600 uppercase mb-1">Gap</p>
-                        <p className="text-3xl font-bold" style={{ color: '#ef4444' }}>{formatCurrency(commitGap)}</p>
+                        <p className="text-2xl font-bold" style={{ color: '#ef4444' }}>{formatCurrency(commitGap)}</p>
                       </div>
                     </div>
                     <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
@@ -621,8 +634,8 @@ export default function LeaderDashboard() {
                             <p className="text-11px text-gray-500 mt-1">{req.reason}</p>
                           </div>
                           <div className="flex gap-2 flex-shrink-0">
-                            <button className="px-3 py-1.5 text-11px font-semibold bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors">Approve</button>
-                            <button className="px-3 py-1.5 text-11px font-semibold bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors">Deny</button>
+                            <button onClick={() => alert(`Override approved for ${req.dealName}`)} className="px-3 py-1.5 text-11px font-semibold bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors">Approve</button>
+                            <button onClick={() => alert(`Override denied for ${req.dealName}`)} className="px-3 py-1.5 text-11px font-semibold bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors">Deny</button>
                           </div>
                         </div>
                       ))}
@@ -840,7 +853,7 @@ export default function LeaderDashboard() {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="lg:col-span-1 bg-white border border-[#e8e5e1] rounded-[10px] p-5">
                     <h3 className="text-12px uppercase font-bold tracking-widest text-[#888] mb-4">Portfolio Summary</h3>
                     <div className="space-y-4">
@@ -877,7 +890,7 @@ export default function LeaderDashboard() {
                     </div>
                   </div>
 
-                  <div className="lg:col-span-3">
+                  <div className="lg:col-span-2">
                     {selectedAdvisor && panelOpen ? (
                       <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
                         <div className="flex items-start justify-between mb-6">
@@ -1366,6 +1379,126 @@ export default function LeaderDashboard() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {activeView === 'intelligence' && (
+              <div className="space-y-6 max-w-7xl mx-auto">
+                <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+                  <div className="px-5 py-3.5 border-b border-[#f0ede9]">
+                    <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Friction Insights</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-13px">
+                      <thead className="border-b border-[#e8e5e1]">
+                        <tr className="bg-[#F7F5F2]">
+                          <th className="px-5 py-3 text-left font-semibold text-gray-900">Issue</th>
+                          <th className="px-5 py-3 text-center font-semibold text-gray-900">Count</th>
+                          <th className="px-5 py-3 text-left font-semibold text-gray-900">Severity</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {frictionInsights.map((item, idx) => (
+                          <tr key={idx} className="border-b border-[#e8e5e1] hover:bg-[#F7F5F2]/50">
+                            <td className="px-5 py-3 text-gray-900">{item.issue}</td>
+                            <td className="px-5 py-3 text-center text-gray-600">{item.count}</td>
+                            <td className="px-5 py-3">
+                              <span className={`px-2 py-1 rounded text-11px font-semibold ${
+                                item.severity === 'HIGH' ? 'bg-red-100 text-red-700' :
+                                item.severity === 'MODERATE' ? 'bg-amber-100 text-amber-700' :
+                                'bg-green-100 text-green-700'
+                              }`}>
+                                {item.severity}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+                  <div className="px-5 py-3.5 border-b border-[#f0ede9]">
+                    <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Competitive Landscape</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-13px">
+                      <thead className="border-b border-[#e8e5e1]">
+                        <tr className="bg-[#F7F5F2]">
+                          <th className="px-5 py-3 text-left font-semibold text-gray-900">Competitor</th>
+                          <th className="px-5 py-3 text-center font-semibold text-gray-900">Deal Count</th>
+                          <th className="px-5 py-3 text-right font-semibold text-gray-900">Pipeline At Risk</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {competitiveLandscape.map((item, idx) => (
+                          <tr key={idx} className="border-b border-[#e8e5e1] hover:bg-[#F7F5F2]/50">
+                            <td className="px-5 py-3 text-gray-900">{item.competitor}</td>
+                            <td className="px-5 py-3 text-center text-gray-600">{item.dealCount}</td>
+                            <td className="px-5 py-3 text-right font-semibold" style={{ color: '#ef4444' }}>{formatCurrency(item.pipelineAtRisk)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+                  <div className="px-5 py-3.5 border-b border-[#f0ede9]">
+                    <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Diagnostic Matrix</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-13px">
+                      <thead className="border-b border-[#e8e5e1]">
+                        <tr className="bg-[#F7F5F2]">
+                          <th className="px-5 py-3 text-left font-semibold text-gray-900">Pattern</th>
+                          <th className="px-5 py-3 text-left font-semibold text-gray-900">Reps Affected</th>
+                          <th className="px-5 py-3 text-left font-semibold text-gray-900">Impact</th>
+                          <th className="px-5 py-3 text-left font-semibold text-gray-900">Recommended Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {diagnosticMatrix.map((item, idx) => (
+                          <tr key={idx} className="border-b border-[#e8e5e1] hover:bg-[#F7F5F2]/50">
+                            <td className="px-5 py-3 text-gray-900 font-medium">{item.pattern}</td>
+                            <td className="px-5 py-3 text-gray-600">{item.repsAffected}</td>
+                            <td className="px-5 py-3 text-gray-600">{item.impact}</td>
+                            <td className="px-5 py-3 text-gray-600">{item.action}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+                  <div className="px-5 py-3.5 border-b border-[#f0ede9]">
+                    <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Stage/Timeline Mismatches</h3>
+                  </div>
+                  <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {stageTimelineMismatches.map(deal => {
+                        const advisor = advisors.find(a => a.id === deal.advisorId);
+                        const rep = reps.find(r => r.id === deal.repId);
+                        return (
+                          <div key={deal.id} className="bg-white border border-[#e8e5e1] rounded-xl p-4 border-l-4" style={{ borderLeftColor: '#f59e0b' }}>
+                            <p className="text-13px font-semibold text-gray-900">{deal.name}</p>
+                            <p className="text-11px text-gray-600 mb-2">
+                              <span className="cursor-pointer hover:underline" onClick={() => advisor && handleAdvisorClick(advisor.id)} style={{ color: '#157A6E' }}>{advisor?.name}</span>
+                              {rep && <span className="text-gray-400"> · {rep.name}</span>}
+                            </p>
+                            <div className="space-y-1 text-11px">
+                              <p className="flex items-center gap-1"><span className="font-medium">Stage:</span> {deal.stage} <AlertTriangle className="w-3 h-3" style={{ color: '#f59e0b' }} /> {deal.daysInStage}d in stage</p>
+                              <p><span className="font-medium">Close Date:</span> {deal.closeDate}</p>
+                              <p><span className="font-medium">MRR:</span> {formatCurrency(deal.mrr)}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
