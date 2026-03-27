@@ -1,7 +1,35 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Clock, AlertTriangle, Flag, ShieldAlert, DollarSign, Brain, Activity, TrendingDown, TrendingUp, Zap, Users, ChevronDown, ChevronUp, X, ArrowLeft, MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays, Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle } from 'lucide-react';
+import {
+  Clock,
+  AlertTriangle,
+  Flag,
+  ShieldAlert,
+  DollarSign,
+  Brain,
+  Activity,
+  TrendingDown,
+  TrendingUp,
+  Zap,
+  Users,
+  ChevronDown,
+  ChevronUp,
+  X,
+  ArrowLeft,
+  MapPin,
+  Cake,
+  GraduationCap,
+  Briefcase,
+  Phone,
+  CalendarDays,
+  Sparkles,
+  Target,
+  Heart,
+  MessageCircle,
+  Lightbulb,
+  AlertCircle,
+} from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { KPICard } from '@/components/shared/KPICard';
@@ -14,6 +42,7 @@ import { PulseBadge } from '@/components/shared/PulseBadge';
 import { FrictionBadge } from '@/components/shared/FrictionBadge';
 import { SentimentBadge } from '@/components/shared/SentimentBadge';
 import { TrajectoryBadge } from '@/components/shared/TrajectoryBadge';
+import { TierBadge } from '@/components/shared/TierBadge';
 
 import { advisors } from '@/lib/data/advisors';
 import { deals } from '@/lib/data/deals';
@@ -21,7 +50,6 @@ import { managerNudges } from '@/lib/data/nudges';
 import { managerBriefing } from '@/lib/data/briefings';
 import { NAV_ITEMS_MANAGER, STAGE_WEIGHTS, QUARTER_END, DAYS_REMAINING } from '@/lib/constants';
 import { Advisor, Deal, DealHealth, FrictionLevel, DiagnosticRow, EngagementScore } from '@/lib/types';
-import { TierBadge } from '@/components/shared/TierBadge';
 
 export default function ManagerPage() {
   const [activeView, setActiveView] = useState('command-center');
@@ -31,6 +59,7 @@ export default function ManagerPage() {
   const [dealFilter, setDealFilter] = useState({ health: 'all', stage: 'all' });
   const [drillDown, setDrillDown] = useState<{ label: string; advisorIds: string[] } | null>(null);
   const [inlineTab, setInlineTab] = useState<'overview' | 'personal' | 'deals' | 'notes' | 'activity'>('overview');
+  const [relationshipsView, setRelationshipsView] = useState<'list' | 'detail'>('list');
 
   // Calculate metrics
   const totalMRR = useMemo(() => advisors.reduce((sum, a) => sum + a.mrr, 0), []);
@@ -44,7 +73,7 @@ export default function ManagerPage() {
     return strong > steady ? 'Strong' : 'Steady';
   }, []);
 
-  const quarterGap = 1200000 - 184200; // $1.2M target - total MRR
+  const quarterGap = 1200000 - totalMRR;
 
   // Weighted pipeline calculation
   const weightedPipeline = useMemo(() => {
@@ -59,7 +88,11 @@ export default function ManagerPage() {
     const advisor = advisors.find(a => a.id === advisorId);
     if (advisor) {
       setSelectedAdvisor(advisor);
-      setPanelOpen(true);
+      if (activeView !== 'relationships') {
+        setPanelOpen(true);
+      } else {
+        setRelationshipsView('detail');
+      }
     }
   };
 
@@ -109,23 +142,6 @@ export default function ManagerPage() {
     Stalled: deals.filter(d => d.health === 'Stalled').length,
   };
 
-  // Supplier friction insights
-  const frictionInsights = [
-    { issue: 'Quoting turnaround >72hrs', advisorCount: 4, advisorNames: ['Tom Bradley', 'Alex Morgan', 'Nina Patel', 'Chris Donovan'], severity: 'High' as FrictionLevel },
-    { issue: 'Install timelines not met', advisorCount: 3, advisorNames: ['Tom Bradley', 'Alex Morgan', 'Nina Patel'], severity: 'Moderate' as FrictionLevel },
-    { issue: 'Post-sale support gaps', advisorCount: 2, advisorNames: ['Nina Patel', 'Chris Donovan'], severity: 'Moderate' as FrictionLevel },
-    { issue: 'Training materials outdated', advisorCount: 1, advisorNames: ['Chris Donovan'], severity: 'Low' as FrictionLevel },
-  ];
-
-  // Diagnostic matrix
-  const diagnosticMatrix: DiagnosticRow[] = advisors.map(a => ({
-    advisor: a.name,
-    pulse: a.pulse,
-    dealHealth: a.dealHealth,
-    friction: a.friction,
-    diagnosis: a.diagnosis,
-  }));
-
   // Stage/Timeline mismatch alerts
   const stageTimelineMismatches = deals.filter(d => {
     const closeDate = new Date(d.closeDate);
@@ -154,21 +170,6 @@ export default function ManagerPage() {
     return 'text-red-600 bg-red-50';
   };
 
-  // Action item aging color
-  const getActionItemColor = (daysOld: number) => {
-    if (daysOld === 0) return 'text-green-600 bg-green-50';
-    if (daysOld <= 5) return 'text-amber-600 bg-amber-50';
-    return 'text-red-600 bg-red-50';
-  };
-
-  // Last modified hygiene check
-  const isHygieneIssue = (lastModified: string) => {
-    const lastModDate = new Date(lastModified);
-    const now = new Date('2026-03-26');
-    const daysSince = Math.ceil((now.getTime() - lastModDate.getTime()) / (1000 * 60 * 60 * 24));
-    return daysSince > 14;
-  };
-
   // Strategic KPIs
   const strategicKPIs = {
     retention: '94%',
@@ -184,29 +185,21 @@ export default function ManagerPage() {
   // Stalled deals count
   const stalledDealsCount = deals.filter(d => d.stage === 'Stalled').length;
 
-  // ===== INTELLIGENCE HUB COMPUTED DATA =====
-
   // Risk Radar: Score each advisor by combining negative signals
   const riskRadar = useMemo(() => {
     return advisors.map(a => {
       let score = 0;
-      // Pulse risk
       if (a.pulse === 'Flatline') score += 30;
       else if (a.pulse === 'Fading') score += 20;
-      // Trajectory risk
       if (a.trajectory === 'Freefall') score += 30;
       else if (a.trajectory === 'Slipping') score += 15;
-      // Deal health risk
       if (a.dealHealth === 'Stalled') score += 25;
       else if (a.dealHealth === 'At Risk') score += 20;
       else if (a.dealHealth === 'Monitor') score += 10;
-      // Friction risk
       if (a.friction === 'Critical') score += 25;
       else if (a.friction === 'High') score += 15;
       else if (a.friction === 'Moderate') score += 5;
-      // Intent risk
       if (a.intent === 'Low') score += 10;
-      // Tone risk
       if (a.tone === 'Cool') score += 10;
 
       const advisorDeals = deals.filter(d => d.advisorId === a.id);
@@ -233,19 +226,17 @@ export default function ManagerPage() {
     };
   }, []);
 
-  // AI Insights Feed (dynamically generated from data)
+  // AI Insights Feed
   const aiInsights = useMemo(() => {
     const insights: { icon: string; text: string; type: 'critical' | 'warning' | 'positive' | 'info' }[] = [];
 
-    // Critical: Freefall advisors
     const freefallAdvisors = advisors.filter(a => a.trajectory === 'Freefall');
     if (freefallAdvisors.length > 0) {
       const names = freefallAdvisors.map(a => a.name).join(' and ');
-      const totalMRR = freefallAdvisors.reduce((sum, a) => sum + a.mrr, 0);
-      insights.push({ icon: 'alert', text: `${names} ${freefallAdvisors.length === 1 ? 'is' : 'are'} in freefall trajectory with $${(totalMRR / 1000).toFixed(1)}K MRR at stake. Immediate re-engagement needed.`, type: 'critical' });
+      const totalMRRVal = freefallAdvisors.reduce((sum, a) => sum + a.mrr, 0);
+      insights.push({ icon: 'alert', text: `${names} ${freefallAdvisors.length === 1 ? 'is' : 'are'} in freefall trajectory with $${(totalMRRVal / 1000).toFixed(1)}K MRR at stake. Immediate re-engagement needed.`, type: 'critical' });
     }
 
-    // Warning: Stalled deals with high MRR
     const bigStalledDeals = deals.filter(d => d.health === 'Stalled').sort((a, b) => b.mrr - a.mrr);
     if (bigStalledDeals.length > 0) {
       const topDeal = bigStalledDeals[0];
@@ -253,65 +244,60 @@ export default function ManagerPage() {
       insights.push({ icon: 'dollar', text: `${topDeal.name} has been stalled for ${topDeal.daysInStage} days ($${(topDeal.mrr / 1000).toFixed(1)}K). ${advisor?.name || 'Advisor'} may need a fresh approach or executive sponsor involvement.`, type: 'warning' });
     }
 
-    // Positive: Climbing advisors
     const climbingAdvisors = advisors.filter(a => a.trajectory === 'Climbing' || a.trajectory === 'Accelerating');
     if (climbingAdvisors.length > 0) {
       const topClimber = climbingAdvisors.sort((a, b) => b.mrr - a.mrr)[0];
-      insights.push({ icon: 'trending', text: `${climbingAdvisors.length} advisors are trending upward. ${topClimber.name} leads with $${(topClimber.mrr / 1000).toFixed(1)}K MRR and ${topClimber.trajectory.toLowerCase()} trajectory\u2014consider expanding their portfolio.`, type: 'positive' });
+      insights.push({ icon: 'trending', text: `${climbingAdvisors.length} advisors are trending upward. ${topClimber.name} leads with $${(topClimber.mrr / 1000).toFixed(1)}K MRR and ${topClimber.trajectory.toLowerCase()} trajectory—consider expanding their portfolio.`, type: 'positive' });
     }
 
-    // Info: Engagement gap
     const fadingCount = advisors.filter(a => a.pulse === 'Fading' || a.pulse === 'Flatline').length;
     if (fadingCount > 0) {
       const fadingMRR = advisors.filter(a => a.pulse === 'Fading' || a.pulse === 'Flatline').reduce((sum, a) => sum + a.mrr, 0);
       insights.push({ icon: 'users', text: `${fadingCount} advisors showing fading or flatline engagement, representing $${(fadingMRR / 1000).toFixed(1)}K in MRR. Prioritize personal outreach this week.`, type: 'warning' });
     }
 
-    // Positive: Healthy pipeline ratio
     const healthyRatio = Math.round((deals.filter(d => d.health === 'Healthy').length / deals.length) * 100);
     insights.push({ icon: 'zap', text: `${healthyRatio}% of your pipeline is healthy. Focus energy on the ${deals.filter(d => d.health !== 'Healthy').length} deals that need attention to protect quarter-end targets.`, type: 'info' });
 
     return insights.slice(0, 5);
   }, []);
 
-  // Engagement Heatmap data
-  const engagementHeatmap = useMemo(() => {
-    const now = new Date('2026-03-26');
-    return advisors.map(a => {
-      // Simulate last contact from activity data
-      const lastActivity = a.activity?.[0];
-      let daysSinceContact = 0;
-      if (lastActivity && lastActivity.time) {
-        // time is like "2 days ago", "1 week ago", etc. — parse it
-        const timeStr = lastActivity.time;
-        const match = timeStr.match(/(\d+)\s*(day|week|month|hour)/i);
-        if (match) {
-          const num = parseInt(match[1]);
-          const unit = match[2].toLowerCase();
-          daysSinceContact = unit === 'week' ? num * 7 : unit === 'month' ? num * 30 : unit === 'hour' ? 0 : num;
-        }
-      } else {
-        daysSinceContact = 30;
-      }
-      return { advisor: a, daysSinceContact };
-    }).sort((a, b) => b.daysSinceContact - a.daysSinceContact);
+  // Top Movers: Advisors whose trajectory changed recently
+  const topMovers = useMemo(() => {
+    const advisorsWithChange = advisors
+      .map(a => ({
+        advisor: a,
+        previousTrajectory: a.trajectory === 'Freefall' ? 'Stable' : a.trajectory === 'Slipping' ? 'Stable' : undefined,
+      }))
+      .filter(a => a.advisor.trajectory === 'Climbing' || a.advisor.trajectory === 'Accelerating' || a.advisor.trajectory === 'Freefall' || a.advisor.trajectory === 'Slipping')
+      .sort((a, b) => b.advisor.mrr - a.advisor.mrr)
+      .slice(0, 6);
+
+    return {
+      up: advisorsWithChange.filter(a => a.advisor.trajectory === 'Climbing' || a.advisor.trajectory === 'Accelerating'),
+      down: advisorsWithChange.filter(a => a.advisor.trajectory === 'Freefall' || a.advisor.trajectory === 'Slipping'),
+    };
   }, []);
 
-  // Helper: get advisors by filter for drill-down
-  const getAdvisorsByPulse = (pulse: string) => advisors.filter(a => a.pulse === pulse).map(a => a.id);
-  const getAdvisorsByTrajectory = (trajectory: string) => advisors.filter(a => a.trajectory === trajectory).map(a => a.id);
-  const getAdvisorsByTone = (tone: string) => advisors.filter(a => a.tone === tone).map(a => a.id);
-  const getAdvisorsByIntent = (intent: string) => advisors.filter(a => a.intent === intent).map(a => a.id);
-  const getAdvisorsByFriction = (friction: string) => advisors.filter(a => a.friction === friction).map(a => a.id);
+  // Pulse signal counts for Intelligence Hub
+  const pulseSignals = {
+    Strong: advisors.filter(a => a.pulse === 'Strong').length,
+    Steady: advisors.filter(a => a.pulse === 'Steady').length,
+    Fading: advisors.filter(a => a.pulse === 'Fading').length,
+    Flatline: advisors.filter(a => a.pulse === 'Flatline').length,
+    Rising: advisors.filter(a => a.pulse === 'Rising').length,
+    Climbing: advisors.filter(a => a.trajectory === 'Climbing' || a.trajectory === 'Accelerating').length,
+    Freefall: advisors.filter(a => a.trajectory === 'Freefall').length,
+  };
 
+  // EngLabel helper
   const EngLabel = ({ score }: { score: EngagementScore }) => {
     const colors = { Strong: 'bg-green-100 text-green-700', Steady: 'bg-blue-100 text-blue-700', Fading: 'bg-pink-100 text-pink-700' };
     return <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${colors[score]}`}>{score}</span>;
   };
 
   return (
-    <div className="flex h-screen bg-tcs-bg">
-      {/* Sidebar */}
+    <div className="flex h-screen" style={{ backgroundColor: '#F7F5F2' }}>
       <Sidebar
         items={NAV_ITEMS_MANAGER}
         activeView={activeView}
@@ -321,505 +307,274 @@ export default function ManagerPage() {
         userInitials="JR"
       />
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar */}
-        <TopBar nudges={managerNudges} userName="Jordan R." userInitials="JR" />
+        <TopBar nudges={managerNudges} userName="Jordan R." userInitials="JR" pageTitle={activeView === 'command-center' ? 'Command Center' : activeView === 'intelligence-hub' ? 'Intelligence Hub' : activeView === 'relationships' ? 'Relationships' : activeView === 'pipeline' ? 'Pipeline' : 'Strategic'} />
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-8 max-w-7xl mx-auto">
+        <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-6">
             {/* ========== COMMAND CENTER VIEW ========== */}
             {activeView === 'command-center' && (
-              <div className="space-y-8">
-                {/* Quarter Alert Banner */}
-                <div className="bg-red-50 border border-red-200 rounded-lg p-6 flex items-center gap-4">
-                  <div className="text-red-500"><Clock className="w-10 h-10" /></div>
-                  <div>
-                    <h2 className="font-bold text-lg text-red-900 mb-1">
-                      {DAYS_REMAINING} Days Remaining in Q1 2026
-                    </h2>
-                    <p className="text-red-700">
-                      ${(quarterGap / 1000).toFixed(1)}K gap to $1.2M target
-                    </p>
+              <div className="space-y-6 max-w-7xl mx-auto">
+                {/* Urgency Banner */}
+                <div className="rounded-xl p-6 text-white" style={{ background: 'linear-gradient(135deg, #157A6E 0%, #0f5250 100%)' }}>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-widest opacity-90">Q1 2026</p>
+                      <h2 className="text-3xl font-bold mt-2">{DAYS_REMAINING} Days Left in Q1</h2>
+                      <p className="text-sm mt-3 opacity-90">${(quarterGap / 1000).toFixed(1)}K gap to $1.2M target ({Math.round((totalMRR / 1200000) * 100)}%)</p>
+                    </div>
+                    <Clock className="w-12 h-12 opacity-80" />
                   </div>
                 </div>
 
-                {/* KPI Row */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                {/* KPI Cards Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <KPICard
                     label="Total MRR"
                     value={`$${(totalMRR / 1000).toFixed(1)}K`}
                     change="+8.3% vs last month"
                     changeType="positive"
-                    detail={
-                      <div>
-                        <h4 className="font-semibold mb-3">Advisor MRR Breakdown</h4>
-                        <table className="w-full text-sm">
-                          <thead className="border-b">
-                            <tr>
-                              <th className="text-left pb-2">Advisor</th>
-                              <th className="text-right pb-2">MRR</th>
-                            </tr>
-                          </thead>
-                          <tbody className="space-y-1">
-                            {advisors.sort((a, b) => b.mrr - a.mrr).slice(0, 5).map(a => (
-                              <tr key={a.id}>
-                                <td className="py-1">
-                                  <span
-                                    className="text-tcs-teal hover:underline cursor-pointer"
-                                    onClick={() => handleAdvisorClick(a.id)}
-                                  >
-                                    {a.name}
-                                  </span>
-                                </td>
-                                <td className="text-right font-semibold">${(a.mrr / 1000).toFixed(1)}K</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    }
                   />
-
                   <KPICard
                     label="Active Deals"
                     value={activeDealCount.toString()}
                     change="+5 new this week"
                     changeType="positive"
-                    detail={
-                      <div>
-                        <h4 className="font-semibold mb-3">Deals by Stage</h4>
-                        <div className="space-y-2 text-sm">
-                          {['Negotiating', 'Proposal', 'Qualifying', 'Discovery'].map(stage => (
-                            <div key={stage} className="flex justify-between">
-                              <span>{stage}:</span>
-                              <strong>{deals.filter(d => d.stage === stage).length}</strong>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    }
                   />
-
                   <KPICard
-                    label="Healthy Pipeline"
+                    label="Healthy Pipeline %"
                     value={`${healthyPercent}%`}
                     change="-3% from last week"
                     changeType="negative"
-                    detail={
-                      <div>
-                        <h4 className="font-semibold mb-3">Health Breakdown</h4>
-                        <div className="space-y-2 text-sm">
-                          {Object.entries(dealHealthCounts).map(([health, count]) => (
-                            <div key={health} className="flex justify-between">
-                              <span>{health}:</span>
-                              <strong>{count} deals</strong>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    }
                   />
-
                   <KPICard
                     label="Avg Engagement"
                     value={avgEngagement}
-                    change={`Improved from Steady`}
+                    change="Improved from Steady"
                     changeType="positive"
-                    detail={
-                      <div>
-                        <h4 className="font-semibold mb-3">Engagement Distribution</h4>
-                        <div className="space-y-2 text-sm">
-                          {Object.entries(pulseDistribution).map(([pulse, count]) => (
-                            <div key={pulse} className="flex justify-between">
-                              <span>{pulse}:</span>
-                              <strong>{count} advisors</strong>
+                  />
+                </div>
+
+                {/* Insight Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Risk */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6 border-l-4" style={{ borderLeftColor: '#ef4444' }}>
+                    <p className="text-10px uppercase font-semibold tracking-widest text-[#888] mb-2">Risk Alert</p>
+                    <h3 className="font-bold text-gray-900 mb-2">Tom Bradley</h3>
+                    <p className="text-13px text-gray-700">At-risk account flagged for friction in quoting process. Recommend executive check-in this week.</p>
+                  </div>
+
+                  {/* Opportunity */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6 border-l-4" style={{ borderLeftColor: '#157A6E' }}>
+                    <p className="text-10px uppercase font-semibold tracking-widest text-[#888] mb-2">Opportunity</p>
+                    <h3 className="font-bold text-gray-900 mb-2">Sarah Chen</h3>
+                    <p className="text-13px text-gray-700">Strong trajectory with $45K pipeline growth. Ready for portfolio expansion—consider tier upgrade.</p>
+                  </div>
+
+                  {/* Info */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6 border-l-4" style={{ borderLeftColor: '#2563eb' }}>
+                    <p className="text-10px uppercase font-semibold tracking-widest text-[#888] mb-2">Info</p>
+                    <h3 className="font-bold text-gray-900 mb-2">Portfolio Health</h3>
+                    <p className="text-13px text-gray-700">3 advisors entering fading status. Schedule 1-on-1s to prevent pipeline decline.</p>
+                  </div>
+                </div>
+
+                {/* Two-column Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Morning Briefing */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1]">
+                    <div className="px-5 py-3.5 border-b border-[#f0ede9]">
+                      <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Morning Briefing</h3>
+                    </div>
+                    <MorningBriefing actNow={managerBriefing.actNow} capitalize={managerBriefing.capitalize} nurture={managerBriefing.nurture} />
+                  </div>
+
+                  {/* Pipeline Snapshot */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1]">
+                    <div className="px-5 py-3.5 border-b border-[#f0ede9]">
+                      <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Pipeline Snapshot</h3>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      {['Discovery', 'Proposal', 'Negotiating', 'Qualifying'].map(stage => {
+                        const stageDeals = deals.filter(d => d.stage === stage);
+                        const stageMRR = stageDeals.reduce((sum, d) => sum + d.mrr, 0);
+                        const maxMRR = Math.max(
+                          deals.filter(d => d.stage === 'Discovery').reduce((sum, d) => sum + d.mrr, 0),
+                          deals.filter(d => d.stage === 'Proposal').reduce((sum, d) => sum + d.mrr, 0),
+                          deals.filter(d => d.stage === 'Negotiating').reduce((sum, d) => sum + d.mrr, 0),
+                          deals.filter(d => d.stage === 'Qualifying').reduce((sum, d) => sum + d.mrr, 0)
+                        );
+                        const percentage = maxMRR > 0 ? (stageMRR / maxMRR) * 100 : 0;
+                        return (
+                          <div key={stage}>
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-13px font-medium text-gray-900">{stage}</span>
+                              <span className="text-11px text-gray-600">${(stageMRR / 1000).toFixed(1)}K</span>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    }
-                  />
-                </div>
-
-                {/* Morning Briefing */}
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-6">Morning Briefing</h2>
-                  <MorningBriefing
-                    actNow={managerBriefing.actNow}
-                    capitalize={managerBriefing.capitalize}
-                    nurture={managerBriefing.nurture}
-                  />
-                </div>
-
-                {/* Today's Calendar */}
-                <div className="bg-white rounded-lg border border-tcs-border p-6">
-                  <h3 className="font-bold text-lg text-gray-900 mb-4">Today's Calendar</h3>
-                  <div className="space-y-3">
-                    {[
-                      { time: '9:00 AM', title: 'Strategy call with Sarah Chen', type: 'call' },
-                      { time: '10:30 AM', title: 'Pipeline review', type: 'meeting' },
-                      { time: '1:00 PM', title: 'Nina Patel follow-up', type: 'call' },
-                      { time: '3:30 PM', title: 'Training webinar', type: 'training' },
-                    ].map((item, idx) => (
-                      <div key={idx} className="flex items-start gap-4 p-3 hover:bg-tcs-bg rounded-lg transition-colors">
-                        <div className="text-sm font-semibold text-tcs-teal min-w-max">{item.time}</div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">{item.title}</p>
-                          <p className="text-xs text-gray-500 capitalize">{item.type}</p>
-                        </div>
-                      </div>
-                    ))}
+                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div className="h-full" style={{ width: `${percentage}%`, backgroundColor: '#157A6E' }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-
-                {/* Recent Activity Feed */}
-                <div className="bg-white rounded-lg border border-tcs-border p-6">
-                  <h3 className="font-bold text-lg text-gray-900 mb-4">Recent Activity</h3>
-                  <div className="space-y-3">
-                    {advisors.slice(0, 5).map((advisor, idx) => (
-                      <div key={idx} className="flex items-start gap-3 p-3 hover:bg-tcs-bg rounded-lg transition-colors">
-                        <SentimentBadge tone={advisor.tone} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900">{advisor.activity[0]?.text || 'No activity'}</p>
-                          <p className="text-xs text-gray-500">{advisor.activity[0]?.time || ''} •
-                            <span
-                              className="text-tcs-teal hover:underline cursor-pointer ml-1"
-                              onClick={() => handleAdvisorClick(advisor.id)}
-                            >
-                              {advisor.name}
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
               </div>
             )}
 
             {/* ========== INTELLIGENCE HUB VIEW ========== */}
-            {activeView === 'intelligence' && (
-              <div className="space-y-6">
-                <h1 className="text-3xl font-bold text-gray-900">Intelligence Hub</h1>
-
-                {/* ===== AI INSIGHTS FEED ===== */}
-                <div className="bg-gradient-to-r from-tcs-teal to-emerald-600 rounded-lg p-6 text-white">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Brain className="w-5 h-5" />
-                    <h2 className="font-bold text-lg">AI Insights</h2>
+            {activeView === 'intelligence-hub' && (
+              <div className="space-y-6 max-w-7xl mx-auto">
+                {/* Signal Cards Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">Strong</p>
+                    <p className="text-24px font-bold text-gray-900">{pulseSignals.Strong}</p>
                   </div>
-                  <div className="space-y-3">
-                    {aiInsights.map((insight, idx) => (
-                      <div key={idx} className={`flex items-start gap-3 p-3 rounded-lg ${
-                        insight.type === 'critical' ? 'bg-red-500/20' :
-                        insight.type === 'warning' ? 'bg-amber-500/20' :
-                        insight.type === 'positive' ? 'bg-green-500/20' :
-                        'bg-white/10'
-                      }`}>
-                        <div className="mt-0.5 flex-shrink-0">
-                          {insight.icon === 'alert' && <AlertTriangle className="w-4 h-4" />}
-                          {insight.icon === 'dollar' && <DollarSign className="w-4 h-4" />}
-                          {insight.icon === 'trending' && <TrendingUp className="w-4 h-4" />}
-                          {insight.icon === 'users' && <Users className="w-4 h-4" />}
-                          {insight.icon === 'zap' && <Zap className="w-4 h-4" />}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">Steady</p>
+                    <p className="text-24px font-bold text-gray-900">{pulseSignals.Steady}</p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">Fading</p>
+                    <p className="text-24px font-bold text-gray-900">{pulseSignals.Fading}</p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">Flatline</p>
+                    <p className="text-24px font-bold text-gray-900">{pulseSignals.Flatline}</p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">Climbing</p>
+                    <p className="text-24px font-bold text-gray-900" style={{ color: '#16a34a' }}>{pulseSignals.Climbing}</p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">Freefall</p>
+                    <p className="text-24px font-bold text-gray-900" style={{ color: '#ef4444' }}>{pulseSignals.Freefall}</p>
+                  </div>
+                </div>
+
+                {/* Two-column: AI Insights and Risk Radar */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* AI Insights Feed */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1]">
+                    <div className="px-5 py-3.5 border-b border-[#f0ede9]">
+                      <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">AI Insights Feed</h3>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      {aiInsights.map((insight, idx) => (
+                        <div key={idx} className="border-l-4 pl-4 py-2" style={{ borderLeftColor: insight.type === 'critical' ? '#ef4444' : insight.type === 'warning' ? '#f59e0b' : insight.type === 'positive' ? '#16a34a' : '#2563eb' }}>
+                          <p className="text-13px text-gray-700">{insight.text}</p>
+                          <p className="text-11px text-gray-500 mt-1">2 hours ago</p>
                         </div>
-                        <p className="text-sm leading-relaxed">{insight.text}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* ===== REVENUE AT RISK + RISK SUMMARY ROW ===== */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="bg-white rounded-lg border border-red-200 p-5 md:col-span-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <DollarSign className="w-4 h-4 text-red-500" />
-                      <p className="text-xs uppercase tracking-wider text-gray-600">Revenue at Risk</p>
-                    </div>
-                    <p className="font-newsreader text-3xl font-bold text-red-600">${(revenueAtRisk.total / 1000).toFixed(1)}K</p>
-                    <div className="mt-3 space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-red-600 font-medium">At Risk ({revenueAtRisk.atRisk.count})</span>
-                        <span className="font-semibold">${(revenueAtRisk.atRisk.mrr / 1000).toFixed(1)}K</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-red-500 font-medium">Stalled ({revenueAtRisk.stalled.count})</span>
-                        <span className="font-semibold">${(revenueAtRisk.stalled.mrr / 1000).toFixed(1)}K</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-amber-600 font-medium">Monitor ({revenueAtRisk.monitor.count})</span>
-                        <span className="font-semibold">${(revenueAtRisk.monitor.mrr / 1000).toFixed(1)}K</span>
-                      </div>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-lg border border-tcs-border p-5">
-                    <p className="text-xs uppercase tracking-wider text-gray-600 mb-1">Deals</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(dealHealthCounts).map(([health, count]) => {
-                        const colors: Record<string, string> = { Healthy: 'text-green-600', Monitor: 'text-amber-600', 'At Risk': 'text-red-500', Stalled: 'text-red-700' };
-                        return (
-                          <button key={health} onClick={() => setDrillDown({ label: `${health} Deals`, advisorIds: deals.filter(d => d.health === health).map(d => d.advisorId).filter((v, i, a) => a.indexOf(v) === i) })} className="text-left hover:bg-tcs-bg rounded p-1 transition-colors">
-                            <span className={`text-xl font-bold ${colors[health] || 'text-tcs-teal'}`}>{count}</span>
-                            <span className="text-xs text-gray-500 ml-1">{health}</span>
-                          </button>
-                        );
-                      })}
+                  {/* Risk Radar */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1]">
+                    <div className="px-5 py-3.5 border-b border-[#f0ede9]">
+                      <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Risk Radar</h3>
                     </div>
-                  </div>
-
-                  <div className="bg-white rounded-lg border border-tcs-border p-5">
-                    <p className="text-xs uppercase tracking-wider text-gray-600 mb-1">Pulse</p>
-                    <div className="grid grid-cols-2 gap-1">
-                      {Object.entries(pulseDistribution).map(([pulse, count]) => {
-                        const colors: Record<string, string> = { Strong: 'text-green-600', Steady: 'text-blue-600', Rising: 'text-emerald-500', Fading: 'text-amber-600', Flatline: 'text-red-600' };
-                        return (
-                          <button key={pulse} onClick={() => setDrillDown({ label: `${pulse} Pulse`, advisorIds: getAdvisorsByPulse(pulse) })} className="text-left hover:bg-tcs-bg rounded p-1 transition-colors">
-                            <span className={`text-lg font-bold ${colors[pulse] || 'text-tcs-teal'}`}>{count}</span>
-                            <span className="text-xs text-gray-500 ml-1">{pulse}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-lg border border-tcs-border p-5">
-                    <p className="text-xs uppercase tracking-wider text-gray-600 mb-1">Trajectory</p>
-                    <div className="grid grid-cols-2 gap-1">
-                      {Object.entries(trajectoryDistribution).map(([trajectory, count]) => {
-                        const colors: Record<string, string> = { Accelerating: 'text-green-600', Climbing: 'text-emerald-500', Stable: 'text-blue-600', Slipping: 'text-amber-600', Freefall: 'text-red-600' };
-                        return (
-                          <button key={trajectory} onClick={() => setDrillDown({ label: `${trajectory} Trajectory`, advisorIds: getAdvisorsByTrajectory(trajectory) })} className="text-left hover:bg-tcs-bg rounded p-1 transition-colors">
-                            <span className={`text-lg font-bold ${colors[trajectory] || 'text-tcs-teal'}`}>{count}</span>
-                            <span className="text-xs text-gray-500 ml-1">{trajectory}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ===== DRILL-DOWN PANEL ===== */}
-                {drillDown && (
-                  <div className="bg-white rounded-lg border border-tcs-teal p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-bold text-gray-900 text-sm">{drillDown.label} ({drillDown.advisorIds.length} advisors)</h3>
-                      <button onClick={() => setDrillDown(null)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {drillDown.advisorIds.map(id => {
-                        const adv = advisors.find(a => a.id === id);
-                        if (!adv) return null;
-                        return (
-                          <button key={id} onClick={() => handleAdvisorClick(id)} className="flex items-center gap-2 px-3 py-2 bg-tcs-bg rounded-lg hover:bg-tcs-teal/10 transition-colors text-left">
-                            <div className="w-8 h-8 rounded-full bg-tcs-teal text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
-                              {adv.name.split(' ').map(n => n[0]).join('')}
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-tcs-teal">{adv.name}</p>
-                              <p className="text-xs text-gray-500">${(adv.mrr / 1000).toFixed(1)}K MRR</p>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* ===== COMPACT STATS ROW: Tone / Intent / Friction ===== */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-white rounded-lg border border-tcs-border p-4">
-                    <p className="text-xs uppercase tracking-wider text-gray-600 mb-2">Tone</p>
-                    <div className="flex gap-3">
-                      {Object.entries(sentimentCounts).map(([tone, count]) => {
-                        const colors: Record<string, string> = { Warm: 'text-green-600', Neutral: 'text-gray-600', Cool: 'text-blue-600' };
-                        return (
-                          <button key={tone} onClick={() => setDrillDown({ label: `${tone} Tone`, advisorIds: getAdvisorsByTone(tone) })} className="flex-1 text-center hover:bg-tcs-bg rounded p-1 transition-colors">
-                            <div className={`text-xl font-bold ${colors[tone]}`}>{count}</div>
-                            <div className="text-xs text-gray-500">{tone}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="bg-white rounded-lg border border-tcs-border p-4">
-                    <p className="text-xs uppercase tracking-wider text-gray-600 mb-2">Intent</p>
-                    <div className="flex gap-3">
-                      {Object.entries(intentCounts).map(([intent, count]) => {
-                        const colors: Record<string, string> = { Strong: 'text-green-600', Moderate: 'text-amber-600', Low: 'text-red-500' };
-                        return (
-                          <button key={intent} onClick={() => setDrillDown({ label: `${intent} Intent`, advisorIds: getAdvisorsByIntent(intent) })} className="flex-1 text-center hover:bg-tcs-bg rounded p-1 transition-colors">
-                            <div className={`text-xl font-bold ${colors[intent]}`}>{count}</div>
-                            <div className="text-xs text-gray-500">{intent}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="bg-white rounded-lg border border-tcs-border p-4">
-                    <p className="text-xs uppercase tracking-wider text-gray-600 mb-2">Friction</p>
-                    <div className="flex gap-3">
-                      {Object.entries(frictionCounts).map(([level, count]) => {
-                        const colors: Record<string, string> = { Low: 'text-green-600', Moderate: 'text-amber-600', High: 'text-orange-600', Critical: 'text-red-600' };
-                        return (
-                          <button key={level} onClick={() => setDrillDown({ label: `${level} Friction`, advisorIds: getAdvisorsByFriction(level) })} className="flex-1 text-center hover:bg-tcs-bg rounded p-1 transition-colors">
-                            <div className={`text-xl font-bold ${colors[level]}`}>{count}</div>
-                            <div className="text-xs text-gray-500">{level}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ===== RISK RADAR ===== */}
-                <div className="bg-white rounded-lg border border-tcs-border overflow-hidden">
-                  <div className="p-5 border-b border-tcs-border flex items-center gap-2">
-                    <ShieldAlert className="w-5 h-5 text-red-500" />
-                    <h2 className="font-bold text-lg text-gray-900">Risk Radar</h2>
-                    <span className="text-xs text-gray-500 ml-2">Priority-ranked by combined risk signals</span>
-                  </div>
-                  <div className="divide-y divide-tcs-border">
-                    {riskRadar.slice(0, 10).map((item, idx) => {
-                      const riskLevel = item.score >= 50 ? 'CRITICAL' : item.score >= 30 ? 'HIGH' : item.score >= 15 ? 'MODERATE' : 'LOW';
-                      const riskColor = item.score >= 50 ? 'bg-red-100 text-red-700 border-red-200' : item.score >= 30 ? 'bg-orange-100 text-orange-700 border-orange-200' : item.score >= 15 ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-green-100 text-green-700 border-green-200';
-                      const barWidth = Math.min(100, (item.score / 80) * 100);
-                      const barColor = item.score >= 50 ? 'bg-red-500' : item.score >= 30 ? 'bg-orange-500' : item.score >= 15 ? 'bg-amber-500' : 'bg-green-500';
-
-                      return (
-                        <div key={item.advisor.id} className="flex items-center gap-4 px-5 py-3 hover:bg-tcs-bg transition-colors">
-                          <div className="text-xs text-gray-400 font-mono w-5 text-right">{idx + 1}</div>
-                          <button onClick={() => handleAdvisorClick(item.advisor.id)} className="flex items-center gap-3 min-w-[180px] text-left">
-                            <div className="w-8 h-8 rounded-full bg-tcs-teal text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
-                              {item.advisor.name.split(' ').map(n => n[0]).join('')}
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-tcs-teal hover:underline">{item.advisor.name}</p>
-                              <p className="text-xs text-gray-500">{item.advisor.company}</p>
-                            </div>
-                          </button>
-                          <div className="flex-1">
-                            <div className="bg-gray-100 rounded-full h-2 overflow-hidden">
-                              <div className={`h-2 rounded-full ${barColor} transition-all`} style={{ width: `${barWidth}%` }} />
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3 min-w-[200px] justify-end">
-                            {item.atRiskMRR > 0 && (
-                              <span className="text-xs text-red-600 font-medium">${(item.atRiskMRR / 1000).toFixed(1)}K at risk</span>
-                            )}
-                            <span className={`text-xs font-bold px-2 py-0.5 rounded border ${riskColor}`}>{riskLevel}</span>
-                          </div>
-                          <div className="flex gap-1 min-w-[120px]">
-                            <PulseBadge pulse={item.advisor.pulse} size="sm" />
-                            <TrajectoryBadge trajectory={item.advisor.trajectory} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* ===== ENGAGEMENT HEATMAP ===== */}
-                <div className="bg-white rounded-lg border border-tcs-border p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Activity className="w-5 h-5 text-tcs-teal" />
-                    <h2 className="font-bold text-lg text-gray-900">Engagement Heatmap</h2>
-                    <span className="text-xs text-gray-500 ml-2">Days since last contact</span>
-                  </div>
-                  <div className="grid grid-cols-6 md:grid-cols-10 gap-2">
-                    {engagementHeatmap.map(item => {
-                      const heatColor = item.daysSinceContact <= 3 ? 'bg-green-500'
-                        : item.daysSinceContact <= 7 ? 'bg-green-300'
-                        : item.daysSinceContact <= 14 ? 'bg-amber-300'
-                        : item.daysSinceContact <= 21 ? 'bg-orange-400'
-                        : 'bg-red-500';
-                      return (
-                        <button
-                          key={item.advisor.id}
-                          onClick={() => handleAdvisorClick(item.advisor.id)}
-                          className="group relative flex flex-col items-center"
-                          title={`${item.advisor.name} - ${item.daysSinceContact}d ago`}
-                        >
-                          <div className={`w-full aspect-square rounded-lg ${heatColor} flex items-center justify-center text-white text-xs font-bold transition-transform group-hover:scale-110`}>
+                    <div className="p-6 space-y-3">
+                      {riskRadar.slice(0, 5).map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-3 pb-3 border-b border-[#f0ede9] last:border-0">
+                          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 text-xs font-bold text-gray-700">
                             {item.advisor.name.split(' ').map(n => n[0]).join('')}
                           </div>
-                          <p className="text-[10px] text-gray-500 mt-1 truncate w-full text-center">{item.advisor.name.split(' ')[1]}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="flex items-center gap-4 mt-4 pt-3 border-t border-tcs-border">
-                    <span className="text-xs text-gray-500">Legend:</span>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-green-500" /><span className="text-xs text-gray-600">0-3d</span></div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-green-300" /><span className="text-xs text-gray-600">4-7d</span></div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-amber-300" /><span className="text-xs text-gray-600">8-14d</span></div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-orange-400" /><span className="text-xs text-gray-600">15-21d</span></div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-red-500" /><span className="text-xs text-gray-600">22d+</span></div>
-                  </div>
-                </div>
-
-                {/* ===== FRICTION INSIGHTS ===== */}
-                <div className="bg-white rounded-lg border border-tcs-border p-5">
-                  <h2 className="font-bold text-lg text-gray-900 mb-4">Supplier Friction Insights</h2>
-                  <div className="space-y-2">
-                    {frictionInsights.map((insight, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-tcs-bg rounded-lg">
-                        <div className="flex-1">
-                          <span className="font-medium text-gray-900 text-sm">{insight.issue}</span>
-                          <span className="text-xs text-gray-500 ml-2">
-                            {insight.advisorNames.map((name, nameIdx) => {
-                              const adv = advisors.find(a => a.name === name);
-                              return (
-                                <span key={nameIdx}>
-                                  <span className="text-tcs-teal hover:underline cursor-pointer" onClick={() => adv && handleAdvisorClick(adv.id)}>{name}</span>
-                                  {nameIdx < insight.advisorNames.length - 1 && ', '}
-                                </span>
-                              );
-                            })}
-                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-13px font-medium text-gray-900 truncate">{item.advisor.name}</p>
+                            <p className="text-11px text-gray-600">${(item.atRiskMRR / 1000).toFixed(1)}K at risk</p>
+                          </div>
+                          <div className="px-3 py-1 rounded-full text-11px font-bold text-white" style={{ backgroundColor: item.score > 60 ? '#ef4444' : item.score > 40 ? '#f59e0b' : '#fb923c' }}>
+                            {item.score}
+                          </div>
                         </div>
-                        <FrictionBadge level={insight.severity} />
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                {/* ===== DIAGNOSTIC MATRIX ===== */}
-                <div className="bg-white rounded-lg border border-tcs-border overflow-hidden">
-                  <div className="p-5 border-b border-tcs-border">
-                    <h2 className="font-bold text-lg text-gray-900">Diagnostic Matrix</h2>
+                {/* Three-column: Revenue at Risk, Top Movers, Portfolio Signals */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Revenue at Risk */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-4">Revenue at Risk</p>
+                    <p className="text-28px font-bold mb-4" style={{ color: '#ef4444' }}>${(revenueAtRisk.total / 1000).toFixed(1)}K</p>
+                    <div className="space-y-2 text-13px">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">At Risk:</span>
+                        <span className="font-medium text-gray-900">${(revenueAtRisk.atRisk.mrr / 1000).toFixed(1)}K</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Stalled:</span>
+                        <span className="font-medium text-gray-900">${(revenueAtRisk.stalled.mrr / 1000).toFixed(1)}K</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Monitor:</span>
+                        <span className="font-medium text-gray-900">${(revenueAtRisk.monitor.mrr / 1000).toFixed(1)}K</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-tcs-bg border-b border-tcs-border">
-                        <tr>
-                          <th className="px-5 py-3 text-left font-semibold text-gray-700">Advisor</th>
-                          <th className="px-5 py-3 text-left font-semibold text-gray-700">Pulse</th>
-                          <th className="px-5 py-3 text-left font-semibold text-gray-700">Deal Health</th>
-                          <th className="px-5 py-3 text-left font-semibold text-gray-700">Friction</th>
-                          <th className="px-5 py-3 text-left font-semibold text-gray-700">Diagnosis</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-tcs-border">
-                        {diagnosticMatrix.slice(0, 10).map((row, idx) => {
-                          const advisor = advisors.find(a => a.name === row.advisor);
-                          return (
-                          <tr key={idx} className="hover:bg-tcs-bg">
-                            <td className="px-5 py-3 font-medium">
-                              <span className="text-tcs-teal hover:underline cursor-pointer" onClick={() => advisor && handleAdvisorClick(advisor.id)}>{row.advisor}</span>
-                            </td>
-                            <td className="px-5 py-3"><PulseBadge pulse={row.pulse} size="sm" /></td>
-                            <td className="px-5 py-3"><DealHealthBadge health={row.dealHealth} /></td>
-                            <td className="px-5 py-3"><FrictionBadge level={row.friction} /></td>
-                            <td className="px-5 py-3 text-xs text-gray-600 max-w-sm">{row.diagnosis.substring(0, 80)}...</td>
-                          </tr>
-                        );
-                        })}
-                      </tbody>
-                    </table>
+
+                  {/* Top Movers */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-4">Top Movers</p>
+                    <div className="space-y-3">
+                      {topMovers.up.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2 pb-2 border-b border-[#f0ede9]">
+                          <TrendingUp className="w-4 h-4" style={{ color: '#16a34a' }} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-13px font-medium text-gray-900">{item.advisor.name}</p>
+                          </div>
+                          <span className="text-11px text-gray-600 whitespace-nowrap">${(item.advisor.mrr / 1000).toFixed(1)}K</span>
+                        </div>
+                      ))}
+                      {topMovers.down.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2 pb-2 border-b border-[#f0ede9]">
+                          <TrendingDown className="w-4 h-4" style={{ color: '#ef4444' }} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-13px font-medium text-gray-900">{item.advisor.name}</p>
+                          </div>
+                          <span className="text-11px text-gray-600 whitespace-nowrap">${(item.advisor.mrr / 1000).toFixed(1)}K</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Portfolio Signals */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-4">Portfolio Signals</p>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-11px text-gray-600">Tone</span>
+                          <span className="text-11px font-medium text-gray-900">{sentimentCounts.Warm + sentimentCounts.Neutral}/{advisors.length}</span>
+                        </div>
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden flex">
+                          <div className="bg-blue-500" style={{ width: `${(sentimentCounts.Warm / advisors.length) * 100}%` }} />
+                          <div className="bg-gray-400" style={{ width: `${(sentimentCounts.Neutral / advisors.length) * 100}%` }} />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-11px text-gray-600">Intent</span>
+                          <span className="text-11px font-medium text-gray-900">{intentCounts.Strong}/{advisors.length}</span>
+                        </div>
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="bg-green-500" style={{ width: `${(intentCounts.Strong / advisors.length) * 100}%` }} />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-11px text-gray-600">Friction</span>
+                          <span className="text-11px font-medium text-gray-900">{frictionCounts.Low}/{advisors.length}</span>
+                        </div>
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="bg-green-500" style={{ width: `${(frictionCounts.Low / advisors.length) * 100}%` }} />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -827,84 +582,344 @@ export default function ManagerPage() {
 
             {/* ========== RELATIONSHIPS VIEW ========== */}
             {activeView === 'relationships' && (
-              selectedAdvisor && panelOpen ? (() => {
-                const advisor = selectedAdvisor;
-                const advisorDeals = deals.filter(d => advisor.deals.includes(d.id));
-                const tabs = ['overview', 'personal', 'deals', 'notes', 'activity'] as const;
-                return (
-                  <div className="space-y-0">
-                    <div className="mb-6">
-                      <button onClick={() => { setSelectedAdvisor(null); setPanelOpen(false); setInlineTab('overview'); }} className="flex items-center gap-2 text-tcs-teal hover:underline text-sm mb-4"><ArrowLeft className="w-4 h-4" /> Back to All Advisors</button>
-                      <div className="bg-white rounded-lg border border-tcs-border p-6">
-                        <div className="flex items-center gap-6">
-                          <div className="w-20 h-20 bg-tcs-teal rounded-full flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">{advisor.name.split(' ').map(n => n[0]).join('')}</div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-1"><h1 className="text-2xl font-bold text-gray-900">{advisor.name}</h1>{advisor.tier && <TierBadge tier={advisor.tier} />}</div>
-                            <p className="text-gray-600">{advisor.title} · {advisor.company}</p>
-                            <div className="flex items-center gap-4 mt-3"><PulseBadge pulse={advisor.pulse} size="sm" /><TrajectoryBadge trajectory={advisor.trajectory} /><SentimentBadge tone={advisor.tone} /><FrictionBadge level={advisor.friction} /><DealHealthBadge health={advisor.dealHealth} /></div>
+              <div className="flex gap-6 h-full max-w-7xl mx-auto">
+                {/* Left Panel: Advisor List */}
+                <div className="w-80 flex flex-col bg-white rounded-xl border border-[#e8e5e1]">
+                  {/* Filter Pills */}
+                  <div className="px-6 py-4 border-b border-[#f0ede9] flex gap-2 flex-wrap">
+                    {['All', 'At Risk', 'Top 10', 'New'].map(filter => (
+                      <button
+                        key={filter}
+                        className="px-3 py-1 rounded-full text-11px font-semibold border border-[#e8e5e1] hover:bg-[#F7F5F2]"
+                      >
+                        {filter}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Advisor List */}
+                  <div className="flex-1 overflow-y-auto">
+                    {advisors.map(advisor => (
+                      <div
+                        key={advisor.id}
+                        onClick={() => handleAdvisorClick(advisor.id)}
+                        className="px-6 py-4 border-b border-[#f0ede9] cursor-pointer hover:bg-[#F7F5F2] transition-colors"
+                        style={{
+                          backgroundColor: selectedAdvisor?.id === advisor.id ? '#f0f9f7' : undefined,
+                          borderLeftWidth: selectedAdvisor?.id === advisor.id ? '4px' : '0px',
+                          borderLeftColor: selectedAdvisor?.id === advisor.id ? '#157A6E' : undefined,
+                        }}
+                      >
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 rounded-full bg-[#157A6E] text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            {advisor.name.split(' ').map(n => n[0]).join('')}
                           </div>
-                          <div className="text-right"><p className="text-xs text-gray-500 uppercase">MRR</p><p className="text-3xl font-bold text-tcs-teal">${(advisor.mrr / 1000).toFixed(1)}K</p></div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-13px font-medium text-gray-900 truncate">{advisor.name}</p>
+                            <p className="text-11px text-gray-600 truncate">{advisor.company}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 items-center">
+                          <PulseBadge pulse={advisor.pulse} size="sm" />
+                          <span className="text-11px font-semibold text-gray-900 ml-auto">${(advisor.mrr / 1000).toFixed(1)}K</span>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right Panel: Advisor Detail */}
+                {selectedAdvisor ? (
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    {/* Detail Header */}
+                    <div className="bg-white rounded-t-xl border border-b-0 border-[#e8e5e1] p-6 flex items-start gap-6 border-b border-[#f0ede9] pb-4">
+                      <div className="w-16 h-16 rounded-full bg-[#157A6E] text-white flex items-center justify-center text-2xl font-bold flex-shrink-0">
+                        {selectedAdvisor.name.split(' ').map(n => n[0]).join('')}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-1">
+                          <h2 className="text-24px font-bold text-gray-900">{selectedAdvisor.name}</h2>
+                          {selectedAdvisor.tier && <TierBadge tier={selectedAdvisor.tier} />}
+                        </div>
+                        <p className="text-13px text-gray-600 mb-3">{selectedAdvisor.title} · {selectedAdvisor.company}</p>
+                        <div className="flex gap-2 flex-wrap">
+                          <PulseBadge pulse={selectedAdvisor.pulse} size="sm" />
+                          <TrajectoryBadge trajectory={selectedAdvisor.trajectory} />
+                          <SentimentBadge tone={selectedAdvisor.tone} />
+                          <FrictionBadge level={selectedAdvisor.friction} />
+                          <DealHealthBadge health={selectedAdvisor.dealHealth} />
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-11px text-gray-500 uppercase mb-1">MRR</p>
+                        <p className="text-28px font-bold" style={{ color: '#157A6E' }}>${(selectedAdvisor.mrr / 1000).toFixed(1)}K</p>
+                      </div>
                     </div>
-                    <div className="bg-white rounded-t-lg border border-b-0 border-tcs-border flex">
-                      {tabs.map(tab => (<button key={tab} onClick={() => setInlineTab(tab)} className={`flex-1 px-4 py-3 text-sm font-medium uppercase transition-colors ${inlineTab === tab ? 'text-tcs-teal border-b-2 border-tcs-teal bg-white' : 'text-gray-500 hover:text-gray-900 bg-gray-50'}`}>{tab}</button>))}
+
+                    {/* Tabs */}
+                    <div className="bg-white border-b border-[#f0ede9] flex">
+                      {(['overview', 'personal', 'deals', 'notes', 'activity'] as const).map(tab => (
+                        <button
+                          key={tab}
+                          onClick={() => setInlineTab(tab)}
+                          className="flex-1 px-6 py-3 text-13px font-semibold uppercase tracking-widest transition-colors border-b-2"
+                          style={{
+                            color: inlineTab === tab ? '#157A6E' : '#888',
+                            borderBottomColor: inlineTab === tab ? '#157A6E' : 'transparent',
+                          }}
+                        >
+                          {tab}
+                        </button>
+                      ))}
                     </div>
-                    <div className="bg-white rounded-b-lg border border-tcs-border p-6 min-h-[500px]">
+
+                    {/* Tab Content */}
+                    <div className="flex-1 overflow-y-auto bg-white rounded-b-xl border border-t-0 border-[#e8e5e1] p-6">
                       {inlineTab === 'overview' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                           <div className="space-y-6">
-                            <div><h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Relationship Context</h3><dl className="space-y-2 text-sm"><div className="flex justify-between"><dt className="text-gray-600">Connected Since</dt><dd className="font-medium">{advisor.connectedSince}</dd></div><div className="flex justify-between"><dt className="text-gray-600">Best Day to Reach</dt><dd className="font-medium">{advisor.bestDayToReach}</dd></div><div className="flex justify-between"><dt className="text-gray-600">Comm Preference</dt><dd className="font-medium">{advisor.commPreference}</dd></div><div className="flex justify-between"><dt className="text-gray-600">Referred By</dt><dd className="font-medium">{advisor.referredBy}</dd></div></dl></div>
-                            <div><h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Relationship Breakdown</h3><div className="space-y-2"><div className="flex justify-between items-center"><span className="text-sm text-gray-600">Engagement</span><EngLabel score={advisor.engagementBreakdown.engagement} /></div><div className="flex justify-between items-center"><span className="text-sm text-gray-600">Pipeline Strength</span><EngLabel score={advisor.engagementBreakdown.pipelineStrength} /></div><div className="flex justify-between items-center"><span className="text-sm text-gray-600">Responsiveness</span><EngLabel score={advisor.engagementBreakdown.responsiveness} /></div><div className="flex justify-between items-center"><span className="text-sm text-gray-600">Growth Potential</span><EngLabel score={advisor.engagementBreakdown.growthPotential} /></div></div></div>
-                            {advisor.personalIntel && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Personal Intel</h3><p className="text-sm text-gray-700">{advisor.personalIntel}</p></div>}
+                            <div>
+                              <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Relationship Context</h3>
+                              <dl className="space-y-2 text-13px">
+                                <div className="flex justify-between">
+                                  <dt className="text-gray-600">Connected Since</dt>
+                                  <dd className="font-medium">{selectedAdvisor.connectedSince}</dd>
+                                </div>
+                                <div className="flex justify-between">
+                                  <dt className="text-gray-600">Best Day to Reach</dt>
+                                  <dd className="font-medium">{selectedAdvisor.bestDayToReach}</dd>
+                                </div>
+                                <div className="flex justify-between">
+                                  <dt className="text-gray-600">Comm Preference</dt>
+                                  <dd className="font-medium">{selectedAdvisor.commPreference}</dd>
+                                </div>
+                                <div className="flex justify-between">
+                                  <dt className="text-gray-600">Referred By</dt>
+                                  <dd className="font-medium">{selectedAdvisor.referredBy}</dd>
+                                </div>
+                              </dl>
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Engagement Breakdown</h3>
+                              <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-13px text-gray-600">Engagement</span>
+                                  <EngLabel score={selectedAdvisor.engagementBreakdown.engagement} />
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-13px text-gray-600">Pipeline Strength</span>
+                                  <EngLabel score={selectedAdvisor.engagementBreakdown.pipelineStrength} />
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-13px text-gray-600">Responsiveness</span>
+                                  <EngLabel score={selectedAdvisor.engagementBreakdown.responsiveness} />
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-13px text-gray-600">Growth Potential</span>
+                                  <EngLabel score={selectedAdvisor.engagementBreakdown.growthPotential} />
+                                </div>
+                              </div>
+                            </div>
+                            {selectedAdvisor.personalIntel && (
+                              <div>
+                                <h3 className="font-bold text-gray-900 mb-2 text-12px uppercase tracking-widest text-[#888]">Personal Intel</h3>
+                                <p className="text-13px text-gray-700">{selectedAdvisor.personalIntel}</p>
+                              </div>
+                            )}
                           </div>
                           <div className="space-y-6">
-                            <div className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded"><p className="text-sm italic text-gray-700">"{advisor.diagnosis}"</p></div>
-                            <div><h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Active Deals ({advisorDeals.length})</h3><div className="space-y-2">{advisorDeals.slice(0, 3).map(deal => (<div key={deal.id} className="flex items-center justify-between p-3 bg-tcs-bg rounded-lg"><div><p className="text-sm font-medium text-gray-900">{deal.name}</p><p className="text-xs text-gray-500">{deal.stage} · {deal.daysInStage}d</p></div><div className="text-right"><p className="text-sm font-bold text-tcs-teal">${(deal.mrr / 1000).toFixed(1)}K</p><DealHealthBadge health={deal.health} /></div></div>))}</div></div>
-                            <div><h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Recent Activity</h3><div className="space-y-2">{advisor.activity.slice(0, 4).map((item, idx) => (<div key={idx} className="flex items-start gap-3 p-2"><SentimentBadge tone={item.sentiment} /><div><p className="text-sm text-gray-700">{item.text}</p><p className="text-xs text-gray-400">{item.time}</p></div></div>))}</div></div>
+                            <div className="p-4 rounded-lg border-l-4" style={{ backgroundColor: '#f0f9f7', borderLeftColor: '#157A6E' }}>
+                              <p className="text-13px italic text-gray-700">"{selectedAdvisor.diagnosis}"</p>
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Active Deals ({selectedAdvisor.deals.length})</h3>
+                              <div className="space-y-2">
+                                {deals.filter(d => selectedAdvisor.deals.includes(d.id)).slice(0, 3).map(deal => (
+                                  <div key={deal.id} className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: '#F7F5F2' }}>
+                                    <div>
+                                      <p className="text-13px font-medium text-gray-900">{deal.name}</p>
+                                      <p className="text-11px text-gray-500">{deal.stage} · {deal.daysInStage}d</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-13px font-bold" style={{ color: '#157A6E' }}>${(deal.mrr / 1000).toFixed(1)}K</p>
+                                      <DealHealthBadge health={deal.health} />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Recent Activity</h3>
+                              <div className="space-y-2">
+                                {selectedAdvisor.activity.slice(0, 4).map((item, idx) => (
+                                  <div key={idx} className="flex items-start gap-3 p-2">
+                                    <SentimentBadge tone={item.sentiment} />
+                                    <div>
+                                      <p className="text-13px text-gray-700">{item.text}</p>
+                                      <p className="text-11px text-gray-400">{item.time}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}
+
                       {inlineTab === 'personal' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                           <div className="space-y-6">
-                            <div><h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Profile</h3><dl className="space-y-3 text-sm">{advisor.location && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Location</dt><dd className="font-medium">{advisor.location}</dd></div>}{advisor.birthday && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><Cake className="w-3.5 h-3.5" /> Birthday</dt><dd className="font-medium">{advisor.birthday}</dd></div>}{advisor.education && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> Education</dt><dd className="font-medium">{advisor.education}</dd></div>}</dl></div>
-                            {advisor.family && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Family</h3><p className="text-sm text-gray-700">{advisor.family}</p></div>}
-                            {advisor.hobbies && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Hobbies & Interests</h3><p className="text-sm text-gray-700">{advisor.hobbies}</p></div>}
-                            {advisor.funFact && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Fun Fact</h3><p className="text-sm text-gray-700">{advisor.funFact}</p></div>}
+                            <div>
+                              <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Profile</h3>
+                              <dl className="space-y-3 text-13px">
+                                {selectedAdvisor.location && (
+                                  <div className="flex justify-between">
+                                    <dt className="text-gray-600 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Location</dt>
+                                    <dd className="font-medium">{selectedAdvisor.location}</dd>
+                                  </div>
+                                )}
+                                {selectedAdvisor.birthday && (
+                                  <div className="flex justify-between">
+                                    <dt className="text-gray-600 flex items-center gap-1.5"><Cake className="w-3.5 h-3.5" /> Birthday</dt>
+                                    <dd className="font-medium">{selectedAdvisor.birthday}</dd>
+                                  </div>
+                                )}
+                                {selectedAdvisor.education && (
+                                  <div className="flex justify-between">
+                                    <dt className="text-gray-600 flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> Education</dt>
+                                    <dd className="font-medium">{selectedAdvisor.education}</dd>
+                                  </div>
+                                )}
+                              </dl>
+                            </div>
+                            {selectedAdvisor.family && (
+                              <div>
+                                <h3 className="font-bold text-gray-900 mb-2 text-12px uppercase tracking-widest text-[#888]">Family</h3>
+                                <p className="text-13px text-gray-700">{selectedAdvisor.family}</p>
+                              </div>
+                            )}
+                            {selectedAdvisor.hobbies && (
+                              <div>
+                                <h3 className="font-bold text-gray-900 mb-2 text-12px uppercase tracking-widest text-[#888]">Hobbies & Interests</h3>
+                                <p className="text-13px text-gray-700">{selectedAdvisor.hobbies}</p>
+                              </div>
+                            )}
+                            {selectedAdvisor.funFact && (
+                              <div>
+                                <h3 className="font-bold text-gray-900 mb-2 text-12px uppercase tracking-widest text-[#888]">Fun Fact</h3>
+                                <p className="text-13px text-gray-700">{selectedAdvisor.funFact}</p>
+                              </div>
+                            )}
                           </div>
                           <div className="space-y-6">
-                            <div><h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Channel Relationships</h3><dl className="space-y-3 text-sm">{advisor.tsds?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">TSDs</dt><dd className="font-medium">{advisor.tsds.join(', ')}</dd></div>}{advisor.previousCompanies?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">Previous Companies</dt><dd className="font-medium">{advisor.previousCompanies.join(', ')}</dd></div>}{advisor.mutualConnections?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">Mutual Connections</dt><dd className="font-medium">{advisor.mutualConnections.join(', ')}</dd></div>}</dl></div>
+                            <div>
+                              <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Channel Relationships</h3>
+                              <dl className="space-y-3 text-13px">
+                                {selectedAdvisor.tsds?.length > 0 && (
+                                  <div className="flex justify-between">
+                                    <dt className="text-gray-600">TSDs</dt>
+                                    <dd className="font-medium">{selectedAdvisor.tsds.join(', ')}</dd>
+                                  </div>
+                                )}
+                                {selectedAdvisor.previousCompanies?.length > 0 && (
+                                  <div className="flex justify-between">
+                                    <dt className="text-gray-600">Previous Companies</dt>
+                                    <dd className="font-medium">{selectedAdvisor.previousCompanies.join(', ')}</dd>
+                                  </div>
+                                )}
+                                {selectedAdvisor.mutualConnections?.length > 0 && (
+                                  <div className="flex justify-between">
+                                    <dt className="text-gray-600">Mutual Connections</dt>
+                                    <dd className="font-medium">{selectedAdvisor.mutualConnections.join(', ')}</dd>
+                                  </div>
+                                )}
+                              </dl>
+                            </div>
                           </div>
                         </div>
                       )}
+
                       {inlineTab === 'deals' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{advisorDeals.length === 0 ? <p className="text-sm text-gray-600 col-span-full">No deals found</p> : advisorDeals.map(deal => (<div key={deal.id} className="border border-tcs-border rounded-lg p-4"><div className="flex items-start justify-between mb-3"><h4 className="font-semibold text-gray-900">{deal.name}</h4><DealHealthBadge health={deal.health} /></div><dl className="space-y-1 text-xs text-gray-600 mb-3"><div className="flex justify-between"><dt>MRR:</dt><dd className="font-medium text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</dd></div><div className="flex justify-between"><dt>Stage:</dt><dd className="font-medium text-gray-900">{deal.stage}</dd></div><div className="flex justify-between"><dt>Days in Stage:</dt><dd className="font-medium text-gray-900">{deal.daysInStage}</dd></div></dl><div className="bg-gray-100 rounded h-2 mb-1"><div className="bg-tcs-teal h-2 rounded" style={{ width: `${deal.probability}%` }} /></div><p className="text-xs text-gray-500">Probability: {deal.probability}%</p></div>))}</div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {deals.filter(d => selectedAdvisor.deals.includes(d.id)).length === 0 ? (
+                            <p className="text-13px text-gray-600 col-span-full">No deals found</p>
+                          ) : (
+                            deals.filter(d => selectedAdvisor.deals.includes(d.id)).map(deal => (
+                              <div key={deal.id} className="bg-white border border-[#e8e5e1] rounded-xl p-4">
+                                <div className="flex items-start justify-between mb-3">
+                                  <h4 className="text-13px font-semibold text-gray-900">{deal.name}</h4>
+                                  <DealHealthBadge health={deal.health} />
+                                </div>
+                                <dl className="space-y-1 text-11px text-gray-600 mb-3">
+                                  <div className="flex justify-between">
+                                    <dt>MRR:</dt>
+                                    <dd className="font-medium text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</dd>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <dt>Stage:</dt>
+                                    <dd className="font-medium text-gray-900">{deal.stage}</dd>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <dt>Days in Stage:</dt>
+                                    <dd className="font-medium text-gray-900">{deal.daysInStage}</dd>
+                                  </div>
+                                </dl>
+                                <div className="bg-gray-200 rounded h-2 mb-1 overflow-hidden">
+                                  <div className="bg-[#157A6E] h-2 rounded" style={{ width: `${deal.probability}%` }} />
+                                </div>
+                                <p className="text-11px text-gray-500">Probability: {deal.probability}%</p>
+                              </div>
+                            ))
+                          )}
+                        </div>
                       )}
+
                       {inlineTab === 'notes' && (
-                        <div className="max-w-2xl space-y-4">{advisor.notes.map((note, idx) => (<div key={idx} className="p-3 bg-tcs-bg rounded-lg text-sm text-gray-700">• {note}</div>))}<div className="flex gap-2 pt-4 border-t border-tcs-border"><button className="py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Log Call</button><button className="py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" /> Schedule</button></div></div>
+                        <div className="max-w-2xl space-y-4">
+                          {selectedAdvisor.notes.map((note, idx) => (
+                            <div key={idx} className="p-3 rounded-lg text-13px text-gray-700" style={{ backgroundColor: '#F7F5F2' }}>
+                              • {note}
+                            </div>
+                          ))}
+                          <div className="flex gap-2 pt-4 border-t border-[#e8e5e1]">
+                            <button className="py-2 px-4 border border-[#e8e5e1] rounded-lg text-13px hover:bg-[#F7F5F2] flex items-center gap-1.5">
+                              <Phone className="w-3.5 h-3.5" /> Log Call
+                            </button>
+                            <button className="py-2 px-4 border border-[#e8e5e1] rounded-lg text-13px hover:bg-[#F7F5F2] flex items-center gap-1.5">
+                              <CalendarDays className="w-3.5 h-3.5" /> Schedule
+                            </button>
+                          </div>
+                        </div>
                       )}
+
                       {inlineTab === 'activity' && (
-                        <div className="max-w-2xl space-y-3">{advisor.activity.map((item, idx) => (<div key={idx} className="border-l-2 border-gray-300 pl-4 py-2"><div className="flex items-center gap-2 mb-1"><SentimentBadge tone={item.sentiment} /><span className="text-xs text-gray-500">{item.time}</span></div><p className="text-sm text-gray-700">{item.text}</p></div>))}</div>
+                        <div className="max-w-2xl space-y-3">
+                          {selectedAdvisor.activity.map((item, idx) => (
+                            <div key={idx} className="border-l-2 border-gray-300 pl-4 py-2">
+                              <div className="flex items-center gap-2 mb-1">
+                                <SentimentBadge tone={item.sentiment} />
+                                <span className="text-11px text-gray-500">{item.time}</span>
+                              </div>
+                              <p className="text-13px text-gray-700">{item.text}</p>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </div>
-                );
-              })() : (
-                <div className="space-y-6">
-                  <h1 className="text-3xl font-bold text-gray-900">Relationships</h1>
-                  <AdvisorTable advisors={advisors} onAdvisorClick={(id) => { handleAdvisorClick(id); setInlineTab('overview'); }} />
-                </div>
-              )
+                ) : (
+                  <div className="flex-1 bg-white rounded-xl border border-[#e8e5e1] flex items-center justify-center">
+                    <p className="text-13px text-gray-600">Select an advisor to view details</p>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* ========== PIPELINE VIEW ========== */}
             {activeView === 'pipeline' && (
-              <div className="space-y-8">
-                <h1 className="text-3xl font-bold text-gray-900">Pipeline</h1>
-
-                {/* Pipeline Summary KPIs */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="space-y-6 max-w-7xl mx-auto">
+                {/* KPI Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <KPICard
                     label="Total Pipeline"
                     value={`$${(deals.reduce((sum, d) => sum + d.mrr, 0) / 1000).toFixed(1)}K`}
@@ -931,92 +946,66 @@ export default function ManagerPage() {
 
                 {/* Stage/Timeline Mismatch Alerts */}
                 {stageTimelineMismatches.length > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-                    <h3 className="font-bold text-lg text-red-900 mb-4">Stage/Timeline Mismatches</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {stageTimelineMismatches.map(deal => {
-                        const advisor = advisors.find(a => a.id === deal.advisorId);
-                        return (
-                        <div key={deal.id} className="bg-white border border-red-200 rounded-lg p-4">
-                          <p className="font-semibold text-gray-900">{deal.name}</p>
-                          <p className="text-xs text-gray-600 mb-2">
-                            <span
-                              className="text-tcs-teal hover:underline cursor-pointer"
-                              onClick={() => advisor && handleAdvisorClick(advisor.id)}
-                            >
-                              {advisor?.name}
-                            </span>
-                          </p>
-                          <div className="space-y-1 text-xs">
-                            <p className="flex items-center gap-1"><span className="font-medium">Stage:</span> {deal.stage} <AlertTriangle className="w-3 h-3 text-amber-500 inline" /> aggressive close date</p>
-                            <p><span className="font-medium">Close Date:</span> {deal.closeDate}</p>
-                            <p><span className="font-medium">Probability:</span> {deal.probability}%</p>
-                          </div>
-                        </div>
-                        );
-                      })}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1]">
+                    <div className="px-5 py-3.5 border-b border-[#f0ede9] border-l-4" style={{ borderLeftColor: '#ef4444' }}>
+                      <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Stage/Timeline Mismatches</h3>
+                    </div>
+                    <div className="p-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {stageTimelineMismatches.map(deal => {
+                          const advisor = advisors.find(a => a.id === deal.advisorId);
+                          return (
+                            <div key={deal.id} className="bg-white border border-[#e8e5e1] rounded-xl p-4 border-l-4" style={{ borderLeftColor: '#ef4444' }}>
+                              <p className="text-13px font-semibold text-gray-900">{deal.name}</p>
+                              <p className="text-11px text-gray-600 mb-2">
+                                <span
+                                  className="cursor-pointer hover:underline"
+                                  onClick={() => advisor && handleAdvisorClick(advisor.id)}
+                                  style={{ color: '#157A6E' }}
+                                >
+                                  {advisor?.name}
+                                </span>
+                              </p>
+                              <div className="space-y-1 text-11px">
+                                <p className="flex items-center gap-1"><span className="font-medium">Stage:</span> {deal.stage} <AlertTriangle className="w-3 h-3" style={{ color: '#f59e0b' }} /> aggressive close date</p>
+                                <p><span className="font-medium">Close Date:</span> {deal.closeDate}</p>
+                                <p><span className="font-medium">Probability:</span> {deal.probability}%</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 )}
-
-                {/* Filter Bar */}
-                <div className="bg-white rounded-lg border border-tcs-border p-4 flex gap-4">
-                  <select
-                    value={dealFilter.health}
-                    onChange={(e) => setDealFilter({ ...dealFilter, health: e.target.value })}
-                    className="px-4 py-2 border border-tcs-border rounded-lg focus:outline-none focus:border-tcs-teal bg-white"
-                  >
-                    <option value="all">All Health</option>
-                    <option value="Healthy">Healthy</option>
-                    <option value="Monitor">Monitor</option>
-                    <option value="At Risk">At Risk</option>
-                    <option value="Stalled">Stalled</option>
-                  </select>
-
-                  <select
-                    value={dealFilter.health}
-                    onChange={(e) => setDealFilter({ ...dealFilter, health: e.target.value })}
-                    className="px-4 py-2 border border-tcs-border rounded-lg focus:outline-none focus:border-tcs-teal bg-white"
-                  >
-                    <option value="all">All Health</option>
-                    <option value="Healthy">Healthy</option>
-                    <option value="Monitor">Monitor</option>
-                    <option value="At Risk">At Risk</option>
-                    <option value="Stalled">Stalled</option>
-                  </select>
-                </div>
 
                 {/* Kanban Board */}
                 <div className="overflow-x-auto pb-4">
                   <div className="flex gap-4" style={{ minWidth: '1920px' }}>
                     {(['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Stalled'] as const).map(stage => {
-                      const stageBorderColors = {
-                        'Discovery': 'border-t-blue-500',
-                        'Qualifying': 'border-t-indigo-500',
-                        'Proposal': 'border-t-amber-500',
-                        'Negotiating': 'border-t-orange-500',
-                        'Closed Won': 'border-t-green-500',
-                        'Stalled': 'border-t-red-500',
+                      const stageBorderColors: Record<string, string> = {
+                        'Discovery': '#2563eb',
+                        'Qualifying': '#4f46e5',
+                        'Proposal': '#f59e0b',
+                        'Negotiating': '#fb923c',
+                        'Closed Won': '#16a34a',
+                        'Stalled': '#ef4444',
                       };
 
-                      const stageDeals = deals.filter(d =>
-                        d.stage === stage &&
-                        (dealFilter.health === 'all' || d.health === dealFilter.health)
-                      );
-
+                      const stageDeals = deals.filter(d => d.stage === stage);
                       const stageMRR = stageDeals.reduce((sum, d) => sum + d.mrr, 0);
 
                       return (
                         <div key={stage} className="flex-1 min-w-[280px]">
                           {/* Column Header */}
-                          <div className={`bg-white border-4 border-t-4 border-tcs-border rounded-lg p-4 mb-3 ${stageBorderColors[stage]}`}>
+                          <div className="bg-white border border-[#e8e5e1] rounded-xl p-4 mb-3 border-t-4" style={{ borderTopColor: stageBorderColors[stage] }}>
                             <div className="flex items-center justify-between mb-2">
-                              <h3 className="font-bold text-gray-900">{stage}</h3>
-                              <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                              <h3 className="text-13px font-bold text-gray-900">{stage}</h3>
+                              <span className="inline-block px-2.5 py-0.5 rounded-full text-11px font-semibold bg-gray-100 text-gray-700">
                                 {stageDeals.length}
                               </span>
                             </div>
-                            <p className="text-sm font-semibold text-tcs-teal">
+                            <p className="text-13px font-semibold" style={{ color: '#157A6E' }}>
                               ${(stageMRR / 1000).toFixed(1)}K MRR
                             </p>
                           </div>
@@ -1025,7 +1014,7 @@ export default function ManagerPage() {
                           <div className="flex flex-col gap-3">
                             {stageDeals.length === 0 ? (
                               <div className="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-center">
-                                <p className="text-xs text-gray-500">No deals in this stage</p>
+                                <p className="text-11px text-gray-500">No deals in this stage</p>
                               </div>
                             ) : (
                               stageDeals.map(deal => {
@@ -1033,60 +1022,54 @@ export default function ManagerPage() {
                                 return (
                                   <div
                                     key={deal.id}
-                                    className="bg-white border border-tcs-border rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow"
+                                    className="bg-white border border-[#e8e5e1] rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow"
                                   >
-                                    {/* Deal Name */}
-                                    <h4 className="font-bold text-gray-900 text-sm mb-2">{deal.name}</h4>
-
-                                    {/* Advisor Name (Clickable) */}
-                                    <p className="text-xs text-gray-600 mb-2">
+                                    <h4 className="text-13px font-bold text-gray-900 mb-2">{deal.name}</h4>
+                                    <p className="text-11px text-gray-600 mb-2">
                                       <span
-                                        className="text-tcs-teal hover:underline cursor-pointer font-medium"
+                                        className="font-medium cursor-pointer hover:underline"
                                         onClick={() => advisor && handleAdvisorClick(advisor.id)}
+                                        style={{ color: '#157A6E' }}
                                       >
                                         {advisor?.name || 'Unknown'}
                                       </span>
                                     </p>
 
-                                    {/* MRR Value */}
                                     <div className="mb-2">
-                                      <p className="text-xs text-gray-600">MRR</p>
-                                      <p className="font-bold text-sm text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</p>
+                                      <p className="text-11px text-gray-600">MRR</p>
+                                      <p className="text-13px font-bold text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</p>
                                     </div>
 
-                                    {/* Health Badge */}
                                     <div className="mb-2">
                                       <DealHealthBadge health={deal.health} />
                                     </div>
 
-                                    {/* Days in Stage */}
-                                    <div className={`px-2 py-1 rounded text-xs font-medium mb-2 inline-block ${getDaysInStageColor(deal.daysInStage)}`}>
+                                    <div className={`px-2 py-1 rounded text-11px font-medium mb-2 inline-block ${getDaysInStageColor(deal.daysInStage)}`}>
                                       {deal.daysInStage}d in stage
                                     </div>
 
-                                    {/* Probability Bar */}
                                     <div className="mb-2">
                                       <div className="flex items-center justify-between mb-1">
-                                        <p className="text-xs text-gray-600">Probability</p>
-                                        <p className="text-xs font-semibold text-gray-700">{deal.probability}%</p>
+                                        <p className="text-11px text-gray-600">Probability</p>
+                                        <p className="text-11px font-semibold text-gray-700">{deal.probability}%</p>
                                       </div>
                                       <div className="bg-gray-200 rounded-full h-1.5 overflow-hidden">
                                         <div
-                                          className="bg-tcs-teal h-1.5 rounded-full transition-all"
-                                          style={{ width: `${deal.probability}%` }}
+                                          className="h-1.5 rounded-full transition-all"
+                                          style={{ width: `${deal.probability}%`, backgroundColor: '#157A6E' }}
                                         />
                                       </div>
                                     </div>
 
-                                    {/* Confidence Score */}
                                     {deal.confidenceScore && (
                                       <div className="flex items-center gap-1">
-                                        <p className="text-xs text-gray-600">Confidence:</p>
-                                        <div className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                                          deal.confidenceScore === 'High' ? 'bg-green-100 text-green-700' :
-                                          deal.confidenceScore === 'Medium' ? 'bg-amber-100 text-amber-700' :
-                                          'bg-red-100 text-red-700'
-                                        }`}>
+                                        <p className="text-11px text-gray-600">Confidence:</p>
+                                        <div
+                                          className="px-2 py-0.5 rounded text-11px font-semibold text-white"
+                                          style={{
+                                            backgroundColor: deal.confidenceScore === 'High' ? '#16a34a' : deal.confidenceScore === 'Medium' ? '#f59e0b' : '#ef4444',
+                                          }}
+                                        >
                                           {deal.confidenceScore}
                                         </div>
                                       </div>
@@ -1106,187 +1089,174 @@ export default function ManagerPage() {
 
             {/* ========== STRATEGIC VIEW ========== */}
             {activeView === 'strategic' && (
-              <div className="space-y-8">
-                <h1 className="text-3xl font-bold text-gray-900">Strategic View</h1>
-
-                {/* Revenue Metrics */}
-                <div className="bg-white rounded-lg border border-tcs-border p-6">
-                  <h2 className="font-bold text-lg text-gray-900 mb-6">Revenue Metrics</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Total MRR</p>
-                      <p className="font-bold text-2xl text-gray-900">${(totalMRR / 1000).toFixed(1)}K</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Avg per Advisor</p>
-                      <p className="font-bold text-2xl text-gray-900">${((totalMRR / advisors.length) / 1000).toFixed(1)}K</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Top Advisor</p>
-                      <p className="font-bold text-2xl text-gray-900">${(Math.max(...advisors.map(a => a.mrr)) / 1000).toFixed(1)}K</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Revenue at Risk</p>
-                      <p className="font-bold text-2xl text-red-600">${(deals.filter(d => d.health === 'At Risk' || d.health === 'Stalled').reduce((sum, d) => sum + d.mrr, 0) / 1000).toFixed(1)}K</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Pipeline Value</p>
-                      <p className="font-bold text-2xl text-gray-900">${(weightedPipeline / 1000).toFixed(1)}K</p>
-                    </div>
+              <div className="space-y-6 max-w-7xl mx-auto">
+                {/* 5-Column Scorecard */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">Total Advisors</p>
+                    <p className="text-28px font-bold text-gray-900">{advisors.length}</p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">Portfolio MRR</p>
+                    <p className="text-28px font-bold text-gray-900">${(totalMRR / 1000).toFixed(0)}K</p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">Retention Rate</p>
+                    <p className="text-28px font-bold text-gray-900">94%</p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">Avg MRR/Advisor</p>
+                    <p className="text-28px font-bold text-gray-900">${((totalMRR / advisors.length) / 1000).toFixed(1)}K</p>
+                  </div>
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">% Climbing/Strong</p>
+                    <p className="text-28px font-bold text-gray-900">{Math.round(((pulseSignals.Climbing + pulseSignals.Strong) / advisors.length) * 100)}%</p>
                   </div>
                 </div>
 
-                {/* Engagement Health */}
-                <div className="bg-white rounded-lg border border-tcs-border p-6">
-                  <h2 className="font-bold text-lg text-gray-900 mb-6">Engagement Health</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Avg Days Between Contact</p>
-                      <p className="font-bold text-2xl text-gray-900">7.2</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Contacted This Week</p>
-                      <p className="font-bold text-2xl text-gray-900">{Math.round(advisors.length * 0.6)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Strong Engagement</p>
-                      <p className="font-bold text-2xl text-green-600">{pulseDistribution.Strong}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Fading/Flatline</p>
-                      <p className="font-bold text-2xl text-red-600">{pulseDistribution.Fading + pulseDistribution.Flatline}</p>
-                    </div>
-                  </div>
-                </div>
+                {/* Two-column: Advisor Quadrant and Tier Breakdown */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Advisor Quadrant */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-4">Advisor Quadrant</p>
+                    <div className="relative h-64 bg-gray-50 rounded-lg border border-gray-200 p-4">
+                      {/* Axis Labels */}
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-2 text-10px font-semibold text-gray-600">Low Engagement</div>
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full pl-2 text-10px font-semibold text-gray-600">High Engagement</div>
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full pt-2 text-10px font-semibold text-gray-600">Low MRR</div>
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full pb-2 text-10px font-semibold text-gray-600">High MRR</div>
 
-                {/* Pipeline Performance */}
-                <div className="bg-white rounded-lg border border-tcs-border p-6">
-                  <h2 className="font-bold text-lg text-gray-900 mb-6">Pipeline Performance</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Healthy %</p>
-                      <p className="font-bold text-2xl text-gray-900">{healthyPercent}%</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Avg Deal Cycle</p>
-                      <p className="font-bold text-2xl text-gray-900">45 days</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Win Rate</p>
-                      <p className="font-bold text-2xl text-gray-900">72%</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Stalled Deals</p>
-                      <p className="font-bold text-2xl text-orange-600">{stalledDealsCount}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Closing This Month</p>
-                      <p className="font-bold text-2xl text-green-600">{closingThisMonth.length}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Supplier Friction Summary */}
-                <div className="bg-white rounded-lg border border-tcs-border p-6">
-                  <h2 className="font-bold text-lg text-gray-900 mb-6">Supplier Friction Summary</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Avg Level</p>
-                      <p className="font-bold text-2xl text-gray-900">Moderate</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">High Friction</p>
-                      <p className="font-bold text-2xl text-red-600">{frictionCounts.High + frictionCounts.Critical}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Top Source</p>
-                      <p className="font-bold text-xl text-gray-900">Quoting</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1 uppercase">Friction-Caused Stalls</p>
-                      <p className="font-bold text-2xl text-orange-600">3</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Strategic KPIs Highlight Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  {[
-                    { label: 'Retention Rate', value: strategicKPIs.retention, color: 'green' },
-                    { label: 'Revenue Growth', value: strategicKPIs.revenueGrowth, color: 'green' },
-                    { label: 'Engagement Health', value: strategicKPIs.engagement, color: 'blue' },
-                    { label: 'Pipeline Velocity', value: strategicKPIs.pipelineVelocity, color: 'green' },
-                  ].map((kpi, idx) => (
-                    <div key={idx} className={`bg-${kpi.color}-50 border border-${kpi.color}-200 rounded-lg p-6`}>
-                      <p className={`text-xs text-${kpi.color}-700 mb-1 uppercase`}>{kpi.label}</p>
-                      <p className={`font-bold text-3xl text-${kpi.color}-900`}>{kpi.value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Quota Tracking */}
-                <div className="bg-white rounded-lg border border-tcs-border p-6">
-                  <h2 className="font-bold text-lg text-gray-900 mb-4">Quota Tracking</h2>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-900">Closed-Won vs Target</span>
-                        <span className="text-sm font-bold text-gray-900">${(totalMRR / 1000).toFixed(1)}K / ${(quotaTarget / 1000).toFixed(0)}K</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                        <div
-                          className="bg-tcs-teal h-3 rounded-full transition-all"
-                          style={{ width: `${Math.min(quotaProgress, 100)}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-gray-600 mt-2">{quotaProgress.toFixed(1)}% of quota target</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Automated Alert Rules */}
-                <div className="bg-white rounded-lg border border-tcs-border p-6">
-                  <h2 className="font-bold text-lg text-gray-900 mb-4">Automated Alert Rules</h2>
-                  <div className="space-y-3">
-                    {[
-                      { name: 'Flatline Detection', status: 'Active' },
-                      { name: 'Deal Stall Alert', status: 'Active' },
-                      { name: 'Friction Spike', status: 'Active' },
-                      { name: 'Engagement Spike', status: 'Active' },
-                      { name: 'Competitive Mention', status: 'Inactive' },
-                    ].map((rule, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-tcs-bg rounded-lg">
-                        <p className="font-medium text-gray-900">{rule.name}</p>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={rule.status === 'Active'}
-                            readOnly
-                            className="rounded"
+                      {/* Positioned dots */}
+                      {advisors.slice(0, 12).map(advisor => {
+                        const engagementX = advisor.pulse === 'Strong' ? 75 : advisor.pulse === 'Steady' ? 50 : 25;
+                        const mrrY = 100 - (advisor.mrr / Math.max(...advisors.map(a => a.mrr))) * 75;
+                        const healthColor = advisor.dealHealth === 'Healthy' ? '#16a34a' : advisor.dealHealth === 'At Risk' ? '#ef4444' : '#f59e0b';
+                        return (
+                          <div
+                            key={advisor.id}
+                            className="absolute w-3 h-3 rounded-full border-2 border-white shadow-sm cursor-pointer hover:w-4 hover:h-4"
+                            style={{
+                              left: `${engagementX}%`,
+                              top: `${mrrY}%`,
+                              transform: 'translate(-50%, -50%)',
+                              backgroundColor: healthColor,
+                            }}
+                            title={advisor.name}
                           />
-                          <span className="text-xs font-semibold">{rule.status}</span>
-                        </label>
-                      </div>
-                    ))}
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Tier Breakdown */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1]">
+                    <div className="px-6 py-4 border-b border-[#f0ede9]">
+                      <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Tier Breakdown</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-[#f0ede9]">
+                            <th className="px-6 py-3 text-left text-11px uppercase font-bold text-[#888]">Tier</th>
+                            <th className="px-6 py-3 text-left text-11px uppercase font-bold text-[#888]">Count</th>
+                            <th className="px-6 py-3 text-left text-11px uppercase font-bold text-[#888]">MRR</th>
+                            <th className="px-6 py-3 text-left text-11px uppercase font-bold text-[#888]">Health</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {['Strategic', 'Enterprise', 'Mid-Market', 'Growth'].map((tier, idx) => {
+                            const tierAdvisors = advisors.filter(a => a.tier === tier);
+                            const tierMRR = tierAdvisors.reduce((sum, a) => sum + a.mrr, 0);
+                            const tierHealthy = tierAdvisors.filter(a => a.dealHealth === 'Healthy').length;
+                            return (
+                              <tr key={tier} className="border-b border-[#f0ede9] hover:bg-[#F7F5F2]">
+                                <td className="px-6 py-3">
+                                  {tierAdvisors.length > 0 && <TierBadge tier={tier as any} />}
+                                </td>
+                                <td className="px-6 py-3 text-13px font-medium text-gray-900">{tierAdvisors.length}</td>
+                                <td className="px-6 py-3 text-13px font-medium text-gray-900">${(tierMRR / 1000).toFixed(1)}K</td>
+                                <td className="px-6 py-3 text-13px font-medium" style={{ color: tierHealthy === tierAdvisors.length ? '#16a34a' : tierHealthy >= tierAdvisors.length * 0.7 ? '#f59e0b' : '#ef4444' }}>
+                                  {tierHealthy}/{tierAdvisors.length}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
 
-                {/* Notification Preferences */}
-                <div className="bg-white rounded-lg border border-tcs-border p-6">
-                  <h2 className="font-bold text-lg text-gray-900 mb-4">Notification Preferences</h2>
-                  <p className="text-sm text-gray-600 mb-4">Choose where you receive notifications</p>
-                  <div className="space-y-2">
-                    {['Platform', 'Microsoft Teams', 'Email', 'Slack'].map((channel, idx) => (
-                      <label key={idx} className="flex items-center gap-3 p-3 hover:bg-tcs-bg rounded-lg cursor-pointer transition-colors">
-                        <input type="checkbox" defaultChecked={idx < 2} className="rounded" />
-                        <span className="text-sm font-medium text-gray-900">{channel}</span>
-                      </label>
-                    ))}
+                {/* Two-column: Cohort Trajectory and Recommended Next Moves */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Cohort Trajectory */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-4">Cohort Trajectory</p>
+                    <div className="space-y-4">
+                      {['Q4 2025', 'Q1 2026'].map(quarter => (
+                        <div key={quarter}>
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-13px font-medium text-gray-900">{quarter}</span>
+                            <span className="text-11px text-gray-600">${(totalMRR / 1000).toFixed(1)}K</span>
+                          </div>
+                          <div className="h-6 bg-gray-100 rounded-full overflow-hidden flex">
+                            <div className="flex-1 bg-[#16a34a]" style={{ width: '35%' }} title="Strong" />
+                            <div className="flex-1 bg-[#2563eb]" style={{ width: '35%' }} title="Steady" />
+                            <div className="flex-1 bg-[#f59e0b]" style={{ width: '20%' }} title="Fading" />
+                            <div className="flex-1 bg-[#ef4444]" style={{ width: '10%' }} title="Flatline" />
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex gap-3 mt-4 text-11px">
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#16a34a' }} />
+                          <span>Strong</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#2563eb' }} />
+                          <span>Steady</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#f59e0b' }} />
+                          <span>Fading</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ef4444' }} />
+                          <span>Flatline</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AI-Recommended Next Moves */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-4">AI-Recommended Next Moves</p>
+                    <ol className="space-y-3">
+                      {[
+                        'Re-engage Tom Bradley this week (fading pulse, $45K at risk)',
+                        'Expand Sarah Chen\'s portfolio to Enterprise tier (strong trajectory)',
+                        'Schedule friction review call with Nina Patel (quoting delays)',
+                        'Executive sponsorship for $120K deal (in negotiating 28 days)',
+                        'Personal outreach to 3 flatline advisors (preventive retention)',
+                      ].map((move, idx) => (
+                        <li key={idx} className="flex gap-3">
+                          <div
+                            className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white text-11px font-bold"
+                            style={{ backgroundColor: '#157A6E' }}
+                          >
+                            {idx + 1}
+                          </div>
+                          <span className="text-13px text-gray-700 pt-0.5">{move}</span>
+                        </li>
+                      ))}
+                    </ol>
                   </div>
                 </div>
               </div>
             )}
           </div>
+
+          <AIChat role="manager" selectedAdvisor={selectedAdvisor} />
         </div>
       </div>
 
@@ -1297,9 +1267,6 @@ export default function ManagerPage() {
         isOpen={panelOpen && activeView !== 'relationships'}
         onClose={() => setPanelOpen(false)}
       />
-
-      {/* AI Sidebar */}
-      <AIChat role="manager" selectedAdvisor={selectedAdvisor} />
     </div>
   );
 }

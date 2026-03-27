@@ -35,3 +35,18 @@ body {
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
 }
+
+@layer utilities {
+  .text-10px {
+    font-size: 10px;
+  }
+  .text-12px {
+    font-size: 12px;
+  }
+  .text-13px {
+    font-size: 13px;
+  }
+  .leading-1\.6 {
+    line-height: 1.6;
+  }
+}

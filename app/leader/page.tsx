@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Clock, AlertTriangle, ChevronDown, ChevronRight, ArrowLeft, MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays, Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Clock, AlertTriangle, ChevronDown, ChevronRight, ArrowLeft, MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays, Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle, X } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { AIChat } from '@/components/shared/AIChat';
@@ -238,1043 +238,522 @@ export default function LeaderDashboard() {
     }
   };
 
-  // ==================== RENDER VIEWS ====================
+  // ==================== COMMAND CENTER VIEW ====================
 
   const renderCommandCenter = () => (
-    <div className="space-y-8">
-      {/* Quarter End Alert Banner */}
-      <div className="bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-500 p-6 rounded-lg">
-        <div className="flex items-center gap-3">
-          <Clock className="w-8 h-8 text-red-500 flex-shrink-0" />
-          <div>
-            <h3 className="font-bold text-red-900 text-lg">
-              5 Days Remaining in Q1 2026
-            </h3>
-            <p className="text-red-800">
-              Team needs <span className="font-bold">${formatCurrency(commitGap).slice(1)}</span> to hit <span className="font-bold">$1.2M</span> target
-            </p>
+    <div className="space-y-6">
+      {/* Forecast Banner */}
+      <div className="bg-gradient-to-r from-[#157A6E] to-emerald-600 rounded-xl p-8 text-white">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold mb-2">Q1 Forecast: $960K of $1.2M</h2>
+            <p className="text-emerald-50">Gap of $240K to reach target</p>
+          </div>
+          <div className="flex gap-12 text-right">
+            <div>
+              <p className="text-sm opacity-80">Reps</p>
+              <p className="text-3xl font-bold">6</p>
+            </div>
+            <div>
+              <p className="text-sm opacity-80">Total Deals</p>
+              <p className="text-3xl font-bold">{activeDealCount}</p>
+            </div>
+            <div>
+              <p className="text-sm opacity-80">Team MRR</p>
+              <p className="text-3xl font-bold">{formatCurrency(teamMRR)}</p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Team KPI Cards */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Team KPIs</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard
-            label="Team MRR"
-            value={formatCurrency(teamMRR)}
-            change={`+${mrrChange}%`}
-            changeType="positive"
-          />
-          <KPICard
-            label="Team Pipeline"
-            value={formatCurrency(teamPipeline)}
-            detail={<div className="text-sm text-gray-600">Weighted: {formatCurrency(weightedPipeline)}</div>}
-          />
-          <KPICard
-            label="Forecast Accuracy"
-            value={`${forecastAccuracy}%`}
-            detail={<div className="text-sm text-gray-600">Last quarter close rate</div>}
-          />
-          <KPICard
-            label="Active Deals"
-            value={activeDealCount.toString()}
-            detail={<div className="text-sm text-gray-600">Across 6 reps</div>}
-          />
+      {/* KPI Cards Row */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+          <p className="text-[10px] uppercase font-semibold text-gray-600 mb-2">Team MRR</p>
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(teamMRR)}</p>
+          <p className="text-[11px] text-gray-600 mt-1">+{mrrChange}% growth</p>
+        </div>
+        <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+          <p className="text-[10px] uppercase font-semibold text-gray-600 mb-2">Avg Deal Size</p>
+          <p className="text-2xl font-bold text-gray-900">$45.2K</p>
+          <p className="text-[11px] text-gray-600 mt-1">+$2.1K vs last month</p>
+        </div>
+        <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+          <p className="text-[10px] uppercase font-semibold text-gray-600 mb-2">Win Rate</p>
+          <p className="text-2xl font-bold text-[#16a34a]">68%</p>
+          <p className="text-[11px] text-gray-600 mt-1">Industry avg: 62%</p>
+        </div>
+        <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+          <p className="text-[10px] uppercase font-semibold text-gray-600 mb-2">Cycle Time</p>
+          <p className="text-2xl font-bold text-gray-900">42 days</p>
+          <p className="text-[11px] text-gray-600 mt-1">-3 days vs Q4</p>
+        </div>
+        <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+          <p className="text-[10px] uppercase font-semibold text-gray-600 mb-2">At Risk $</p>
+          <p className="text-2xl font-bold text-[#ef4444]">$182K</p>
+          <p className="text-[11px] text-gray-600 mt-1">15% of pipeline</p>
         </div>
       </div>
 
-      {/* Team Snapshot Grid */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Team Snapshot (6 Reps)</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {reps.map((rep) => {
-            const repDeals = allDeals.filter(d => d.repId === rep.id);
-            const repCommitPercentage = Math.round((rep.currentCommit / rep.commitTarget) * 100);
-            const capacityPercentage = Math.round((rep.partnerCount / rep.partnerCapacity) * 100);
-            const isOverCapacity = rep.partnerCount > rep.partnerCapacity;
-
-            return (
-              <div
-                key={rep.id}
-                className="bg-white border border-tcs-border rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => setActiveView('team')}
-              >
-                <div className="mb-4">
-                  <h3 className="font-bold text-gray-900">{rep.name}</h3>
-                  <p className="text-xs text-gray-600">{rep.title}</p>
-                </div>
-
-                {/* Managed MRR */}
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-semibold text-gray-700">Managed MRR</span>
-                    <span className="text-sm font-bold text-tcs-teal">{formatCurrency(rep.managedMRR)}</span>
+      {/* Team Performance & Coaching Signals */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Team Performance */}
+        <div className="lg:col-span-2 bg-white border border-[#e8e5e1] rounded-[10px]">
+          <div className="px-5 py-4 border-b border-[#f0ede9]">
+            <h3 className="text-xs uppercase font-bold text-gray-700">Team Performance</h3>
+          </div>
+          <div className="divide-y divide-[#f0ede9]">
+            {reps.map((rep) => {
+              const repDeals = allDeals.filter(d => d.repId === rep.id);
+              const repCommitPercentage = Math.round((rep.currentCommit / rep.commitTarget) * 100);
+              const quotaPercentage = Math.round((rep.currentCommit / rep.quotaTarget) * 100);
+              return (
+                <div key={rep.id} className="px-5 py-4 flex items-center gap-4 hover:bg-[#F7F5F2]/50 transition-colors">
+                  {/* Rep Avatar */}
+                  <div className="w-10 h-10 rounded-full bg-[#157A6E] text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                    {rep.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  {/* Rep Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{rep.name}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="h-1.5 flex-1 max-w-[120px] bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${quotaPercentage >= 90 ? 'bg-[#16a34a]' : quotaPercentage >= 80 ? 'bg-[#f59e0b]' : 'bg-[#ef4444]'}`}
+                          style={{ width: `${Math.min(quotaPercentage, 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-600">{quotaPercentage}%</span>
+                    </div>
+                  </div>
+                  {/* MRR Metric */}
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-[#157A6E]">{formatCurrency(rep.managedMRR)}</p>
+                    <p className="text-xs text-gray-500">{rep.activeDeals} active</p>
                   </div>
                 </div>
-
-                {/* Active Deals */}
-                <div className="mb-4">
-                  <div className="text-xs font-semibold text-gray-700 mb-1">
-                    Active Deals: {rep.activeDeals}
-                  </div>
-                </div>
-
-                {/* Commit vs Target Progress Bar */}
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-semibold text-gray-700">Commit vs Target</span>
-                    <span className={`text-xs font-bold px-2 py-1 rounded ${getRepStatusBadgeColor(repCommitPercentage)}`}>
-                      {repCommitPercentage}%
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${repCommitPercentage > 90 ? 'bg-green-500' : repCommitPercentage >= 80 ? 'bg-amber-500' : 'bg-red-500'}`}
-                      style={{ width: `${Math.min(repCommitPercentage, 100)}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Partner Capacity */}
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-semibold text-gray-700">Partner Capacity</span>
-                    <span className="text-xs font-bold">{rep.partnerCount}/{rep.partnerCapacity}</span>
-                  </div>
-                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className={getCapacityColor(rep.partnerCount, rep.partnerCapacity)}
-                      style={{ width: `${Math.min((rep.partnerCount / rep.partnerCapacity) * 100, 100)}%` }}
-                    />
-                  </div>
-                  {isOverCapacity && <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1">Over Capacity <AlertTriangle className="w-3 h-3" /></p>}
-                </div>
-
-                {/* Partner Tier Breakdown */}
-                <div className="mb-4 flex gap-2">
-                  <div className="flex-1 text-center p-2 bg-blue-50 rounded text-xs">
-                    <div className="font-bold text-blue-900">{rep.top10}</div>
-                    <div className="text-blue-700 text-xs">Top 10</div>
-                  </div>
-                  <div className="flex-1 text-center p-2 bg-purple-50 rounded text-xs">
-                    <div className="font-bold text-purple-900">{rep.next20}</div>
-                    <div className="text-purple-700 text-xs">Next 20</div>
-                  </div>
-                  <div className="flex-1 text-center p-2 bg-gray-50 rounded text-xs">
-                    <div className="font-bold text-gray-900">{rep.other}</div>
-                    <div className="text-gray-700 text-xs">Other</div>
-                  </div>
-                </div>
-
-                {/* Top Concern */}
-                <div className="p-3 bg-orange-50 border border-orange-200 rounded">
-                  <p className="text-xs text-orange-900">{rep.topConcern}</p>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
 
-      {/* VP Morning Briefing */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">VP Morning Briefing</h2>
-        <MorningBriefing
-          actNow={leaderBriefing.actNow}
-          capitalize={leaderBriefing.capitalize}
-          nurture={leaderBriefing.nurture}
-        />
-      </div>
-
-      {/* Override Approval Queue */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Override Approval Queue</h2>
-        <div className="space-y-3">
-          {overrideRequests.filter(r => r.status === 'pending').map((override) => {
-            const advisor = advisors.find(a => a.name === override.advisorName);
-            return (
-            <div key={override.dealId} className="bg-white border border-tcs-border rounded-lg p-4 flex justify-between items-start">
-              <div className="flex-1">
-                <h4 className="font-semibold text-gray-900">{override.dealName}</h4>
-                <p className="text-sm text-gray-600 mt-1">
-                  <span className="font-medium">{override.repName}</span> |
-                  <span
-                    className="text-tcs-teal hover:underline cursor-pointer ml-1"
-                    onClick={() => advisor && handleAdvisorClick(advisor.id)}
-                  >
-                    {override.advisorName}
-                  </span>
-                </p>
-                <p className="text-sm text-gray-700 mt-2">{override.reason}</p>
-                <p className="text-xs text-gray-500 mt-2">Requested: {override.requestDate}</p>
-              </div>
-              <div className="ml-4 flex flex-col items-end gap-3">
-                <div className="text-right">
-                  <p className="text-xs text-gray-600">MRR</p>
-                  <p className="font-bold text-lg text-tcs-teal">{formatCurrency(override.mrr)}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button className="px-4 py-2 bg-green-100 text-green-800 rounded font-semibold text-sm hover:bg-green-200 transition-colors">
-                    Approve
-                  </button>
-                  <button className="px-4 py-2 bg-red-100 text-red-800 rounded font-semibold text-sm hover:bg-red-200 transition-colors">
-                    Deny
-                  </button>
-                </div>
+        {/* Coaching Signals */}
+        <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+          <div className="px-5 py-4 border-b border-[#f0ede9]">
+            <h3 className="text-xs uppercase font-bold text-gray-700">Coaching Signals</h3>
+          </div>
+          <div className="divide-y divide-[#f0ede9]">
+            <div className="px-5 py-4 flex items-start gap-3 hover:bg-[#F7F5F2]/50 transition-colors">
+              <AlertCircle className="w-4 h-4 text-[#ef4444] flex-shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-gray-900">Natasha over capacity</p>
+                <p className="text-[11px] text-gray-600 mt-0.5">57/30 partners</p>
+                <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-semibold bg-red-100 text-red-700 rounded">URGENT</span>
               </div>
             </div>
-            );
-          })}
+            <div className="px-5 py-4 flex items-start gap-3 hover:bg-[#F7F5F2]/50 transition-colors">
+              <Lightbulb className="w-4 h-4 text-[#f59e0b] flex-shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-gray-900">Marcus cycle time</p>
+                <p className="text-[11px] text-gray-600 mt-0.5">+8 days above avg</p>
+                <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 rounded">WATCH</span>
+              </div>
+            </div>
+            <div className="px-5 py-4 flex items-start gap-3 hover:bg-[#F7F5F2]/50 transition-colors">
+              <Target className="w-4 h-4 text-[#16a34a] flex-shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-gray-900">Thomas on track</p>
+                <p className="text-[11px] text-gray-600 mt-0.5">92% to quota goal</p>
+                <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-semibold bg-green-100 text-green-700 rounded">STRONG</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* Forecast by Rep Table */}
+      <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+        <div className="px-5 py-4 border-b border-[#f0ede9]">
+          <h3 className="text-xs uppercase font-bold text-gray-700">Forecast by Rep</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-[#F7F5F2]">
+              <tr className="border-b border-[#e8e5e1]">
+                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-700">Rep</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-gray-700">Quota</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-gray-700">Committed</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-gray-700">Best Case</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-gray-700">Gap</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-700">Confidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reps.map((rep) => {
+                const quotaPercentage = Math.round((rep.currentCommit / rep.quotaTarget) * 100);
+                return (
+                  <tr key={rep.id} className="border-b border-[#e8e5e1] hover:bg-[#F7F5F2]/30 transition-colors">
+                    <td className="px-5 py-3 font-semibold text-gray-900">{rep.name}</td>
+                    <td className="px-5 py-3 text-right text-gray-700">{formatCurrency(rep.quotaTarget)}</td>
+                    <td className="px-5 py-3 text-right text-gray-900 font-semibold">{formatCurrency(rep.currentCommit)}</td>
+                    <td className="px-5 py-3 text-right text-gray-700">{formatCurrency(rep.quotaTarget * 1.1)}</td>
+                    <td className="px-5 py-3 text-right text-gray-700">{formatCurrency(rep.quotaTarget - rep.currentCommit)}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-24 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${quotaPercentage >= 90 ? 'bg-[#16a34a]' : quotaPercentage >= 80 ? 'bg-[#f59e0b]' : 'bg-[#ef4444]'}`}
+                            style={{ width: `${Math.min(quotaPercentage, 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-600 w-8 text-right">{quotaPercentage}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
+
+  // ==================== FORECAST VIEW ====================
 
   const renderForecast = () => (
-    <div className="space-y-8">
-      {/* Commit vs Target Tracker */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Commit vs Target Tracker</h2>
-        <div className="bg-white border border-tcs-border rounded-lg p-6">
-          <div className="flex justify-between items-end mb-4">
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold text-gray-900">Forecast</h1>
+
+      {/* Commit vs Target */}
+      <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+        <div className="px-5 py-4 border-b border-[#f0ede9]">
+          <h3 className="text-xs uppercase font-bold text-gray-700">Commit vs Target Tracker</h3>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div>
-              <p className="text-sm text-gray-600 font-semibold">Team Commit</p>
-              <p className="text-4xl font-bold text-tcs-teal">{formatCurrency(teamCommit)}</p>
-              <p className="text-xs text-gray-600 mt-1">Target: {formatCurrency(teamTarget)}</p>
+              <p className="text-xs text-gray-600 mb-1">Target</p>
+              <p className="text-3xl font-bold text-gray-900">{formatCurrency(teamTarget)}</p>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-600 font-semibold">Gap to Target</p>
-              <p className="text-2xl font-bold text-red-600">{formatCurrency(commitGap)}</p>
-              <p className="text-xs text-gray-600 mt-1">{commitPercentage}% of target</p>
+            <div>
+              <p className="text-xs text-gray-600 mb-1">Current Commit</p>
+              <p className="text-3xl font-bold text-[#157A6E]">{formatCurrency(teamCommit)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-600 mb-1">Gap</p>
+              <p className="text-3xl font-bold text-[#ef4444]">{formatCurrency(commitGap)}</p>
             </div>
           </div>
-          <div className="space-y-3">
-            <div>
-              <div className="flex justify-between text-xs font-semibold text-gray-700 mb-2">
-                <span>Current Commit</span>
-                <span>{commitPercentage}%</span>
-              </div>
-              <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-tcs-teal"
-                  style={{ width: `${Math.min(commitPercentage, 100)}%` }}
-                />
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-xs font-semibold text-gray-700 mb-2">
-                <span>Weighted Pipeline</span>
-                <span className="text-tcs-teal">{formatCurrency(weightedPipeline)}</span>
-              </div>
-              <p className="text-xs text-gray-600">Best Case: {formatCurrency(bestCase)}</p>
-            </div>
+          <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-[#157A6E] transition-all"
+              style={{ width: `${Math.min((teamCommit / teamTarget) * 100, 100)}%` }}
+            />
           </div>
+          <p className="text-xs text-gray-600 mt-2">{commitPercentage}% to target</p>
         </div>
       </div>
 
-      {/* Per-Rep Forecast Table */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Per-Rep Forecast</h2>
-        <div className="bg-white border border-tcs-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-tcs-border">
-              <tr>
-                <th className="px-6 py-3 text-left font-semibold text-gray-900">Rep</th>
-                <th className="px-6 py-3 text-right font-semibold text-gray-900">Target</th>
-                <th className="px-6 py-3 text-right font-semibold text-gray-900">Commit</th>
-                <th className="px-6 py-3 text-right font-semibold text-gray-900">%</th>
-                <th className="px-6 py-3 text-right font-semibold text-gray-900">Weighted Pipe</th>
-                <th className="px-6 py-3 text-right font-semibold text-gray-900">Gap</th>
-                <th className="px-6 py-3 text-left font-semibold text-gray-900">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reps.map((rep) => {
-                const percentage = Math.round((rep.currentCommit / rep.commitTarget) * 100);
-                const gap = rep.commitTarget - rep.currentCommit;
-                const repPipeline = allDeals
-                  .filter(d => d.repId === rep.id)
-                  .reduce((sum, deal) => {
-                    const stageWeight = STAGE_WEIGHTS.find(sw => sw.stage === deal.stage)?.weight || 0;
-                    return sum + (deal.mrr * stageWeight);
-                  }, 0);
-
-                let statusColor = 'bg-green-100 text-green-800';
-                let statusLabel = 'Strong';
-                if (percentage < 70) {
-                  statusColor = 'bg-red-100 text-red-800';
-                  statusLabel = 'Behind';
-                } else if (percentage < 80) {
-                  statusColor = 'bg-orange-100 text-orange-800';
-                  statusLabel = 'At Risk';
-                } else if (percentage < 90) {
-                  statusColor = 'bg-yellow-100 text-yellow-800';
-                  statusLabel = 'On Track';
-                }
-
-                return (
-                  <tr key={rep.id} className="border-b border-tcs-border hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">{rep.name}</td>
-                    <td className="px-6 py-4 text-right text-gray-700">{formatCurrency(rep.commitTarget)}</td>
-                    <td className="px-6 py-4 text-right text-gray-700">{formatCurrency(rep.currentCommit)}</td>
-                    <td className="px-6 py-4 text-right font-semibold text-gray-900">{percentage}%</td>
-                    <td className="px-6 py-4 text-right text-gray-700">{formatCurrency(repPipeline)}</td>
-                    <td className="px-6 py-4 text-right text-red-600 font-medium">{formatCurrency(gap)}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${statusColor}`}>
-                        {statusLabel}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* Historical Forecast */}
+      <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+        <div className="px-5 py-4 border-b border-[#f0ede9]">
+          <h3 className="text-xs uppercase font-bold text-gray-700">Historical Forecast Accuracy</h3>
         </div>
-      </div>
-
-      {/* Historical Forecast Tracker */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Historical Forecast Tracker (Last 4 Quarters)</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {historicalForecast.map((entry) => (
-            <div key={entry.quarter} className="bg-white border border-tcs-border rounded-lg p-4">
-              <h4 className="font-semibold text-gray-900 mb-3">{entry.quarter}</h4>
-              <div className="space-y-2 mb-3">
-                <div>
-                  <p className="text-xs text-gray-600">Target</p>
-                  <p className="font-bold text-gray-900">{formatCurrency(entry.target)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Actual</p>
-                  <p className="font-bold text-gray-900">{formatCurrency(entry.actual)}</p>
-                </div>
+        <div className="divide-y divide-[#e8e5e1]">
+          {historicalForecast.map((item) => (
+            <div key={item.quarter} className="px-5 py-4 flex items-center justify-between hover:bg-[#F7F5F2]/30">
+              <div>
+                <p className="font-semibold text-gray-900">{item.quarter}</p>
+                <p className="text-xs text-gray-600">Target: {formatCurrency(item.target)}</p>
               </div>
-              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
-                <div
-                  className={entry.percentage >= 90 ? 'bg-green-500' : entry.percentage >= 80 ? 'bg-amber-500' : 'bg-red-500'}
-                  style={{ width: `${entry.percentage}%` }}
-                />
-              </div>
-              <p className="text-sm font-bold text-gray-900">{entry.percentage}%</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Weighted Pipeline by Stage */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Weighted Pipeline by Stage</h2>
-        <div className="bg-white border border-tcs-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-tcs-border">
-              <tr>
-                <th className="px-6 py-3 text-left font-semibold text-gray-900">Stage</th>
-                <th className="px-6 py-3 text-right font-semibold text-gray-900">Raw Value</th>
-                <th className="px-6 py-3 text-right font-semibold text-gray-900">Weight %</th>
-                <th className="px-6 py-3 text-right font-semibold text-gray-900">Weighted Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {STAGE_WEIGHTS.map((sw) => {
-                const stageDeals = allDeals.filter(d => d.stage === sw.stage);
-                const rawValue = stageDeals.reduce((sum, d) => sum + d.mrr, 0);
-                const weightedValue = rawValue * sw.weight;
-                return (
-                  <tr key={sw.stage} className="border-b border-tcs-border hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">{sw.stage}</td>
-                    <td className="px-6 py-4 text-right text-gray-700">{formatCurrency(rawValue)}</td>
-                    <td className="px-6 py-4 text-right text-gray-900 font-semibold">{(sw.weight * 100).toFixed(0)}%</td>
-                    <td className="px-6 py-4 text-right text-tcs-teal font-semibold">{formatCurrency(weightedValue)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Stage vs Timeline Mismatch Alerts */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Stage vs Timeline Mismatch Alerts</h2>
-        <div className="space-y-3">
-          {stageMismatchAlerts.map((alert, idx) => (
-            <div key={idx} className="bg-orange-50 border border-orange-200 rounded-lg p-4 flex items-start gap-3">
-              <AlertTriangle className="w-6 h-6 text-orange-500 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h4 className="font-bold text-orange-900">{alert.rep}</h4>
-                <p className="text-sm text-orange-800 mt-1">
-                  {alert.dealCount} deal{alert.dealCount > 1 ? 's' : ''} in <span className="font-semibold">{alert.stage}</span> for {alert.daysInStage}+ days
-                </p>
+              <div className="text-right">
+                <p className="text-sm font-semibold text-gray-900">{formatCurrency(item.actual)}</p>
+                <p className={`text-xs ${item.percentage >= 90 ? 'text-[#16a34a]' : 'text-[#f59e0b]'}`}>{item.percentage}% accuracy</p>
               </div>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* Forecast Override Requests */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Forecast Override Requests</h2>
-        <div className="space-y-3">
-          {overrideRequests.filter(r => r.status === 'pending').map((override) => {
-            const advisor = advisors.find(a => a.name === override.advisorName);
-            return (
-            <div key={override.dealId} className="bg-white border border-tcs-border rounded-lg p-4 flex justify-between items-start">
-              <div className="flex-1">
-                <h4 className="font-semibold text-gray-900">{override.dealName}</h4>
-                <p className="text-sm text-gray-600 mt-1">
-                  <span className="font-medium">{override.repName}</span> |
-                  <span
-                    className="text-tcs-teal hover:underline cursor-pointer ml-1"
-                    onClick={() => advisor && handleAdvisorClick(advisor.id)}
-                  >
-                    {override.advisorName}
-                  </span>
-                </p>
-                <p className="text-sm text-gray-700 mt-2">{override.reason}</p>
-              </div>
-              <div className="ml-4 flex flex-col items-end gap-3">
-                <div className="text-right">
-                  <p className="text-xs text-gray-600">MRR</p>
-                  <p className="font-bold text-lg text-tcs-teal">{formatCurrency(override.mrr)}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button className="px-4 py-2 bg-green-100 text-green-800 rounded font-semibold text-sm hover:bg-green-200 transition-colors">
-                    Approve
-                  </button>
-                  <button className="px-4 py-2 bg-red-100 text-red-800 rounded font-semibold text-sm hover:bg-red-200 transition-colors">
-                    Deny
-                  </button>
-                </div>
-              </div>
-            </div>
-            );
-          })}
         </div>
       </div>
     </div>
   );
+
+  // ==================== TEAM VIEW ====================
 
   const renderTeam = () => (
-    <div className="space-y-8">
-      {/* Team Capacity Grid */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Team Capacity Overview</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {reps.map((rep) => {
-            const capacityPercentage = (rep.partnerCount / rep.partnerCapacity) * 100;
-            const isOverCapacity = rep.partnerCount > rep.partnerCapacity;
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold text-gray-900">Team</h1>
 
-            return (
-              <div key={rep.id} className="bg-white border border-tcs-border rounded-lg p-6">
-                <div className="mb-4">
-                  <h3 className="font-bold text-gray-900">{rep.name}</h3>
-                  <p className="text-xs text-gray-600">{rep.title}</p>
+      {/* Rep Details */}
+      <div className="grid grid-cols-1 gap-6">
+        {reps.map((rep) => {
+          const repDeals = allDeals.filter(d => d.repId === rep.id);
+          const isExpanded = expandedReps.includes(rep.id);
+          const quotaPercentage = Math.round((rep.currentCommit / rep.quotaTarget) * 100);
+
+          return (
+            <div key={rep.id} className="bg-white border border-[#e8e5e1] rounded-[10px]">
+              <div className="px-5 py-4 flex items-center justify-between cursor-pointer hover:bg-[#F7F5F2]/30 transition-colors" onClick={() => toggleRepExpansion(rep.id)}>
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="w-10 h-10 rounded-full bg-[#157A6E] text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                    {rep.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900">{rep.name}</p>
+                    <p className="text-xs text-gray-600">{rep.title}</p>
+                  </div>
                 </div>
+                <div className="text-right mr-4">
+                  <p className="text-sm font-bold text-[#157A6E]">{formatCurrency(rep.managedMRR)}</p>
+                  <p className="text-xs text-gray-600">{quotaPercentage}% quota</p>
+                </div>
+                <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+              </div>
 
-                {/* Capacity Bar */}
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-semibold text-gray-700">Capacity</span>
-                    <span className="text-xs font-bold">{rep.partnerCount}/{rep.partnerCapacity}</span>
+              {isExpanded && (
+                <div className="px-5 py-4 border-t border-[#e8e5e1] space-y-4">
+                  {/* Details Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">Managed MRR</p>
+                      <p className="text-lg font-bold text-gray-900">{formatCurrency(rep.managedMRR)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">Active Deals</p>
+                      <p className="text-lg font-bold text-gray-900">{rep.activeDeals}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-600 mb-1">Partner Capacity</p>
+                      <p className="text-lg font-bold text-gray-900">{rep.partnerCount}/{rep.partnerCapacity}</p>
+                    </div>
                   </div>
-                  <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className={getCapacityColor(rep.partnerCount, rep.partnerCapacity)}
-                      style={{ width: `${Math.min(capacityPercentage, 100)}%` }}
-                    />
-                  </div>
-                  {isOverCapacity && (
-                    <p className="text-xs text-red-600 font-bold mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> OVER CAPACITY</p>
+
+                  {/* Deals */}
+                  {repDeals.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-700 mb-2">Recent Deals</p>
+                      <div className="space-y-2">
+                        {repDeals.slice(0, 3).map((deal) => (
+                          <div key={deal.id} className="flex items-center justify-between p-2 bg-[#F7F5F2] rounded text-sm">
+                            <div>
+                              <p className="font-semibold text-gray-900">{deal.name}</p>
+                              <p className="text-xs text-gray-600">{deal.stage}</p>
+                            </div>
+                            <p className="font-bold text-gray-900">{formatCurrency(deal.mrr)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
-
-                {/* Tier Breakdown */}
-                <div className="mb-4 space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="font-semibold text-gray-700">Top 10:</span>
-                    <span className="font-bold text-blue-600">{rep.top10}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-semibold text-gray-700">Next 20:</span>
-                    <span className="font-bold text-purple-600">{rep.next20}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-semibold text-gray-700">Other:</span>
-                    <span className="font-bold text-gray-600">{rep.other}</span>
-                  </div>
-                </div>
-
-                {/* MRR */}
-                <div className="mb-4 p-3 bg-tcs-bg rounded">
-                  <p className="text-xs text-gray-600">Managed MRR</p>
-                  <p className="font-bold text-lg text-tcs-teal">{formatCurrency(rep.managedMRR)}</p>
-                </div>
-
-                {/* Engagement Score */}
-                <div className="mb-4">
-                  <div className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                    rep.engagementScore === 'Strong' ? 'bg-green-100 text-green-800' :
-                    rep.engagementScore === 'Steady' ? 'bg-blue-100 text-blue-800' :
-                    'bg-orange-100 text-orange-800'
-                  }`}>
-                    {rep.engagementScore} Engagement
-                  </div>
-                </div>
-
-                {/* Recent Activity */}
-                <div className="p-3 bg-gray-50 rounded">
-                  <p className="text-xs text-gray-600">{rep.topConcern}</p>
-                </div>
-
-                {/* Prep 1:1 Button */}
-                <button className="w-full mt-4 px-4 py-2 bg-tcs-teal text-white rounded font-semibold text-sm hover:bg-opacity-90 transition-colors">
-                  Prep 1:1 Meeting
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Team Leaderboard */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Team Leaderboard</h2>
-        <div className="bg-white border border-tcs-border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-tcs-border">
-              <tr>
-                <th className="px-6 py-3 text-left font-semibold text-gray-900">Rep</th>
-                <th className="px-6 py-3 text-right font-semibold text-gray-900">MRR</th>
-                <th className="px-6 py-3 text-right font-semibold text-gray-900">Deals Won (QTD)</th>
-                <th className="px-6 py-3 text-right font-semibold text-gray-900">Win Rate</th>
-                <th className="px-6 py-3 text-right font-semibold text-gray-900">Avg Cycle</th>
-                <th className="px-6 py-3 text-right font-semibold text-gray-900">Commit %</th>
-                <th className="px-6 py-3 text-right font-semibold text-gray-900">Engagement</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reps.map((rep) => {
-                const commitPercentage = Math.round((rep.currentCommit / rep.commitTarget) * 100);
-                return (
-                  <tr key={rep.id} className="border-b border-tcs-border hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">{rep.name}</td>
-                    <td className="px-6 py-4 text-right font-bold text-tcs-teal">{formatCurrency(rep.managedMRR)}</td>
-                    <td className="px-6 py-4 text-right text-gray-700">{rep.dealsWonQTD}</td>
-                    <td className="px-6 py-4 text-right text-gray-700">{rep.winRate}%</td>
-                    <td className="px-6 py-4 text-right text-gray-700">{rep.avgCycle} days</td>
-                    <td className="px-6 py-4 text-right font-semibold text-gray-900">{commitPercentage}%</td>
-                    <td className="px-6 py-4 text-right">
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                        rep.engagementScore === 'Strong' ? 'bg-green-100 text-green-800' :
-                        rep.engagementScore === 'Steady' ? 'bg-blue-100 text-blue-800' :
-                        'bg-orange-100 text-orange-800'
-                      }`}>
-                        {rep.engagementScore}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* CRM Hygiene Summary */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">CRM Hygiene Summary (Stale Notes &gt;14 days)</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {crmHygiene.map((item) => (
-            <div key={item.rep} className="bg-white border border-tcs-border rounded-lg p-4">
-              <h4 className="font-semibold text-gray-900">{item.rep}</h4>
-              <div className="mt-3 p-3 bg-orange-50 rounded">
-                <p className="text-2xl font-bold text-orange-600">{item.dealsWithStaleNotes}</p>
-                <p className="text-xs text-orange-700 mt-1">Deals with stale notes</p>
-              </div>
-              <button className="w-full mt-4 px-3 py-2 bg-orange-100 text-orange-800 rounded font-semibold text-xs hover:bg-orange-200 transition-colors">
-                Review & Update
-              </button>
+              )}
             </div>
-          ))}
-        </div>
+          );
+        })}
       </div>
     </div>
   );
 
-  const EngLabel = ({ score }: { score: EngagementScore }) => {
-    const colors = { Strong: 'bg-green-100 text-green-700', Steady: 'bg-blue-100 text-blue-700', Fading: 'bg-pink-100 text-pink-700' };
-    return <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${colors[score]}`}>{score}</span>;
-  };
+  // ==================== RELATIONSHIPS VIEW ====================
 
   const renderRelationships = () => {
-    // If an advisor is selected, show their full profile inline
-    if (selectedAdvisor) {
-      const advisor = selectedAdvisor;
-      const advisorDeals = deals.filter(d => advisor.deals.includes(d.id));
+    if (selectedAdvisor && panelOpen) {
+      const advisorDeals = deals.filter(d => selectedAdvisor.deals.includes(d.id));
       const tabs = ['overview', 'personal', 'deals', 'notes', 'activity'] as const;
-
       return (
         <div className="space-y-0">
-          {/* Back Button + Header */}
           <div className="mb-6">
-            <button
-              onClick={() => { setSelectedAdvisor(null); setPanelOpen(false); setInlineTab('overview'); }}
-              className="flex items-center gap-2 text-tcs-teal hover:underline text-sm mb-4"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back to All Advisors
-            </button>
-
-            <div className="bg-white rounded-lg border border-tcs-border p-6">
+            <button onClick={() => { setSelectedAdvisor(null); setPanelOpen(false); setInlineTab('overview'); }} className="flex items-center gap-2 text-[#157A6E] hover:underline text-sm mb-4"><ArrowLeft className="w-4 h-4" /> Back to All Advisors</button>
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
               <div className="flex items-center gap-6">
-                <div className="w-20 h-20 bg-tcs-teal rounded-full flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
-                  {advisor.name.split(' ').map(n => n[0]).join('')}
-                </div>
+                <div className="w-20 h-20 bg-[#157A6E] rounded-full flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">{selectedAdvisor.name.split(' ').map(n => n[0]).join('')}</div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-1">
-                    <h1 className="text-2xl font-bold text-gray-900">{advisor.name}</h1>
-                    {advisor.tier && <TierBadge tier={advisor.tier} />}
-                  </div>
-                  <p className="text-gray-600">{advisor.title} · {advisor.company}</p>
-                  <div className="flex items-center gap-4 mt-3">
-                    <PulseBadge pulse={advisor.pulse} size="sm" />
-                    <TrajectoryBadge trajectory={advisor.trajectory} />
-                    <SentimentBadge tone={advisor.tone} />
-                    <FrictionBadge level={advisor.friction} />
-                    <DealHealthBadge health={advisor.dealHealth} />
-                  </div>
+                  <div className="flex items-center gap-3 mb-1"><h1 className="text-2xl font-bold text-gray-900">{selectedAdvisor.name}</h1>{selectedAdvisor.tier && <TierBadge tier={selectedAdvisor.tier} />}</div>
+                  <p className="text-gray-600">{selectedAdvisor.title} · {selectedAdvisor.company}</p>
+                  <div className="flex items-center gap-4 mt-3"><PulseBadge pulse={selectedAdvisor.pulse} size="sm" /><TrajectoryBadge trajectory={selectedAdvisor.trajectory} /><SentimentBadge tone={selectedAdvisor.tone} /><FrictionBadge level={selectedAdvisor.friction} /><DealHealthBadge health={selectedAdvisor.dealHealth} /></div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-gray-500 uppercase">MRR</p>
-                  <p className="text-3xl font-bold text-tcs-teal">${(advisor.mrr / 1000).toFixed(1)}K</p>
-                </div>
+                <div className="text-right"><p className="text-xs text-gray-500 uppercase">MRR</p><p className="text-3xl font-bold text-[#157A6E]">${(selectedAdvisor.mrr / 1000).toFixed(1)}K</p></div>
               </div>
             </div>
           </div>
-
-          {/* Tabs */}
-          <div className="bg-white rounded-t-lg border border-b-0 border-tcs-border flex">
-            {tabs.map(tab => (
-              <button
-                key={tab}
-                onClick={() => setInlineTab(tab)}
-                className={`flex-1 px-4 py-3 text-sm font-medium uppercase transition-colors ${
-                  inlineTab === tab ? 'text-tcs-teal border-b-2 border-tcs-teal bg-white' : 'text-gray-500 hover:text-gray-900 bg-gray-50'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
+          <div className="bg-white rounded-t-[10px] border border-b-0 border-[#e8e5e1] flex">
+            {tabs.map(tab => (<button key={tab} onClick={() => setInlineTab(tab)} className={`flex-1 px-4 py-3 text-sm font-medium uppercase transition-colors ${inlineTab === tab ? 'text-[#157A6E] border-b-2 border-[#157A6E] bg-white' : 'text-gray-500 hover:text-gray-900 bg-gray-50'}`}>{tab}</button>))}
           </div>
-
-          {/* Tab Content */}
-          <div className="bg-white rounded-b-lg border border-tcs-border p-6 min-h-[500px]">
-
+          <div className="bg-white rounded-b-[10px] border border-[#e8e5e1] p-6 min-h-[500px]">
             {inlineTab === 'overview' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Left column */}
                 <div className="space-y-6">
-                  <div>
-                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Relationship Context</h3>
-                    <dl className="space-y-2 text-sm">
-                      <div className="flex justify-between"><dt className="text-gray-600">Connected Since</dt><dd className="font-medium">{advisor.connectedSince}</dd></div>
-                      <div className="flex justify-between"><dt className="text-gray-600">Best Day to Reach</dt><dd className="font-medium">{advisor.bestDayToReach}</dd></div>
-                      <div className="flex justify-between"><dt className="text-gray-600">Comm Preference</dt><dd className="font-medium">{advisor.commPreference}</dd></div>
-                      <div className="flex justify-between"><dt className="text-gray-600">Referred By</dt><dd className="font-medium">{advisor.referredBy}</dd></div>
-                    </dl>
-                  </div>
-
-                  <div>
-                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Relationship Breakdown</h3>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Engagement</span><EngLabel score={advisor.engagementBreakdown.engagement} /></div>
-                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Pipeline Strength</span><EngLabel score={advisor.engagementBreakdown.pipelineStrength} /></div>
-                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Responsiveness</span><EngLabel score={advisor.engagementBreakdown.responsiveness} /></div>
-                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Growth Potential</span><EngLabel score={advisor.engagementBreakdown.growthPotential} /></div>
-                    </div>
-                  </div>
-
-                  {advisor.personalIntel && (
-                    <div>
-                      <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Personal Intel</h3>
-                      <p className="text-sm text-gray-700">{advisor.personalIntel}</p>
-                    </div>
-                  )}
+                  <div><h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Relationship Context</h3><dl className="space-y-2 text-sm"><div className="flex justify-between"><dt className="text-gray-600">Connected Since</dt><dd className="font-medium">{selectedAdvisor.connectedSince}</dd></div><div className="flex justify-between"><dt className="text-gray-600">Best Day to Reach</dt><dd className="font-medium">{selectedAdvisor.bestDayToReach}</dd></div><div className="flex justify-between"><dt className="text-gray-600">Comm Preference</dt><dd className="font-medium">{selectedAdvisor.commPreference}</dd></div><div className="flex justify-between"><dt className="text-gray-600">Referred By</dt><dd className="font-medium">{selectedAdvisor.referredBy}</dd></div></dl></div>
                 </div>
-
-                {/* Right column */}
                 <div className="space-y-6">
-                  <div className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
-                    <p className="text-sm italic text-gray-700">"{advisor.diagnosis}"</p>
-                  </div>
-
-                  <div>
-                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Active Deals ({advisorDeals.length})</h3>
-                    <div className="space-y-2">
-                      {advisorDeals.slice(0, 3).map(deal => (
-                        <div key={deal.id} className="flex items-center justify-between p-3 bg-tcs-bg rounded-lg">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{deal.name}</p>
-                            <p className="text-xs text-gray-500">{deal.stage} · {deal.daysInStage}d</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-bold text-tcs-teal">${(deal.mrr / 1000).toFixed(1)}K</p>
-                            <DealHealthBadge health={deal.health} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Recent Activity</h3>
-                    <div className="space-y-2">
-                      {advisor.activity.slice(0, 4).map((item, idx) => (
-                        <div key={idx} className="flex items-start gap-3 p-2">
-                          <SentimentBadge tone={item.sentiment} />
-                          <div>
-                            <p className="text-sm text-gray-700">{item.text}</p>
-                            <p className="text-xs text-gray-400">{item.time}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  {selectedAdvisor.personalIntel && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Personal Intel</h3><p className="text-sm text-gray-700">{selectedAdvisor.personalIntel}</p></div>}
+                  <div className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded"><p className="text-sm italic text-gray-700">"{selectedAdvisor.diagnosis}"</p></div>
                 </div>
               </div>
             )}
-
             {inlineTab === 'personal' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-6">
-                  <div>
-                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Profile</h3>
-                    <dl className="space-y-3 text-sm">
-                      {advisor.location && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Location</dt><dd className="font-medium">{advisor.location}</dd></div>}
-                      {advisor.birthday && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><Cake className="w-3.5 h-3.5" /> Birthday</dt><dd className="font-medium">{advisor.birthday}</dd></div>}
-                      {advisor.education && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> Education</dt><dd className="font-medium">{advisor.education}</dd></div>}
-                      {advisor.title && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><Briefcase className="w-3.5 h-3.5" /> Title</dt><dd className="font-medium">{advisor.title}</dd></div>}
-                    </dl>
-                  </div>
-                  {advisor.family && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Family</h3><p className="text-sm text-gray-700">{advisor.family}</p></div>}
-                  {advisor.hobbies && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Hobbies & Interests</h3><p className="text-sm text-gray-700">{advisor.hobbies}</p></div>}
-                  {advisor.funFact && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Fun Fact</h3><p className="text-sm text-gray-700">{advisor.funFact}</p></div>}
-                </div>
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Channel Relationships</h3>
-                    <dl className="space-y-3 text-sm">
-                      {advisor.tsds?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">TSDs</dt><dd className="font-medium">{advisor.tsds.join(', ')}</dd></div>}
-                      {advisor.previousCompanies?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">Previous Companies</dt><dd className="font-medium">{advisor.previousCompanies.join(', ')}</dd></div>}
-                      {advisor.mutualConnections?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">Mutual Connections</dt><dd className="font-medium">{advisor.mutualConnections.join(', ')}</dd></div>}
-                      {advisor.sharedClients?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">Shared Clients</dt><dd className="font-medium">{advisor.sharedClients.join(', ')}</dd></div>}
-                    </dl>
-                  </div>
+                  <div><h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Profile</h3><dl className="space-y-3 text-sm">{selectedAdvisor.location && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Location</dt><dd className="font-medium">{selectedAdvisor.location}</dd></div>}{selectedAdvisor.birthday && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><Cake className="w-3.5 h-3.5" /> Birthday</dt><dd className="font-medium">{selectedAdvisor.birthday}</dd></div>}{selectedAdvisor.education && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> Education</dt><dd className="font-medium">{selectedAdvisor.education}</dd></div>}</dl></div>
+                  {selectedAdvisor.family && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Family</h3><p className="text-sm text-gray-700">{selectedAdvisor.family}</p></div>}
                 </div>
               </div>
             )}
-
             {inlineTab === 'deals' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {advisorDeals.length === 0 ? (
-                  <p className="text-sm text-gray-600 col-span-full">No deals found</p>
-                ) : (
-                  advisorDeals.map(deal => (
-                    <div key={deal.id} className="border border-tcs-border rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <h4 className="font-semibold text-gray-900">{deal.name}</h4>
-                        <DealHealthBadge health={deal.health} />
-                      </div>
-                      <dl className="space-y-1 text-xs text-gray-600 mb-3">
-                        <div className="flex justify-between"><dt>MRR:</dt><dd className="font-medium text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</dd></div>
-                        <div className="flex justify-between"><dt>Stage:</dt><dd className="font-medium text-gray-900">{deal.stage}</dd></div>
-                        <div className="flex justify-between"><dt>Days in Stage:</dt><dd className="font-medium text-gray-900">{deal.daysInStage}</dd></div>
-                        {deal.confidenceScore && <div className="flex justify-between"><dt>Confidence:</dt><dd className="font-medium text-gray-900">{deal.confidenceScore}</dd></div>}
-                      </dl>
-                      <div className="bg-gray-100 rounded h-2 mb-1"><div className="bg-tcs-teal h-2 rounded" style={{ width: `${deal.probability}%` }} /></div>
-                      <p className="text-xs text-gray-500">Probability: {deal.probability}%</p>
-                    </div>
-                  ))
-                )}
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{advisorDeals.length === 0 ? <p className="text-sm text-gray-600 col-span-full">No deals found</p> : advisorDeals.map(deal => (<div key={deal.id} className="border border-[#e8e5e1] rounded-[10px] p-4"><div className="flex items-start justify-between mb-3"><h4 className="font-semibold text-gray-900">{deal.name}</h4><DealHealthBadge health={deal.health} /></div><dl className="space-y-1 text-xs text-gray-600 mb-3"><div className="flex justify-between"><dt>MRR:</dt><dd className="font-medium text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</dd></div><div className="flex justify-between"><dt>Stage:</dt><dd className="font-medium text-gray-900">{deal.stage}</dd></div></dl></div>))}</div>
             )}
-
-
             {inlineTab === 'notes' && (
-              <div className="max-w-2xl space-y-4">
-                {advisor.notes.map((note, idx) => (
-                  <div key={idx} className="p-3 bg-tcs-bg rounded-lg text-sm text-gray-700">• {note}</div>
-                ))}
-                <div className="flex gap-2 pt-4 border-t border-tcs-border">
-                  <button className="py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Log Call</button>
-                  <button className="py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" /> Schedule</button>
-                </div>
-              </div>
+              <div className="max-w-2xl space-y-4">{selectedAdvisor.notes.map((note, idx) => (<div key={idx} className="p-3 bg-[#F7F5F2] rounded-lg text-sm text-gray-700">• {note}</div>))}</div>
             )}
-
             {inlineTab === 'activity' && (
-              <div className="max-w-2xl space-y-3">
-                {advisor.activity.map((item, idx) => (
-                  <div key={idx} className="border-l-2 border-gray-300 pl-4 py-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      <SentimentBadge tone={item.sentiment} />
-                      <span className="text-xs text-gray-500">{item.time}</span>
-                    </div>
-                    <p className="text-sm text-gray-700">{item.text}</p>
-                  </div>
-                ))}
-              </div>
+              <div className="max-w-2xl space-y-3">{selectedAdvisor.activity.map((item, idx) => (<div key={idx} className="border-l-2 border-gray-300 pl-4 py-2"><div className="flex items-center gap-2 mb-1"><SentimentBadge tone={item.sentiment} /><span className="text-xs text-gray-500">{item.time}</span></div><p className="text-sm text-gray-700">{item.text}</p></div>))}</div>
             )}
           </div>
         </div>
       );
     }
 
-    // Default: show advisor table
     return (
       <div className="space-y-6">
-        <h2 className="text-lg font-bold text-gray-900">Key Partner Relationships</h2>
-        <AdvisorTable
-          advisors={advisors}
-          onAdvisorClick={(id: string) => {
-            const adv = advisors.find(a => a.id === id);
-            if (adv) { setSelectedAdvisor(adv); setInlineTab('overview'); }
-          }}
-        />
+        <h1 className="text-3xl font-bold text-gray-900">Relationships</h1>
+        <AdvisorTable advisors={advisors} onAdvisorClick={(id) => { handleAdvisorClick(id); setInlineTab('overview'); }} />
       </div>
     );
   };
 
+  // ==================== PIPELINE VIEW ====================
+
   const renderPipeline = () => (
-    <div className="space-y-8">
-      {/* Team Pipeline Overview KPIs */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Team Pipeline Overview</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard
-            label="Total Pipeline"
-            value={formatCurrency(teamPipeline)}
-          />
-          <KPICard
-            label="Weighted Pipeline"
-            value={formatCurrency(weightedPipeline)}
-          />
-          <KPICard
-            label="Healthy Deals"
-            value={`${healthyPercentage}%`}
-            change={`${healthyDeals} deals`}
-            changeType="positive"
-          />
-          <KPICard
-            label="At Risk Deals"
-            value={`${atRiskPercentage}%`}
-            change={`${atRiskDeals} deals`}
-            changeType="negative"
-          />
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold text-gray-900">Pipeline</h1>
+
+      {/* Pipeline KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+          <p className="text-xs uppercase font-semibold text-gray-600 mb-2">Total Pipeline</p>
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(teamPipeline)}</p>
+        </div>
+        <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+          <p className="text-xs uppercase font-semibold text-gray-600 mb-2">Weighted Pipeline</p>
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(weightedPipeline)}</p>
+        </div>
+        <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+          <p className="text-xs uppercase font-semibold text-gray-600 mb-2">Healthy Deals</p>
+          <p className="text-2xl font-bold text-[#16a34a]">{healthyPercentage}%</p>
+        </div>
+        <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+          <p className="text-xs uppercase font-semibold text-gray-600 mb-2">At Risk</p>
+          <p className="text-2xl font-bold text-[#ef4444]">{atRiskPercentage}%</p>
         </div>
       </div>
 
-      {/* Pipeline by Rep (Expandable) */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Pipeline by Rep</h2>
-        <div className="space-y-3">
-          {reps.map((rep) => {
-            const repDeals = allDeals.filter(d => d.repId === rep.id);
-            const repPipeline = repDeals.reduce((sum, d) => sum + d.mrr, 0);
-            const isExpanded = expandedReps.includes(rep.id);
-
-            return (
-              <div key={rep.id} className="border border-tcs-border rounded-lg overflow-hidden">
-                {/* Header - Expandable */}
-                <button
-                  onClick={() => toggleRepExpansion(rep.id)}
-                  className="w-full bg-white hover:bg-gray-50 p-4 flex justify-between items-center transition-colors"
-                >
-                  <div className="flex items-center gap-4 flex-1 text-left">
-                    <span className="text-gray-500">{isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}</span>
-                    <div>
-                      <h4 className="font-bold text-gray-900">{rep.name}</h4>
-                      <p className="text-xs text-gray-600">
-                        {repDeals.length} deals | {formatCurrency(repPipeline)} pipeline
-                      </p>
-                    </div>
-                  </div>
-                  <span className="font-bold text-lg text-tcs-teal">{formatCurrency(repPipeline)}</span>
-                </button>
-
-                {/* Expanded Content */}
-                {isExpanded && (
-                  <div className="bg-gray-50 border-t border-tcs-border p-4 space-y-3">
-                    {repDeals.slice(0, 4).map((deal) => {
-                      const advisor = advisors.find(a => a.id === deal.advisorId);
-                      const daysOldColor = deal.daysInStage > 30 ? 'text-red-600' : deal.daysInStage > 14 ? 'text-orange-600' : 'text-gray-600';
-
-                      return (
-                        <div key={deal.id} className="bg-white border border-tcs-border rounded p-3">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <h5 className="font-semibold text-gray-900 text-sm">{deal.name}</h5>
-                              <p className="text-xs text-gray-600">
-                                <span
-                                  className="text-tcs-teal hover:underline cursor-pointer"
-                                  onClick={() => advisor && handleAdvisorClick(advisor.id)}
-                                >
-                                  {advisor?.name}
-                                </span>
-                              </p>
-                            </div>
-                            <DealHealthBadge health={deal.health} />
-                          </div>
-                          <div className="grid grid-cols-4 gap-2 text-xs mb-2">
-                            <div>
-                              <span className="text-gray-600">MRR</span>
-                              <p className="font-bold">{formatCurrency(deal.mrr)}</p>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Stage</span>
-                              <p className="font-bold">{deal.stage}</p>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Probability</span>
-                              <p className="font-bold">{deal.probability}%</p>
-                            </div>
-                            <div>
-                              <span className="text-gray-600">Days in Stage</span>
-                              <p className={`font-bold ${daysOldColor}`}>{deal.daysInStage}d</p>
-                            </div>
-                          </div>
-                          {deal.actionItems && deal.actionItems.length > 0 && (
-                            <div className="text-xs space-y-1">
-                              {deal.actionItems.slice(0, 2).map((action) => (
-                                <div key={action.id} className={`flex justify-between items-start ${
-                                  action.status === 'overdue' ? 'text-red-600' : 'text-gray-600'
-                                }`}>
-                                  <span className="font-medium">{action.text}</span>
-                                  <span className="text-xs ml-2">{action.daysOld}d</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {repDeals.length > 4 && (
-                      <p className="text-xs text-gray-600 text-center py-2">
-                        +{repDeals.length - 4} more deal{repDeals.length - 4 > 1 ? 's' : ''}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+      {/* Deals Table */}
+      <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+        <div className="px-5 py-4 border-b border-[#f0ede9]">
+          <h3 className="text-xs uppercase font-bold text-gray-700">All Deals</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-[#F7F5F2]">
+              <tr className="border-b border-[#e8e5e1]">
+                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-700">Deal Name</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-700">Rep</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-gray-700">MRR</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-700">Stage</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-700">Health</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allDeals.slice(0, 10).map((deal) => {
+                const rep = reps.find(r => r.id === deal.repId);
+                return (
+                  <tr key={deal.id} className="border-b border-[#e8e5e1] hover:bg-[#F7F5F2]/30 transition-colors">
+                    <td className="px-5 py-3 font-semibold text-gray-900">{deal.name}</td>
+                    <td className="px-5 py-3 text-gray-700">{rep?.name}</td>
+                    <td className="px-5 py-3 text-right font-semibold text-gray-900">{formatCurrency(deal.mrr)}</td>
+                    <td className="px-5 py-3 text-gray-700">{deal.stage}</td>
+                    <td className="px-5 py-3"><DealHealthBadge health={deal.health} /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   );
 
-  const renderIntelligence = () => (
-    <div className="space-y-8">
-      {/* Team Pulse Distribution */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Team Pulse Distribution (Aggregated)</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          {Object.entries(teamPulseDistribution).map(([pulse, count]) => {
-            const colors: Record<string, { bg: string; text: string }> = {
-              Strong: { bg: 'bg-green-100', text: 'text-green-800' },
-              Steady: { bg: 'bg-blue-100', text: 'text-blue-800' },
-              Rising: { bg: 'bg-purple-100', text: 'text-purple-800' },
-              Fading: { bg: 'bg-orange-100', text: 'text-orange-800' },
-              Flatline: { bg: 'bg-red-100', text: 'text-red-800' }
-            };
+  // ==================== INTELLIGENCE VIEW ====================
 
-            return (
-              <div key={pulse} className={`${colors[pulse].bg} rounded-lg p-4 text-center`}>
-                <p className={`text-3xl font-bold ${colors[pulse].text}`}>{count}</p>
-                <p className={`text-sm font-semibold ${colors[pulse].text} mt-1`}>{pulse}</p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+  const renderIntelligence = () => (
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold text-gray-900">Intelligence</h1>
 
       {/* Friction Insights */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Friction Insights (Team-Wide)</h2>
-        <div className="space-y-3">
-          {frictionInsights.map((insight, idx) => {
-            const severityColors: Record<string, string> = {
-              HIGH: 'border-l-red-500 bg-red-50',
-              MODERATE: 'border-l-orange-500 bg-orange-50',
-              LOW: 'border-l-yellow-500 bg-yellow-50'
-            };
-
-            return (
-              <div key={idx} className={`border-l-4 ${severityColors[insight.severity]} rounded-lg p-4`}>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="font-bold text-gray-900">{insight.issue}</h4>
-                    <p className="text-sm text-gray-700 mt-1">{insight.count} advisors affected</p>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    insight.severity === 'HIGH' ? 'bg-red-200 text-red-800' :
-                    insight.severity === 'MODERATE' ? 'bg-orange-200 text-orange-800' :
-                    'bg-yellow-200 text-yellow-800'
-                  }`}>
-                    {insight.severity}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+      <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+        <div className="px-5 py-4 border-b border-[#f0ede9]">
+          <h3 className="text-xs uppercase font-bold text-gray-700">Friction Insights</h3>
         </div>
-      </div>
-
-      {/* Competitive Landscape */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Competitive Landscape</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {competitiveLandscape.map((comp) => (
-            <div key={comp.competitor} className="bg-white border border-tcs-border rounded-lg p-4">
-              <h4 className="font-bold text-gray-900">{comp.competitor}</h4>
-              <div className="mt-3 space-y-2">
-                <div>
-                  <p className="text-xs text-gray-600">Active Deals</p>
-                  <p className="text-2xl font-bold text-gray-900">{comp.dealCount}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-600">Pipeline at Risk</p>
-                  <p className="text-lg font-bold text-red-600">{formatCurrency(comp.pipelineAtRisk)}</p>
-                </div>
+        <div className="divide-y divide-[#e8e5e1]">
+          {frictionInsights.map((insight, idx) => (
+            <div key={idx} className="px-5 py-4 flex items-center justify-between hover:bg-[#F7F5F2]/30 transition-colors">
+              <div>
+                <p className="font-semibold text-gray-900">{insight.issue}</p>
+                <p className="text-xs text-gray-600 mt-1">{insight.count} reps affected</p>
               </div>
+              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                insight.severity === 'HIGH' ? 'bg-red-100 text-red-700' :
+                insight.severity === 'MODERATE' ? 'bg-amber-100 text-amber-700' :
+                'bg-green-100 text-green-700'
+              }`}>
+                {insight.severity}
+              </span>
             </div>
           ))}
         </div>
       </div>
 
+      {/* Competitive Landscape */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {competitiveLandscape.map((comp) => (
+          <div key={comp.competitor} className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+            <h4 className="font-bold text-gray-900 mb-4">{comp.competitor}</h4>
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-gray-600 mb-1">Active Deals</p>
+                <p className="text-2xl font-bold text-gray-900">{comp.dealCount}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600 mb-1">Pipeline at Risk</p>
+                <p className="text-lg font-bold text-[#ef4444]">{formatCurrency(comp.pipelineAtRisk)}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Diagnostic Matrix */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Diagnostic Matrix (Team-Level)</h2>
-        <div className="bg-white border border-tcs-border rounded-lg overflow-hidden">
+      <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+        <div className="px-5 py-4 border-b border-[#f0ede9]">
+          <h3 className="text-xs uppercase font-bold text-gray-700">Diagnostic Matrix</h3>
+        </div>
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-tcs-border">
-              <tr>
-                <th className="px-6 py-3 text-left font-semibold text-gray-900">Pattern</th>
-                <th className="px-6 py-3 text-left font-semibold text-gray-900">Reps Affected</th>
-                <th className="px-6 py-3 text-left font-semibold text-gray-900">Impact</th>
-                <th className="px-6 py-3 text-left font-semibold text-gray-900">Recommended Action</th>
+            <thead className="bg-[#F7F5F2]">
+              <tr className="border-b border-[#e8e5e1]">
+                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-700">Pattern</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-700">Reps Affected</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-700">Impact</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-gray-700">Action</th>
               </tr>
             </thead>
             <tbody>
               {diagnosticMatrix.map((item, idx) => (
-                <tr key={idx} className="border-b border-tcs-border hover:bg-gray-50">
-                  <td className="px-6 py-4 font-semibold text-gray-900">{item.pattern}</td>
-                  <td className="px-6 py-4 text-gray-700">{item.repsAffected}</td>
-                  <td className="px-6 py-4 text-red-600 font-medium">{item.impact}</td>
-                  <td className="px-6 py-4 text-tcs-teal font-medium">{item.action}</td>
+                <tr key={idx} className="border-b border-[#e8e5e1] hover:bg-[#F7F5F2]/30 transition-colors">
+                  <td className="px-5 py-3 font-semibold text-gray-900">{item.pattern}</td>
+                  <td className="px-5 py-3 text-gray-700">{item.repsAffected}</td>
+                  <td className="px-5 py-3 text-[#ef4444] font-medium">{item.impact}</td>
+                  <td className="px-5 py-3 text-[#157A6E] font-medium">{item.action}</td>
                 </tr>
               ))}
             </tbody>
@@ -1287,7 +766,7 @@ export default function LeaderDashboard() {
   // ==================== MAIN RENDER ====================
 
   return (
-    <div className="flex h-screen bg-tcs-bg">
+    <div className="flex h-screen bg-[#F7F5F2]">
       {/* Sidebar */}
       <Sidebar
         items={NAV_ITEMS_LEADER}
@@ -1299,28 +778,38 @@ export default function LeaderDashboard() {
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col overflow-hidden">
         {/* TopBar */}
         <TopBar
           nudges={nudges}
           userName={userName}
           userInitials={userInitials}
-          searchPlaceholder="Search reps, deals, advisors..."
+          pageTitle={activeView === 'command-center' ? 'Command Center' : activeView === 'forecast' ? 'Forecast' : activeView === 'team' ? 'Team' : activeView === 'relationships' ? 'Relationships' : activeView === 'pipeline' ? 'Pipeline' : 'Intelligence'}
         />
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-8">
-          {activeView === 'command-center' && renderCommandCenter()}
-          {activeView === 'forecast' && renderForecast()}
-          {activeView === 'team' && renderTeam()}
-          {activeView === 'relationships' && renderRelationships()}
-          {activeView === 'pipeline' && renderPipeline()}
-          {activeView === 'intelligence' && renderIntelligence()}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 overflow-y-auto">
+              {activeView === 'command-center' && renderCommandCenter()}
+              {activeView === 'forecast' && renderForecast()}
+              {activeView === 'team' && renderTeam()}
+              {activeView === 'relationships' && renderRelationships()}
+              {activeView === 'pipeline' && renderPipeline()}
+              {activeView === 'intelligence' && renderIntelligence()}
+            </div>
+            <AIChat role="leader" selectedAdvisor={selectedAdvisor} />
+          </div>
         </div>
       </div>
 
-      {/* AI Sidebar */}
-      <AIChat role="leader" selectedAdvisor={selectedAdvisor} />
+      {/* Advisor Panel */}
+      <AdvisorPanel
+        isOpen={panelOpen && activeView !== 'relationships'}
+        onClose={() => setPanelOpen(false)}
+        advisor={selectedAdvisor}
+        deals={selectedAdvisor ? deals.filter(d => selectedAdvisor.deals.includes(d.id)) : []}
+      />
     </div>
   );
 }

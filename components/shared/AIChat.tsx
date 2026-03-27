@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Sparkles, Send, ChevronRight, ChevronLeft, X } from 'lucide-react';
+import { Sparkles, Send, ChevronLeft } from 'lucide-react';
 import { advisors } from '@/lib/data/advisors';
 import { deals } from '@/lib/data/deals';
 import { Advisor } from '@/lib/types';
@@ -163,66 +163,64 @@ export function AIChat({ role, context, selectedAdvisor }: AIChatProps) {
 
   return (
     <>
-      {/* Collapsed state: vertical tab on right edge */}
+      {/* Collapsed state: slim vertical tab on right edge */}
       {!isOpen && (
         <button
           onClick={() => { setIsOpen(true); setTimeout(() => inputRef.current?.focus(), 100); }}
-          className="fixed right-0 top-1/2 -translate-y-1/2 bg-tcs-teal text-white px-1.5 py-6 rounded-l-lg shadow-lg hover:shadow-xl transition-all z-40 flex flex-col items-center gap-1"
+          className="fixed right-0 top-1/2 -translate-y-1/2 bg-[#157A6E] text-white px-1.5 py-6 rounded-l-lg shadow-lg hover:shadow-xl transition-all z-40 flex flex-col items-center gap-1"
         >
           <Sparkles className="w-4 h-4" />
-          <span className="text-xs font-medium [writing-mode:vertical-lr] rotate-180">AI Assistant</span>
+          <span className="text-xs font-medium [writing-mode:vertical-lr] rotate-180">Chat</span>
         </button>
       )}
 
-      {/* Open state: Granola-style sidebar */}
+      {/* Open state: clean minimal sidebar */}
       {isOpen && (
-        <div className="w-[340px] h-full bg-white border-l border-gray-200 flex flex-col flex-shrink-0">
+        <div className="w-[300px] h-full bg-white border-l border-solid border-[#e8e5e1] flex flex-col flex-shrink-0">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-tcs-teal rounded-md flex items-center justify-center">
-                <Sparkles className="w-3.5 h-3.5 text-white" />
+          <div className="px-4 py-3.5 border-b border-[#e8e5e1] flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 bg-[#157A6E] rounded-lg flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900">
-                  {selectedAdvisor ? selectedAdvisor.name : 'AI Assistant'}
-                </h3>
-                {selectedAdvisor && (
-                  <p className="text-[11px] text-gray-500">{selectedAdvisor.title} · {selectedAdvisor.company}</p>
-                )}
-              </div>
+              <h3 className="text-sm font-medium text-gray-900 truncate">
+                {selectedAdvisor ? selectedAdvisor.name : 'AI Assistant'}
+              </h3>
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-gray-400 hover:text-gray-600 p-1"
+              className="text-gray-400 hover:text-gray-600 p-1 flex-shrink-0"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4" />
             </button>
           </div>
 
           {/* Advisor context bar */}
           {selectedAdvisor && (
-            <div className="px-4 py-2 bg-tcs-bg border-b border-gray-100 flex items-center gap-3 text-xs">
-              <span className={`px-1.5 py-0.5 rounded font-medium ${
+            <div className="px-4 py-2 bg-[#f0faf8] border-b border-[#e8e5e1] flex items-center gap-2.5 text-xs">
+              <span className={`px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1 ${
                 selectedAdvisor.pulse === 'Strong' ? 'bg-green-100 text-green-700' :
                 selectedAdvisor.pulse === 'Rising' ? 'bg-emerald-100 text-emerald-700' :
                 selectedAdvisor.pulse === 'Steady' ? 'bg-blue-100 text-blue-700' :
                 selectedAdvisor.pulse === 'Fading' ? 'bg-amber-100 text-amber-700' :
                 'bg-red-100 text-red-700'
-              }`}>{selectedAdvisor.pulse}</span>
-              <span className="text-gray-500">${(selectedAdvisor.mrr/1000).toFixed(1)}K MRR</span>
-              <span className="text-gray-500">{selectedAdvisor.trajectory}</span>
+              }`}>
+                <span className="w-1.5 h-1.5 bg-current rounded-full animate-pulse" />
+                {selectedAdvisor.pulse}
+              </span>
+              <span className="text-gray-600">${(selectedAdvisor.mrr/1000).toFixed(1)}K</span>
+              <span className="text-gray-600">{selectedAdvisor.trajectory}</span>
             </div>
           )}
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-3 flex flex-col gap-3">
             {messages.map(message => (
               <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[90%] text-sm leading-relaxed whitespace-pre-line ${
+                <div className={`max-w-[85%] whitespace-pre-wrap text-13px leading-1.6 ${
                   message.type === 'user'
-                    ? 'bg-tcs-teal text-white px-3 py-2 rounded-2xl rounded-br-sm'
-                    : 'text-gray-700 px-0 py-0'
+                    ? 'bg-[#157A6E] text-white px-3.5 py-2 rounded-3xl rounded-br-sm'
+                    : 'text-[#555555] text-left'
                 }`}>
                   {message.text}
                 </div>
@@ -231,9 +229,9 @@ export function AIChat({ role, context, selectedAdvisor }: AIChatProps) {
             {isLoading && (
               <div className="flex items-center gap-1.5 text-gray-400 text-sm">
                 <div className="flex gap-1">
-                  <div className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             )}
@@ -242,12 +240,12 @@ export function AIChat({ role, context, selectedAdvisor }: AIChatProps) {
 
           {/* Suggestion chips */}
           {messages.length <= 2 && (
-            <div className="px-4 pb-2 flex flex-wrap gap-1.5">
+            <div className="px-4 pb-3 flex flex-wrap gap-1.5">
               {suggestions.map((s, i) => (
                 <button
                   key={i}
-                  onClick={() => { setInputValue(s); setTimeout(() => { setInputValue(s); handleSendDirect(s); }, 50); }}
-                  className="px-2.5 py-1 bg-gray-50 border border-gray-200 rounded-full text-xs text-gray-600 hover:bg-tcs-teal/5 hover:border-tcs-teal/30 hover:text-tcs-teal transition-colors"
+                  onClick={() => { handleSendDirect(s); }}
+                  className="px-2.5 py-1 bg-[#faf9f7] border border-[#e0ddd9] rounded-full text-10px text-gray-700 hover:border-[#157A6E] hover:text-[#157A6E] transition-colors"
                 >
                   {s}
                 </button>
@@ -256,8 +254,8 @@ export function AIChat({ role, context, selectedAdvisor }: AIChatProps) {
           )}
 
           {/* Input */}
-          <div className="px-3 py-3 border-t border-gray-100">
-            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 focus-within:border-tcs-teal focus-within:bg-white transition-colors">
+          <div className="px-4 py-3 border-t border-[#e8e5e1]">
+            <div className="flex items-center gap-2 bg-[#faf9f7] border border-[#e0ddd9] rounded-lg px-3 py-2.5 focus-within:border-[#157A6E] focus-within:bg-white transition-colors">
               <input
                 ref={inputRef}
                 type="text"
@@ -265,14 +263,14 @@ export function AIChat({ role, context, selectedAdvisor }: AIChatProps) {
                 onChange={e => setInputValue(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSend()}
                 placeholder={selectedAdvisor ? `Ask about ${selectedAdvisor.name.split(' ')[0]}...` : 'Ask a question...'}
-                className="flex-1 bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none"
+                className="flex-1 bg-transparent text-12px text-gray-900 placeholder-gray-500 focus:outline-none"
               />
               <button
                 onClick={handleSend}
                 disabled={isLoading || !inputValue.trim()}
-                className="p-1 text-tcs-teal hover:bg-tcs-teal/10 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                className="p-1.5 text-[#157A6E] hover:bg-[#157A6E]/10 rounded transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
               >
-                <Send className="w-4 h-4" />
+                <Send className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
