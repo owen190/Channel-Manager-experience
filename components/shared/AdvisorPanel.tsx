@@ -559,7 +559,7 @@ export function AdvisorPanel({
                         <span>
                           {advisorDeals.length === 1
                             ? `Check in on ${advisorDeals[0].name} status—currently in ${advisorDeals[0].stage} stage`
-                            : `Follow up on {advisor.name}'s ${advisorDeals.length} active deals—especially ${advisorDeals[0].name} which is ${advisorDeals[0].health.toLowerCase()}`}
+                            : `Follow up on ${advisor.name}'s ${advisorDeals.length} active deals—especially ${advisorDeals[0].name} which is ${advisorDeals[0].health.toLowerCase()}`}
                         </span>
                       </li>
                     )}
@@ -671,7 +671,7 @@ export function AdvisorPanel({
                         ? `Focus on specific unblocking—understand blockers on ${advisorDeals[0].name} and propose concrete next steps to get momentum back.`
                         : advisorDeals.length > 0 && advisorDeals.some((d) => d.health === 'Healthy')
                           ? `Discuss expansion opportunities beyond current deals. Advisor is engaged and there's strong pipeline potential.`
-                          : `Schedule exploratory call to understand {advisor.name}'s strategic priorities and identify partnership opportunities.`}
+                          : `Schedule exploratory call to understand ${advisor.name}'s strategic priorities and identify partnership opportunities.`}
                     </p>
                     <div className="pt-2 border-t border-gray-200 space-y-1">
                       <p className="text-xs text-gray-600">
