@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { MessageCircle } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -84,9 +85,9 @@ export function AIChat({ role, context }: AIChatProps) {
       {/* Floating Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-tcs-teal rounded-full flex items-center justify-center text-2xl shadow-lg hover:shadow-xl transition-shadow z-40"
+        className="fixed bottom-6 right-6 w-14 h-14 bg-tcs-teal rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow z-40 text-white"
       >
-        ð¬
+        <MessageCircle className="w-6 h-6" />
       </button>
 
       {/* Chat Panel */}
@@ -103,7 +104,7 @@ export function AIChat({ role, context }: AIChatProps) {
               onClick={() => setIsOpen(false)}
               className="text-white hover:text-gray-200 text-xl"
             >
-              Ã
+              x
             </button>
           </div>
 
