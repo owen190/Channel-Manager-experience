@@ -1290,11 +1290,11 @@ export default function ManagerPage() {
         </div>
       </div>
 
-      {/* Advisor Panel Slide-Over */}
+      {/* Advisor Panel Slide-Over (only on non-relationships views) */}
       <AdvisorPanel
         advisor={selectedAdvisor}
         deals={deals}
-        isOpen={panelOpen}
+        isOpen={panelOpen && activeView !== 'relationships'}
         onClose={() => setPanelOpen(false)}
       />
 
