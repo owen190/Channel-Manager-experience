@@ -28,11 +28,11 @@ export default function LeaderDashboard() {
   const [selectedAdvisor, setSelectedAdvisor] = useState<Advisor | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [expandedReps, setExpandedReps] = useState<string[]>([]);
-  const [inlineTab, setInlineTab] = useState<'overview' | 'personal' | 'deals' | 'ai-prep' | 'notes' | 'activity'>('overview');
+  const [inlineTab, setInlineTab] = useState<'overview' | 'personal' | 'deals' | 'notes' | 'activity'>('overview');
 
   // Leader info
-  const userName = 'Bobby H.';
-  const userInitials = 'BH';
+  const userName = 'Priya M.';
+  const userInitials = 'PM';
 
   // ==================== Data Calculations ====================
 
@@ -815,7 +815,7 @@ export default function LeaderDashboard() {
     if (selectedAdvisor) {
       const advisor = selectedAdvisor;
       const advisorDeals = deals.filter(d => advisor.deals.includes(d.id));
-      const tabs = ['overview', 'personal', 'deals', 'ai-prep', 'notes', 'activity'] as const;
+      const tabs = ['overview', 'personal', 'deals', 'notes', 'activity'] as const;
 
       return (
         <div className="space-y-0">
@@ -865,7 +865,7 @@ export default function LeaderDashboard() {
                   inlineTab === tab ? 'text-tcs-teal border-b-2 border-tcs-teal bg-white' : 'text-gray-500 hover:text-gray-900 bg-gray-50'
                 }`}
               >
-                {tab === 'ai-prep' ? 'AI Prep' : tab}
+                {tab}
               </button>
             ))}
           </div>
@@ -1002,67 +1002,6 @@ export default function LeaderDashboard() {
               </div>
             )}
 
-            {inlineTab === 'ai-prep' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-6">
-                  <div className="p-4 bg-gradient-to-r from-tcs-teal to-teal-600 rounded-lg text-white">
-                    <div className="flex items-start gap-3">
-                      <Sparkles className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium">Call Prep Summary</p>
-                        <p className="text-xs mt-2 opacity-90">Based on {advisor.name}'s current pulse ({advisor.pulse}) and {advisor.trajectory} trajectory, here's your prep for the next conversation.</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase flex items-center gap-2"><Target className="w-4 h-4 text-tcs-teal" /> Suggested Talking Points</h3>
-                    <ul className="space-y-2">
-                      {advisorDeals.length > 0 && <li className="text-sm text-gray-700 flex gap-2"><span className="text-tcs-teal font-bold">•</span><span>{advisorDeals.length === 1 ? `Check in on ${advisorDeals[0].name} status—currently in ${advisorDeals[0].stage} stage` : `Follow up on ${advisor.name}'s ${advisorDeals.length} active deals—especially ${advisorDeals[0].name} which is ${advisorDeals[0].health.toLowerCase()}`}</span></li>}
-                      {advisor.personalIntel && <li className="text-sm text-gray-700 flex gap-2"><span className="text-tcs-teal font-bold">•</span><span>Bring up their background: {advisor.personalIntel}</span></li>}
-                      {advisor.hobbies && <li className="text-sm text-gray-700 flex gap-2"><span className="text-tcs-teal font-bold">•</span><span>Ask about their hobbies—they enjoy {advisor.hobbies.toLowerCase()}</span></li>}
-                      {advisor.friction !== 'Low' && <li className="text-sm text-gray-700 flex gap-2"><span className="text-tcs-teal font-bold">•</span><span>Address {advisor.friction.toLowerCase()} friction—show understanding and commitment</span></li>}
-                      {(advisor.trajectory === 'Slipping' || advisor.trajectory === 'Freefall') && <li className="text-sm text-gray-700 flex gap-2"><span className="text-tcs-teal font-bold">•</span><span>Re-engagement strategy: Demonstrate renewed commitment and propose high-impact initiatives</span></li>}
-                    </ul>
-                  </div>
-                </div>
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase flex items-center gap-2"><Heart className="w-4 h-4 text-tcs-teal" /> Relationship Health</h3>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Engagement</span><EngLabel score={advisor.engagementBreakdown.engagement} /></div>
-                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Pipeline Strength</span><EngLabel score={advisor.engagementBreakdown.pipelineStrength} /></div>
-                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Responsiveness</span><EngLabel score={advisor.engagementBreakdown.responsiveness} /></div>
-                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Growth Potential</span><EngLabel score={advisor.engagementBreakdown.growthPotential} /></div>
-                    </div>
-                  </div>
-                  {(advisor.birthday || advisor.family || advisor.hobbies) && (
-                    <div>
-                      <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase flex items-center gap-2"><MessageCircle className="w-4 h-4 text-tcs-teal" /> Personal Connection Points</h3>
-                      <ul className="space-y-2">
-                        {advisor.birthday && <li className="text-sm text-gray-700">Birthday: {advisor.birthday}</li>}
-                        {advisor.family && <li className="text-sm text-gray-700">Family: {advisor.family}</li>}
-                        {advisor.hobbies && <li className="text-sm text-gray-700">Hobbies: {advisor.hobbies}</li>}
-                      </ul>
-                    </div>
-                  )}
-                  <div>
-                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase flex items-center gap-2"><Lightbulb className="w-4 h-4 text-tcs-teal" /> Next Steps</h3>
-                    <div className="bg-tcs-bg rounded-lg p-4">
-                      <p className="text-sm text-gray-700">
-                        {advisorDeals.some(d => d.health === 'Stalled' || d.health === 'At Risk')
-                          ? `Focus on unblocking ${advisorDeals[0].name}. Understand blockers and propose concrete next steps.`
-                          : advisorDeals.length > 0
-                            ? `Discuss expansion opportunities beyond current deals. Strong pipeline potential.`
-                            : `Schedule exploratory call to understand ${advisor.name}'s priorities.`}
-                      </p>
-                      <div className="mt-2 pt-2 border-t border-gray-200 text-xs text-gray-600">
-                        <p>Best Day: {advisor.bestDayToReach} · Preferred: {advisor.commPreference}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {inlineTab === 'notes' && (
               <div className="max-w-2xl space-y-4">
@@ -1380,8 +1319,8 @@ export default function LeaderDashboard() {
         </div>
       </div>
 
-      {/* AI Chat */}
-      <AIChat role="leader" />
+      {/* AI Sidebar */}
+      <AIChat role="leader" selectedAdvisor={selectedAdvisor} />
     </div>
   );
 }

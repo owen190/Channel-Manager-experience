@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Clock, AlertTriangle, Flag, ShieldAlert, DollarSign, Brain, Activity, TrendingDown, TrendingUp, Zap, Users, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Clock, AlertTriangle, Flag, ShieldAlert, DollarSign, Brain, Activity, TrendingDown, TrendingUp, Zap, Users, ChevronDown, ChevronUp, X, ArrowLeft, MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays, Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { KPICard } from '@/components/shared/KPICard';
@@ -20,7 +20,8 @@ import { deals } from '@/lib/data/deals';
 import { managerNudges } from '@/lib/data/nudges';
 import { managerBriefing } from '@/lib/data/briefings';
 import { NAV_ITEMS_MANAGER, STAGE_WEIGHTS, QUARTER_END, DAYS_REMAINING } from '@/lib/constants';
-import { Advisor, Deal, DealHealth, FrictionLevel, DiagnosticRow } from '@/lib/types';
+import { Advisor, Deal, DealHealth, FrictionLevel, DiagnosticRow, EngagementScore } from '@/lib/types';
+import { TierBadge } from '@/components/shared/TierBadge';
 
 export default function ManagerPage() {
   const [activeView, setActiveView] = useState('command-center');
@@ -29,6 +30,7 @@ export default function ManagerPage() {
   const [expandedKPI, setExpandedKPI] = useState<string | null>(null);
   const [dealFilter, setDealFilter] = useState({ health: 'all', stage: 'all' });
   const [drillDown, setDrillDown] = useState<{ label: string; advisorIds: string[] } | null>(null);
+  const [inlineTab, setInlineTab] = useState<'overview' | 'personal' | 'deals' | 'notes' | 'activity'>('overview');
 
   // Calculate metrics
   const totalMRR = useMemo(() => advisors.reduce((sum, a) => sum + a.mrr, 0), []);
@@ -302,6 +304,11 @@ export default function ManagerPage() {
   const getAdvisorsByIntent = (intent: string) => advisors.filter(a => a.intent === intent).map(a => a.id);
   const getAdvisorsByFriction = (friction: string) => advisors.filter(a => a.friction === friction).map(a => a.id);
 
+  const EngLabel = ({ score }: { score: EngagementScore }) => {
+    const colors = { Strong: 'bg-green-100 text-green-700', Steady: 'bg-blue-100 text-blue-700', Fading: 'bg-pink-100 text-pink-700' };
+    return <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${colors[score]}`}>{score}</span>;
+  };
+
   return (
     <div className="flex h-screen bg-tcs-bg">
       {/* Sidebar */}
@@ -310,14 +317,14 @@ export default function ManagerPage() {
         activeView={activeView}
         onViewChange={setActiveView}
         role="manager"
-        userName="Eric C."
-        userInitials="EC"
+        userName="Jordan R."
+        userInitials="JR"
       />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <TopBar nudges={managerNudges} userName="Eric C." userInitials="EC" />
+        <TopBar nudges={managerNudges} userName="Jordan R." userInitials="JR" />
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto">
@@ -820,10 +827,75 @@ export default function ManagerPage() {
 
             {/* ========== RELATIONSHIPS VIEW ========== */}
             {activeView === 'relationships' && (
-              <div className="space-y-6">
-                <h1 className="text-3xl font-bold text-gray-900">Relationships</h1>
-                <AdvisorTable advisors={advisors} onAdvisorClick={handleAdvisorClick} />
-              </div>
+              selectedAdvisor && panelOpen ? (() => {
+                const advisor = selectedAdvisor;
+                const advisorDeals = deals.filter(d => advisor.deals.includes(d.id));
+                const tabs = ['overview', 'personal', 'deals', 'notes', 'activity'] as const;
+                return (
+                  <div className="space-y-0">
+                    <div className="mb-6">
+                      <button onClick={() => { setSelectedAdvisor(null); setPanelOpen(false); setInlineTab('overview'); }} className="flex items-center gap-2 text-tcs-teal hover:underline text-sm mb-4"><ArrowLeft className="w-4 h-4" /> Back to All Advisors</button>
+                      <div className="bg-white rounded-lg border border-tcs-border p-6">
+                        <div className="flex items-center gap-6">
+                          <div className="w-20 h-20 bg-tcs-teal rounded-full flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">{advisor.name.split(' ').map(n => n[0]).join('')}</div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-1"><h1 className="text-2xl font-bold text-gray-900">{advisor.name}</h1>{advisor.tier && <TierBadge tier={advisor.tier} />}</div>
+                            <p className="text-gray-600">{advisor.title} · {advisor.company}</p>
+                            <div className="flex items-center gap-4 mt-3"><PulseBadge pulse={advisor.pulse} size="sm" /><TrajectoryBadge trajectory={advisor.trajectory} /><SentimentBadge tone={advisor.tone} /><FrictionBadge level={advisor.friction} /><DealHealthBadge health={advisor.dealHealth} /></div>
+                          </div>
+                          <div className="text-right"><p className="text-xs text-gray-500 uppercase">MRR</p><p className="text-3xl font-bold text-tcs-teal">${(advisor.mrr / 1000).toFixed(1)}K</p></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-t-lg border border-b-0 border-tcs-border flex">
+                      {tabs.map(tab => (<button key={tab} onClick={() => setInlineTab(tab)} className={`flex-1 px-4 py-3 text-sm font-medium uppercase transition-colors ${inlineTab === tab ? 'text-tcs-teal border-b-2 border-tcs-teal bg-white' : 'text-gray-500 hover:text-gray-900 bg-gray-50'}`}>{tab}</button>))}
+                    </div>
+                    <div className="bg-white rounded-b-lg border border-tcs-border p-6 min-h-[500px]">
+                      {inlineTab === 'overview' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          <div className="space-y-6">
+                            <div><h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Relationship Context</h3><dl className="space-y-2 text-sm"><div className="flex justify-between"><dt className="text-gray-600">Connected Since</dt><dd className="font-medium">{advisor.connectedSince}</dd></div><div className="flex justify-between"><dt className="text-gray-600">Best Day to Reach</dt><dd className="font-medium">{advisor.bestDayToReach}</dd></div><div className="flex justify-between"><dt className="text-gray-600">Comm Preference</dt><dd className="font-medium">{advisor.commPreference}</dd></div><div className="flex justify-between"><dt className="text-gray-600">Referred By</dt><dd className="font-medium">{advisor.referredBy}</dd></div></dl></div>
+                            <div><h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Relationship Breakdown</h3><div className="space-y-2"><div className="flex justify-between items-center"><span className="text-sm text-gray-600">Engagement</span><EngLabel score={advisor.engagementBreakdown.engagement} /></div><div className="flex justify-between items-center"><span className="text-sm text-gray-600">Pipeline Strength</span><EngLabel score={advisor.engagementBreakdown.pipelineStrength} /></div><div className="flex justify-between items-center"><span className="text-sm text-gray-600">Responsiveness</span><EngLabel score={advisor.engagementBreakdown.responsiveness} /></div><div className="flex justify-between items-center"><span className="text-sm text-gray-600">Growth Potential</span><EngLabel score={advisor.engagementBreakdown.growthPotential} /></div></div></div>
+                            {advisor.personalIntel && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Personal Intel</h3><p className="text-sm text-gray-700">{advisor.personalIntel}</p></div>}
+                          </div>
+                          <div className="space-y-6">
+                            <div className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded"><p className="text-sm italic text-gray-700">"{advisor.diagnosis}"</p></div>
+                            <div><h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Active Deals ({advisorDeals.length})</h3><div className="space-y-2">{advisorDeals.slice(0, 3).map(deal => (<div key={deal.id} className="flex items-center justify-between p-3 bg-tcs-bg rounded-lg"><div><p className="text-sm font-medium text-gray-900">{deal.name}</p><p className="text-xs text-gray-500">{deal.stage} · {deal.daysInStage}d</p></div><div className="text-right"><p className="text-sm font-bold text-tcs-teal">${(deal.mrr / 1000).toFixed(1)}K</p><DealHealthBadge health={deal.health} /></div></div>))}</div></div>
+                            <div><h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Recent Activity</h3><div className="space-y-2">{advisor.activity.slice(0, 4).map((item, idx) => (<div key={idx} className="flex items-start gap-3 p-2"><SentimentBadge tone={item.sentiment} /><div><p className="text-sm text-gray-700">{item.text}</p><p className="text-xs text-gray-400">{item.time}</p></div></div>))}</div></div>
+                          </div>
+                        </div>
+                      )}
+                      {inlineTab === 'personal' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          <div className="space-y-6">
+                            <div><h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Profile</h3><dl className="space-y-3 text-sm">{advisor.location && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Location</dt><dd className="font-medium">{advisor.location}</dd></div>}{advisor.birthday && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><Cake className="w-3.5 h-3.5" /> Birthday</dt><dd className="font-medium">{advisor.birthday}</dd></div>}{advisor.education && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> Education</dt><dd className="font-medium">{advisor.education}</dd></div>}</dl></div>
+                            {advisor.family && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Family</h3><p className="text-sm text-gray-700">{advisor.family}</p></div>}
+                            {advisor.hobbies && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Hobbies & Interests</h3><p className="text-sm text-gray-700">{advisor.hobbies}</p></div>}
+                            {advisor.funFact && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Fun Fact</h3><p className="text-sm text-gray-700">{advisor.funFact}</p></div>}
+                          </div>
+                          <div className="space-y-6">
+                            <div><h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Channel Relationships</h3><dl className="space-y-3 text-sm">{advisor.tsds?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">TSDs</dt><dd className="font-medium">{advisor.tsds.join(', ')}</dd></div>}{advisor.previousCompanies?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">Previous Companies</dt><dd className="font-medium">{advisor.previousCompanies.join(', ')}</dd></div>}{advisor.mutualConnections?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">Mutual Connections</dt><dd className="font-medium">{advisor.mutualConnections.join(', ')}</dd></div>}</dl></div>
+                          </div>
+                        </div>
+                      )}
+                      {inlineTab === 'deals' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{advisorDeals.length === 0 ? <p className="text-sm text-gray-600 col-span-full">No deals found</p> : advisorDeals.map(deal => (<div key={deal.id} className="border border-tcs-border rounded-lg p-4"><div className="flex items-start justify-between mb-3"><h4 className="font-semibold text-gray-900">{deal.name}</h4><DealHealthBadge health={deal.health} /></div><dl className="space-y-1 text-xs text-gray-600 mb-3"><div className="flex justify-between"><dt>MRR:</dt><dd className="font-medium text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</dd></div><div className="flex justify-between"><dt>Stage:</dt><dd className="font-medium text-gray-900">{deal.stage}</dd></div><div className="flex justify-between"><dt>Days in Stage:</dt><dd className="font-medium text-gray-900">{deal.daysInStage}</dd></div></dl><div className="bg-gray-100 rounded h-2 mb-1"><div className="bg-tcs-teal h-2 rounded" style={{ width: `${deal.probability}%` }} /></div><p className="text-xs text-gray-500">Probability: {deal.probability}%</p></div>))}</div>
+                      )}
+                      {inlineTab === 'notes' && (
+                        <div className="max-w-2xl space-y-4">{advisor.notes.map((note, idx) => (<div key={idx} className="p-3 bg-tcs-bg rounded-lg text-sm text-gray-700">• {note}</div>))}<div className="flex gap-2 pt-4 border-t border-tcs-border"><button className="py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Log Call</button><button className="py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" /> Schedule</button></div></div>
+                      )}
+                      {inlineTab === 'activity' && (
+                        <div className="max-w-2xl space-y-3">{advisor.activity.map((item, idx) => (<div key={idx} className="border-l-2 border-gray-300 pl-4 py-2"><div className="flex items-center gap-2 mb-1"><SentimentBadge tone={item.sentiment} /><span className="text-xs text-gray-500">{item.time}</span></div><p className="text-sm text-gray-700">{item.text}</p></div>))}</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })() : (
+                <div className="space-y-6">
+                  <h1 className="text-3xl font-bold text-gray-900">Relationships</h1>
+                  <AdvisorTable advisors={advisors} onAdvisorClick={(id) => { handleAdvisorClick(id); setInlineTab('overview'); }} />
+                </div>
+              )
             )}
 
             {/* ========== PIPELINE VIEW ========== */}
@@ -1226,8 +1298,8 @@ export default function ManagerPage() {
         onClose={() => setPanelOpen(false)}
       />
 
-      {/* AI Chat Floating Button */}
-      <AIChat role="manager" />
+      {/* AI Sidebar */}
+      <AIChat role="manager" selectedAdvisor={selectedAdvisor} />
     </div>
   );
 }
