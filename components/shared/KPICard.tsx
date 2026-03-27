@@ -35,9 +35,9 @@ export function KPICard({
   };
 
   const changeArrow = {
-    positive: 'â',
-    negative: 'â',
-    neutral: 'â',
+    positive: '\u2191',
+    negative: '\u2193',
+    neutral: '\u2192',
   };
 
   return (

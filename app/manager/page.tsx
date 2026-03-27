@@ -630,7 +630,7 @@ export default function ManagerPage() {
 
                 {/* Kanban Board */}
                 <div className="overflow-x-auto pb-4">
-                  <div className="flex gap-6 min-w-full pr-4">
+                  <div className="flex gap-4" style={{ minWidth: '1920px' }}>
                     {(['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Stalled'] as const).map(stage => {
                       const stageBorderColors = {
                         'Discovery': 'border-t-blue-500',
@@ -649,7 +649,7 @@ export default function ManagerPage() {
                       const stageMRR = stageDeals.reduce((sum, d) => sum + d.mrr, 0);
 
                       return (
-                        <div key={stage} className="flex-shrink-0 w-full" style={{ minWidth: '320px' }}>
+                        <div key={stage} className="flex-1 min-w-[280px]">
                           {/* Column Header */}
                           <div className={`bg-white border-4 border-t-4 border-tcs-border rounded-lg p-4 mb-3 ${stageBorderColors[stage]}`}>
                             <div className="flex items-center justify-between mb-2">

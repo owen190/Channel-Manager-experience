@@ -189,35 +189,35 @@ export function AdvisorTable({ advisors, onAdvisorClick }: AdvisorTableProps) {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('name')}>
-                  Advisor {sortField === 'name' && (sortDir === 'asc' ? 'â' : 'â')}
+                  Advisor {sortField === 'name' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('pulse')}>
-                  Pulse {sortField === 'pulse' && (sortDir === 'asc' ? 'â' : 'â')}
+                  Pulse {sortField === 'pulse' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('trajectory')}>
-                  Trajectory {sortField === 'trajectory' && (sortDir === 'asc' ? 'â' : 'â')}
+                  Trajectory {sortField === 'trajectory' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('tone')}>
-                  Tone {sortField === 'tone' && (sortDir === 'asc' ? 'â' : 'â')}
+                  Tone {sortField === 'tone' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('friction')}>
-                  Friction {sortField === 'friction' && (sortDir === 'asc' ? 'â' : 'â')}
+                  Friction {sortField === 'friction' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('tier')}>
-                  Tier {sortField === 'tier' && (sortDir === 'asc' ? 'â' : 'â')}
+                  Tier {sortField === 'tier' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('mrr')}>
-                  MRR {sortField === 'mrr' && (sortDir === 'asc' ? 'â' : 'â')}
+                  MRR {sortField === 'mrr' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                   onClick={() => handleSort('lastContact')}>
-                  Last Contact {sortField === 'lastContact' && (sortDir === 'asc' ? 'â' : 'â')}
+                  Last Contact {sortField === 'lastContact' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
               </tr>
             </thead>
@@ -236,7 +236,7 @@ export function AdvisorTable({ advisors, onAdvisorClick }: AdvisorTableProps) {
                           {advisor.name}
                         </div>
                         <div className="text-sm text-gray-600">
-                          {advisor.title} Â· {advisor.company}
+                          {advisor.title} · {advisor.company}
                         </div>
                       </div>
                     </div>
