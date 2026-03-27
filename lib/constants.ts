@@ -15,27 +15,27 @@ export const QUARTER_END = '2026-03-31';
 export const DAYS_REMAINING = 5;
 
 export const INTEGRATIONS = [
-  { name: 'Salesforce', status: 'connected' as const, icon: 'âï¸' },
-  { name: 'Gong', status: 'connected' as const, icon: 'ðï¸' },
-  { name: 'Fireflies', status: 'connected' as const, icon: 'ð¥' },
-  { name: 'Microsoft Teams', status: 'connected' as const, icon: 'ð¬' },
-  { name: 'Slack', status: 'available' as const, icon: 'ð±' },
-  { name: 'HubSpot', status: 'available' as const, icon: 'ð¶' },
+  { name: 'Salesforce', status: 'connected' as const, icon: 'Cloud' },
+  { name: 'Gong', status: 'connected' as const, icon: 'Mic' },
+  { name: 'Fireflies', status: 'connected' as const, icon: 'Flame' },
+  { name: 'Microsoft Teams', status: 'connected' as const, icon: 'MessageSquare' },
+  { name: 'Slack', status: 'available' as const, icon: 'Hash' },
+  { name: 'HubSpot', status: 'available' as const, icon: 'Hexagon' },
 ];
 
 export const NAV_ITEMS_MANAGER = [
-  { id: 'command-center', label: 'Command Center', icon: 'â¡' },
-  { id: 'intelligence', label: 'Intelligence Hub', icon: 'ð§ ' },
-  { id: 'relationships', label: 'Relationships', icon: 'ð¤' },
-  { id: 'pipeline', label: 'Pipeline', icon: 'ð°' },
-  { id: 'strategic', label: 'Strategic', icon: 'ð' },
+  { id: 'command-center', label: 'Command Center', icon: 'Zap' },
+  { id: 'intelligence', label: 'Intelligence Hub', icon: 'Brain' },
+  { id: 'relationships', label: 'Relationships', icon: 'Handshake' },
+  { id: 'pipeline', label: 'Pipeline', icon: 'DollarSign' },
+  { id: 'strategic', label: 'Strategic', icon: 'TrendingUp' },
 ];
 
 export const NAV_ITEMS_LEADER = [
-  { id: 'command-center', label: 'Command Center', icon: 'â¡' },
-  { id: 'forecast', label: 'Forecast', icon: 'ð' },
-  { id: 'team', label: 'Team', icon: 'ð¥' },
-  { id: 'relationships', label: 'Relationships', icon: 'ð¤' },
-  { id: 'pipeline', label: 'Pipeline', icon: 'ð°' },
-  { id: 'intelligence', label: 'Intelligence', icon: 'ð§ ' },
+  { id: 'command-center', label: 'Command Center', icon: 'Zap' },
+  { id: 'forecast', label: 'Forecast', icon: 'BarChart3' },
+  { id: 'team', label: 'Team', icon: 'Users' },
+  { id: 'relationships', label: 'Relationships', icon: 'Handshake' },
+  { id: 'pipeline', label: 'Pipeline', icon: 'DollarSign' },
+  { id: 'intelligence', label: 'Intelligence', icon: 'Brain' },
 ];
