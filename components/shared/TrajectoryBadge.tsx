@@ -1,6 +1,8 @@
 'use client';
 
 import { Trajectory } from '@/lib/types';
+import { TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
+import { type LucideIcon } from 'lucide-react';
 
 interface TrajectoryBadgeProps {
   trajectory: Trajectory;
@@ -8,30 +10,30 @@ interface TrajectoryBadgeProps {
 
 const trajectoryConfig: Record<
   Trajectory,
-  { arrow: string; color: string; label: string }
+  { Icon: LucideIcon; color: string; label: string }
 > = {
   Accelerating: {
-    arrow: 'â²',
+    Icon: TrendingUp,
     color: 'text-green-600',
     label: 'Accelerating',
   },
   Climbing: {
-    arrow: 'â²',
+    Icon: TrendingUp,
     color: 'text-blue-600',
     label: 'Climbing',
   },
   Stable: {
-    arrow: 'â¶',
+    Icon: ArrowRight,
     color: 'text-orange-600',
     label: 'Stable',
   },
   Slipping: {
-    arrow: 'â¼',
+    Icon: TrendingDown,
     color: 'text-pink-600',
     label: 'Slipping',
   },
   Freefall: {
-    arrow: 'â¼',
+    Icon: TrendingDown,
     color: 'text-red-600',
     label: 'Freefall',
   },
@@ -39,10 +41,11 @@ const trajectoryConfig: Record<
 
 export function TrajectoryBadge({ trajectory }: TrajectoryBadgeProps) {
   const config = trajectoryConfig[trajectory];
+  const IconComp = config.Icon;
 
   return (
     <span className={`inline-flex items-center gap-1 font-semibold ${config.color}`}>
-      <span className="text-lg">{config.arrow}</span>
+      <IconComp className="w-4 h-4" />
       <span className="text-sm uppercase">{config.label}</span>
     </span>
   );
