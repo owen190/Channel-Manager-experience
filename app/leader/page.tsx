@@ -596,18 +596,18 @@ export default function LeaderDashboard() {
                     <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Commit vs Target Tracker</h3>
                   </div>
                   <div className="p-6">
-                    <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div className="flex flex-wrap gap-6 mb-6">
                       <div>
-                        <p className="text-11px text-gray-600 uppercase mb-1">Target</p>
-                        <p className="text-2xl font-bold text-gray-900">{formatCurrency(teamTarget)}</p>
+                        <p className="text-10px text-gray-600 uppercase mb-1">Target</p>
+                        <p className="text-lg font-bold text-gray-900">{formatCurrency(teamTarget)}</p>
                       </div>
                       <div>
-                        <p className="text-11px text-gray-600 uppercase mb-1">Current</p>
-                        <p className="text-2xl font-bold" style={{ color: '#157A6E' }}>{formatCurrency(teamCommit)}</p>
+                        <p className="text-10px text-gray-600 uppercase mb-1">Current</p>
+                        <p className="text-lg font-bold" style={{ color: '#157A6E' }}>{formatCurrency(teamCommit)}</p>
                       </div>
                       <div>
-                        <p className="text-11px text-gray-600 uppercase mb-1">Gap</p>
-                        <p className="text-2xl font-bold" style={{ color: '#ef4444' }}>{formatCurrency(commitGap)}</p>
+                        <p className="text-10px text-gray-600 uppercase mb-1">Gap</p>
+                        <p className="text-lg font-bold" style={{ color: '#ef4444' }}>{formatCurrency(commitGap)}</p>
                       </div>
                     </div>
                     <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">

@@ -845,64 +845,69 @@ export default function ManagerPage() {
 
             {/* ========== RELATIONSHIPS VIEW ========== */}
             {activeView === 'relationships' && (
-              <div className="flex gap-6 h-full max-w-7xl mx-auto">
-                <div className="w-64 flex flex-col bg-white rounded-xl border border-[#e8e5e1]">
-                  <div className="px-6 py-4 border-b border-[#f0ede9] flex gap-2 flex-wrap">
-                    {['All', 'At Risk', 'Top 10', 'New'].map(filter => (
+              <div className="h-full max-w-7xl mx-auto">
+                {/* List view OR detail view based on relationshipsView state */}
+                {relationshipsView === 'list' && (
+                  <div className="flex flex-col bg-white rounded-xl border border-[#e8e5e1] h-full">
+                    <div className="px-6 py-4 border-b border-[#f0ede9] flex gap-2 flex-wrap">
+                      {['All', 'At Risk', 'Top 10', 'New'].map(filter => (
+                        <button
+                          key={filter}
+                          onClick={() => setRelationshipFilter(filter)}
+                          className="px-3 py-1 rounded-full text-11px font-semibold border transition-colors"
+                          style={{
+                            backgroundColor: relationshipFilter === filter ? '#157A6E' : 'transparent',
+                            color: relationshipFilter === filter ? 'white' : '#666',
+                            borderColor: relationshipFilter === filter ? '#157A6E' : '#e8e5e1',
+                          }}
+                        >
+                          {filter}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto">
+                      {filteredAdvisors.map(advisor => (
+                        <div
+                          key={advisor.id}
+                          onClick={() => handleAdvisorClick(advisor.id)}
+                          className="px-6 py-4 border-b border-[#f0ede9] cursor-pointer hover:bg-[#F7F5F2] transition-colors"
+                        >
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="w-8 h-8 rounded-full bg-[#157A6E] text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                              {advisor.name.split(' ').map(n => n[0]).join('')}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-13px font-medium text-gray-900 truncate">{advisor.name}</p>
+                              <p className="text-11px text-gray-600 truncate">{advisor.company}</p>
+                            </div>
+                            <span className="text-11px font-semibold text-gray-900">${(advisor.mrr / 1000).toFixed(1)}K</span>
+                          </div>
+                          <div className="flex gap-2 items-center">
+                            <PulseBadge pulse={advisor.pulse} size="sm" />
+                            <TrajectoryBadge trajectory={advisor.trajectory} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {relationshipsView === 'detail' && selectedAdvisor && (
+                  <div className="flex flex-col overflow-hidden h-full">
+                    <div className="bg-white rounded-t-xl border border-b-0 border-[#e8e5e1] p-6 flex items-start gap-4 border-b border-[#f0ede9] pb-4">
                       <button
-                        key={filter}
-                        onClick={() => setRelationshipFilter(filter)}
-                        className="px-3 py-1 rounded-full text-11px font-semibold border transition-colors"
-                        style={{
-                          backgroundColor: relationshipFilter === filter ? '#157A6E' : 'transparent',
-                          color: relationshipFilter === filter ? 'white' : '#666',
-                          borderColor: relationshipFilter === filter ? '#157A6E' : '#e8e5e1',
-                        }}
+                        onClick={() => { setRelationshipsView('list'); setSelectedAdvisor(null); }}
+                        className="p-1.5 hover:bg-[#F7F5F2] rounded-lg transition-colors flex-shrink-0 mt-1"
                       >
-                        {filter}
+                        <ArrowLeft className="w-5 h-5 text-gray-500" />
                       </button>
-                    ))}
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto">
-                    {filteredAdvisors.map(advisor => (
-                      <div
-                        key={advisor.id}
-                        onClick={() => handleAdvisorClick(advisor.id)}
-                        className="px-6 py-4 border-b border-[#f0ede9] cursor-pointer hover:bg-[#F7F5F2] transition-colors"
-                        style={{
-                          backgroundColor: selectedAdvisor?.id === advisor.id ? '#f0f9f7' : undefined,
-                          borderLeftWidth: selectedAdvisor?.id === advisor.id ? '4px' : '0px',
-                          borderLeftColor: selectedAdvisor?.id === advisor.id ? '#157A6E' : undefined,
-                        }}
-                      >
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="w-8 h-8 rounded-full bg-[#157A6E] text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {advisor.name.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-13px font-medium text-gray-900 truncate">{advisor.name}</p>
-                            <p className="text-11px text-gray-600 truncate">{advisor.company}</p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2 items-center">
-                          <PulseBadge pulse={advisor.pulse} size="sm" />
-                          <span className="text-11px font-semibold text-gray-900 ml-auto">${(advisor.mrr / 1000).toFixed(1)}K</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {selectedAdvisor ? (
-                  <div className="flex-1 flex flex-col overflow-hidden">
-                    <div className="bg-white rounded-t-xl border border-b-0 border-[#e8e5e1] p-6 flex items-start gap-6 border-b border-[#f0ede9] pb-4">
-                      <div className="w-16 h-16 rounded-full bg-[#157A6E] text-white flex items-center justify-center text-2xl font-bold flex-shrink-0">
+                      <div className="w-12 h-12 rounded-full bg-[#157A6E] text-white flex items-center justify-center text-xl font-bold flex-shrink-0">
                         {selectedAdvisor.name.split(' ').map(n => n[0]).join('')}
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1">
-                          <h2 className="text-24px font-bold text-gray-900">{selectedAdvisor.name}</h2>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h2 className="text-lg font-bold text-gray-900 truncate">{selectedAdvisor.name}</h2>
                           {selectedAdvisor.tier && <TierBadge tier={selectedAdvisor.tier} />}
                         </div>
                         <p className="text-13px text-gray-600 mb-3">{selectedAdvisor.title} · {selectedAdvisor.company}</p>
@@ -1167,54 +1172,6 @@ export default function ManagerPage() {
                           ))}
                         </div>
                       )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex-1 bg-white rounded-xl border border-[#e8e5e1] p-6 flex flex-col items-center justify-center">
-                    <div className="text-center space-y-6 max-w-md">
-                      <div>
-                        <h3 className="text-16px font-bold text-gray-900 mb-2">Portfolio Summary</h3>
-                        <p className="text-13px text-gray-600">Overview of your advisor network</p>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-[#F7F5F2] rounded-lg p-4">
-                          <p className="text-11px uppercase font-semibold text-[#888] mb-1">Total Advisors</p>
-                          <p className="text-24px font-bold text-gray-900">{portfolioStats.totalAdvisors}</p>
-                        </div>
-                        <div className="bg-[#F7F5F2] rounded-lg p-4">
-                          <p className="text-11px uppercase font-semibold text-[#888] mb-1">Total MRR</p>
-                          <p className="text-24px font-bold text-gray-900">${(portfolioStats.totalMRRFiltered / 1000).toFixed(1)}K</p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <p className="text-11px uppercase font-semibold text-[#888] mb-3">Pulse Distribution</p>
-                        <div className="h-8 bg-gray-100 rounded-full overflow-hidden flex">
-                          {portfolioStats.pulseStats.Strong > 0 && (
-                            <div className="bg-green-500 flex items-center justify-center text-white text-10px font-bold" style={{ width: `${(portfolioStats.pulseStats.Strong / portfolioStats.totalAdvisors) * 100}%` }} title="Strong">
-                              {portfolioStats.totalAdvisors > 0 && portfolioStats.pulseStats.Strong > 0 ? portfolioStats.pulseStats.Strong : ''}
-                            </div>
-                          )}
-                          {portfolioStats.pulseStats.Steady > 0 && (
-                            <div className="bg-blue-500 flex items-center justify-center text-white text-10px font-bold" style={{ width: `${(portfolioStats.pulseStats.Steady / portfolioStats.totalAdvisors) * 100}%` }} title="Steady">
-                              {portfolioStats.totalAdvisors > 0 && portfolioStats.pulseStats.Steady > 0 ? portfolioStats.pulseStats.Steady : ''}
-                            </div>
-                          )}
-                          {portfolioStats.pulseStats.Fading > 0 && (
-                            <div className="bg-yellow-500 flex items-center justify-center text-white text-10px font-bold" style={{ width: `${(portfolioStats.pulseStats.Fading / portfolioStats.totalAdvisors) * 100}%` }} title="Fading">
-                              {portfolioStats.totalAdvisors > 0 && portfolioStats.pulseStats.Fading > 0 ? portfolioStats.pulseStats.Fading : ''}
-                            </div>
-                          )}
-                          {portfolioStats.pulseStats.Flatline > 0 && (
-                            <div className="bg-red-500 flex items-center justify-center text-white text-10px font-bold" style={{ width: `${(portfolioStats.pulseStats.Flatline / portfolioStats.totalAdvisors) * 100}%` }} title="Flatline">
-                              {portfolioStats.totalAdvisors > 0 && portfolioStats.pulseStats.Flatline > 0 ? portfolioStats.pulseStats.Flatline : ''}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <p className="text-13px text-gray-600">Select an advisor from the list to view their full profile</p>
                     </div>
                   </div>
                 )}
