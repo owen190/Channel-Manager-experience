@@ -33,7 +33,7 @@ export default function Home() {
             Channel Manager
           </h2>
           <p className="text-[#157A6E] text-sm font-medium mb-4">
-            Eric C.
+            Jordan R.
           </p>
           <p className="text-gray-700 mb-6">
             Your daily operating tool. Advisor relationships, pipeline management, intelligence insights, and AI-powered coaching.
@@ -57,7 +57,7 @@ export default function Home() {
             Sales Leader
           </h2>
           <p className="text-[#157A6E] text-sm font-medium mb-4">
-            Bobby H.
+            Priya M.
           </p>
           <p className="text-gray-700 mb-6">
             Team oversight dashboard. Forecast tracking, capacity management, team coaching, and strategic intelligence.
