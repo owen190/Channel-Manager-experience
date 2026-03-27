@@ -25,7 +25,7 @@ export const INTEGRATIONS = [
 
 export const NAV_ITEMS_MANAGER = [
   { id: 'command-center', label: 'Command Center', icon: 'Zap' },
-  { id: 'intelligence', label: 'Intelligence Hub', icon: 'Brain' },
+  { id: 'intelligence-hub', label: 'Intelligence Hub', icon: 'Brain' },
   { id: 'relationships', label: 'Relationships', icon: 'Handshake' },
   { id: 'pipeline', label: 'Pipeline', icon: 'DollarSign' },
   { id: 'strategic', label: 'Strategic', icon: 'TrendingUp' },
