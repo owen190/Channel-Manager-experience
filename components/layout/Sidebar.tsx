@@ -1,6 +1,18 @@
 'use client';
 
 import { IntegrationBadges } from '@/components/shared/IntegrationBadges';
+import { Zap, Brain, Handshake, DollarSign, TrendingUp, BarChart3, Users } from 'lucide-react';
+import { type LucideIcon } from 'lucide-react';
+
+const ICON_MAP: Record<string, LucideIcon> = {
+  Zap,
+  Brain,
+  Handshake,
+  DollarSign,
+  TrendingUp,
+  BarChart3,
+  Users,
+};
 
 interface NavItem {
   id: string;
@@ -44,20 +56,27 @@ export function Sidebar({
 
       {/* Nav Items */}
       <nav className="flex-1 px-4 py-6 space-y-2">
-        {items.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => onViewChange(item.id)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all border-l-2 ${
-              activeView === item.id
-                ? 'bg-gray-700 border-l-tcs-teal text-tcs-teal'
-                : 'border-l-transparent text-gray-300 hover:text-white hover:bg-gray-800'
-            }`}
-          >
-            <span className="text-xl">{item.icon}</span>
-            <span className="text-sm font-medium">{item.label}</span>
-          </button>
-        ))}
+        {items.map((item) => {
+          const IconComponent = ICON_MAP[item.icon];
+          return (
+            <button
+              key={item.id}
+              onClick={() => onViewChange(item.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all border-l-2 ${
+                activeView === item.id
+                  ? 'bg-gray-700 border-l-tcs-teal text-tcs-teal'
+                  : 'border-l-transparent text-gray-300 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              {IconComponent ? (
+                <IconComponent className="w-5 h-5 flex-shrink-0" />
+              ) : (
+                <span className="w-5 h-5" />
+              )}
+              <span className="text-sm font-medium">{item.label}</span>
+            </button>
+          );
+        })}
       </nav>
 
       {/* Integrations */}
