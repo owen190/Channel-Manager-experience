@@ -2,21 +2,23 @@
 
 import { useState } from 'react';
 import { Nudge } from '@/lib/types';
+import { Bell, BarChart3, Package, PauseCircle, MessageSquare, PartyPopper, Swords, CalendarDays, Zap, Brush } from 'lucide-react';
+import { type LucideIcon } from 'lucide-react';
 
 interface SmartNudgesProps {
   nudges: Nudge[];
 }
 
-const nudgeConfig = {
-  forecast: { color: 'border-l-red-500', icon: 'ð' },
-  capacity: { color: 'border-l-orange-500', icon: 'ð¦' },
-  stall: { color: 'border-l-pink-500', icon: 'â¸ï¸' },
-  engagement: { color: 'border-l-blue-500', icon: 'ð¬' },
-  win: { color: 'border-l-green-500', icon: 'ð' },
-  competitive: { color: 'border-l-purple-500', icon: 'âï¸' },
-  quarter: { color: 'border-l-yellow-500', icon: 'ð' },
-  override: { color: 'border-l-indigo-500', icon: 'â¡' },
-  hygiene: { color: 'border-l-gray-500', icon: 'ð§¹' },
+const nudgeConfig: Record<string, { color: string; Icon: LucideIcon }> = {
+  forecast: { color: 'border-l-red-500', Icon: BarChart3 },
+  capacity: { color: 'border-l-orange-500', Icon: Package },
+  stall: { color: 'border-l-pink-500', Icon: PauseCircle },
+  engagement: { color: 'border-l-blue-500', Icon: MessageSquare },
+  win: { color: 'border-l-green-500', Icon: PartyPopper },
+  competitive: { color: 'border-l-purple-500', Icon: Swords },
+  quarter: { color: 'border-l-yellow-500', Icon: CalendarDays },
+  override: { color: 'border-l-indigo-500', Icon: Zap },
+  hygiene: { color: 'border-l-gray-500', Icon: Brush },
 };
 
 export function SmartNudges({ nudges }: SmartNudgesProps) {
@@ -29,9 +31,9 @@ export function SmartNudges({ nudges }: SmartNudgesProps) {
       {/* Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 hover:bg-tcs-bg rounded-lg transition-colors"
+        className="relative p-2 hover:bg-tcs-bg rounded-lg transition-colors text-gray-600"
       >
-        ð
+        <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
           <span className="absolute top-0 right-0 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
             {unreadCount}
@@ -49,7 +51,7 @@ export function SmartNudges({ nudges }: SmartNudgesProps) {
               onClick={() => setIsOpen(false)}
               className="text-gray-500 hover:text-gray-700 text-xl"
             >
-              Ã
+              x
             </button>
           </div>
 
@@ -71,6 +73,7 @@ export function SmartNudges({ nudges }: SmartNudgesProps) {
                 const config =
                   nudgeConfig[nudge.type as keyof typeof nudgeConfig] ||
                   nudgeConfig.hygiene;
+                const NudgeIcon = config.Icon;
 
                 return (
                   <div
@@ -78,8 +81,8 @@ export function SmartNudges({ nudges }: SmartNudgesProps) {
                     className={`border-l-4 ${config.color} p-4 hover:bg-tcs-bg transition-colors cursor-pointer`}
                   >
                     <div className="flex items-start gap-3">
-                      <span className="text-xl flex-shrink-0">
-                        {config.icon}
+                      <span className="flex-shrink-0 text-gray-500 mt-0.5">
+                        <NudgeIcon className="w-5 h-5" />
                       </span>
                       <div className="flex-1">
                         <h4 className="font-bold text-gray-900 text-sm mb-1">
