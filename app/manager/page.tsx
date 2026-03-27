@@ -51,6 +51,8 @@ import { managerBriefing } from '@/lib/data/briefings';
 import { NAV_ITEMS_MANAGER, STAGE_WEIGHTS, QUARTER_END, DAYS_REMAINING } from '@/lib/constants';
 import { Advisor, Deal, DealHealth, FrictionLevel, DiagnosticRow, EngagementScore } from '@/lib/types';
 
+type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Stalled';
+
 export default function ManagerPage() {
   const [activeView, setActiveView] = useState('command-center');
   const [selectedAdvisor, setSelectedAdvisor] = useState<Advisor | null>(null);
@@ -60,6 +62,45 @@ export default function ManagerPage() {
   const [drillDown, setDrillDown] = useState<{ label: string; advisorIds: string[] } | null>(null);
   const [inlineTab, setInlineTab] = useState<'overview' | 'personal' | 'deals' | 'notes' | 'activity'>('overview');
   const [relationshipsView, setRelationshipsView] = useState<'list' | 'detail'>('list');
+  const [expandedKPIPanel, setExpandedKPIPanel] = useState<string | null>(null);
+  const [showBriefing, setShowBriefing] = useState(false);
+  const [relationshipFilter, setRelationshipFilter] = useState('All');
+  const [pipelineKPIExpanded, setPipelineKPIExpanded] = useState<string | null>(null);
+  const [expandedStage, setExpandedStage] = useState<DealStage | null>(null);
+
+  const calculateEngagementScore = (pulse: string): number => {
+    const scoreMap: Record<string, number> = {
+      'Strong': 90,
+      'Steady': 60,
+      'Rising': 75,
+      'Fading': 30,
+      'Flatline': 10,
+    };
+    return scoreMap[pulse] || 0;
+  };
+
+  const getTierColor = (tier: string): string => {
+    const colorMap: Record<string, string> = {
+      'top10': '#157A6E',
+      'next20': '#2563eb',
+      'other': '#9ca3af',
+    };
+    return colorMap[tier] || '#9ca3af';
+  };
+
+  const calculateQuotesData = (advisor: Advisor): { submitted: number; won: number } => {
+    const tierMultiplier: Record<string, number> = {
+      'top10': 45,
+      'next20': 28,
+      'other': 12,
+    };
+    const tier = advisor.tier || 'other';
+    const baseFactor = tierMultiplier[tier] || 12;
+    const submitted = Math.floor(5 + (baseFactor * (advisor.mrr / 10000)));
+    const conversionRate = Math.random() * 0.4 + 0.3;
+    const won = Math.floor(submitted * conversionRate);
+    return { submitted, won };
+  };
 
   // Calculate metrics
   const totalMRR = useMemo(() => advisors.reduce((sum, a) => sum + a.mrr, 0), []);
@@ -75,7 +116,6 @@ export default function ManagerPage() {
 
   const quarterGap = 1200000 - totalMRR;
 
-  // Weighted pipeline calculation
   const weightedPipeline = useMemo(() => {
     return deals.reduce((sum, deal) => {
       const weight = STAGE_WEIGHTS.find(w => w.stage === deal.stage)?.weight || 0;
@@ -83,7 +123,6 @@ export default function ManagerPage() {
     }, 0);
   }, []);
 
-  // Handles for advisor selection
   const handleAdvisorClick = (advisorId: string) => {
     const advisor = advisors.find(a => a.id === advisorId);
     if (advisor) {
@@ -96,7 +135,6 @@ export default function ManagerPage() {
     }
   };
 
-  // Pulse distribution
   const pulseDistribution = {
     Strong: advisors.filter(a => a.pulse === 'Strong').length,
     Steady: advisors.filter(a => a.pulse === 'Steady').length,
@@ -105,7 +143,6 @@ export default function ManagerPage() {
     Flatline: advisors.filter(a => a.pulse === 'Flatline').length,
   };
 
-  // Trajectory distribution
   const trajectoryDistribution = {
     Accelerating: advisors.filter(a => a.trajectory === 'Accelerating').length,
     Climbing: advisors.filter(a => a.trajectory === 'Climbing').length,
@@ -114,7 +151,6 @@ export default function ManagerPage() {
     Freefall: advisors.filter(a => a.trajectory === 'Freefall').length,
   };
 
-  // Sentiment overview
   const sentimentCounts = {
     Warm: advisors.filter(a => a.tone === 'Warm').length,
     Neutral: advisors.filter(a => a.tone === 'Neutral').length,
@@ -134,7 +170,6 @@ export default function ManagerPage() {
     Critical: advisors.filter(a => a.friction === 'Critical').length,
   };
 
-  // Deal health summary
   const dealHealthCounts = {
     Healthy: deals.filter(d => d.health === 'Healthy').length,
     Monitor: deals.filter(d => d.health === 'Monitor').length,
@@ -142,7 +177,6 @@ export default function ManagerPage() {
     Stalled: deals.filter(d => d.health === 'Stalled').length,
   };
 
-  // Stage/Timeline mismatch alerts
   const stageTimelineMismatches = deals.filter(d => {
     const closeDate = new Date(d.closeDate);
     const now = new Date('2026-03-26');
@@ -150,27 +184,23 @@ export default function ManagerPage() {
     return daysUntilClose <= 5 && ['Discovery', 'Qualifying'].includes(d.stage);
   });
 
-  // Filtered deals for pipeline view
   const filteredDeals = deals.filter(d => {
     const healthMatch = dealFilter.health === 'all' || d.health === dealFilter.health;
     const stageMatch = dealFilter.stage === 'all' || d.stage === dealFilter.stage;
     return healthMatch && stageMatch;
   });
 
-  // Closing this month
   const closingThisMonth = deals.filter(d => {
     const closeDate = new Date(d.closeDate);
     return closeDate.getMonth() === 2 && closeDate.getFullYear() === 2026;
   });
 
-  // Days in stage color logic
   const getDaysInStageColor = (daysInStage: number) => {
     if (daysInStage < 7) return 'text-green-600 bg-green-50';
     if (daysInStage < 14) return 'text-amber-600 bg-amber-50';
     return 'text-red-600 bg-red-50';
   };
 
-  // Strategic KPIs
   const strategicKPIs = {
     retention: '94%',
     revenueGrowth: '+12.4%',
@@ -178,14 +208,11 @@ export default function ManagerPage() {
     pipelineVelocity: '+8.3%',
   };
 
-  // Quota tracking
   const quotaTarget = 1200000;
   const quotaProgress = (totalMRR / quotaTarget) * 100;
 
-  // Stalled deals count
   const stalledDealsCount = deals.filter(d => d.stage === 'Stalled').length;
 
-  // Risk Radar: Score each advisor by combining negative signals
   const riskRadar = useMemo(() => {
     return advisors.map(a => {
       let score = 0;
@@ -213,7 +240,6 @@ export default function ManagerPage() {
     .sort((a, b) => b.score - a.score);
   }, []);
 
-  // Revenue at Risk
   const revenueAtRisk = useMemo(() => {
     const atRiskDeals = deals.filter(d => d.health === 'At Risk');
     const stalledDeals = deals.filter(d => d.health === 'Stalled');
@@ -226,7 +252,6 @@ export default function ManagerPage() {
     };
   }, []);
 
-  // AI Insights Feed
   const aiInsights = useMemo(() => {
     const insights: { icon: string; text: string; type: 'critical' | 'warning' | 'positive' | 'info' }[] = [];
 
@@ -262,7 +287,6 @@ export default function ManagerPage() {
     return insights.slice(0, 5);
   }, []);
 
-  // Top Movers: Advisors whose trajectory changed recently
   const topMovers = useMemo(() => {
     const advisorsWithChange = advisors
       .map(a => ({
@@ -279,7 +303,6 @@ export default function ManagerPage() {
     };
   }, []);
 
-  // Pulse signal counts for Intelligence Hub
   const pulseSignals = {
     Strong: advisors.filter(a => a.pulse === 'Strong').length,
     Steady: advisors.filter(a => a.pulse === 'Steady').length,
@@ -290,11 +313,50 @@ export default function ManagerPage() {
     Freefall: advisors.filter(a => a.trajectory === 'Freefall').length,
   };
 
-  // EngLabel helper
   const EngLabel = ({ score }: { score: EngagementScore }) => {
     const colors = { Strong: 'bg-green-100 text-green-700', Steady: 'bg-blue-100 text-blue-700', Fading: 'bg-pink-100 text-pink-700' };
     return <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${colors[score]}`}>{score}</span>;
   };
+
+  const getFilteredAdvisors = () => {
+    switch (relationshipFilter) {
+      case 'At Risk':
+        return advisors.filter(a => ['Slipping', 'Freefall'].includes(a.trajectory) || ['Fading', 'Flatline'].includes(a.pulse));
+      case 'Top 10':
+        return advisors.filter(a => a.tier === 'top10');
+      case 'New':
+        return advisors.filter(a => {
+          const connected = new Date(a.connectedSince);
+          const sixMonthsAgo = new Date('2025-09-01');
+          return connected > sixMonthsAgo;
+        });
+      default:
+        return advisors;
+    }
+  };
+
+  const filteredAdvisors = getFilteredAdvisors();
+
+  const portfolioStats = {
+    totalAdvisors: filteredAdvisors.length,
+    totalMRRFiltered: filteredAdvisors.reduce((sum, a) => sum + a.mrr, 0),
+    pulseStats: {
+      Strong: filteredAdvisors.filter(a => a.pulse === 'Strong').length,
+      Steady: filteredAdvisors.filter(a => a.pulse === 'Steady').length,
+      Fading: filteredAdvisors.filter(a => a.pulse === 'Fading').length,
+      Flatline: filteredAdvisors.filter(a => a.pulse === 'Flatline').length,
+    },
+  };
+
+  const morningBriefingItems = [
+    ...(managerBriefing.actNow || []),
+    ...(managerBriefing.capitalize || []),
+    ...(managerBriefing.nurture || []),
+  ];
+
+  const topActNow = (managerBriefing.actNow || []).slice(0, 1);
+  const topCapitalize = (managerBriefing.capitalize || []).slice(0, 1);
+  const topNurture = (managerBriefing.nurture || []).slice(0, 1);
 
   return (
     <div className="flex h-screen" style={{ backgroundColor: '#F7F5F2' }}>
@@ -315,7 +377,6 @@ export default function ManagerPage() {
             {/* ========== COMMAND CENTER VIEW ========== */}
             {activeView === 'command-center' && (
               <div className="space-y-6 max-w-7xl mx-auto">
-                {/* Urgency Banner */}
                 <div className="rounded-xl p-6 text-white" style={{ background: 'linear-gradient(135deg, #157A6E 0%, #0f5250 100%)' }}>
                   <div className="flex items-start justify-between">
                     <div>
@@ -327,51 +388,155 @@ export default function ManagerPage() {
                   </div>
                 </div>
 
-                {/* KPI Cards Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <KPICard
-                    label="Total MRR"
-                    value={`$${(totalMRR / 1000).toFixed(1)}K`}
-                    change="+8.3% vs last month"
-                    changeType="positive"
-                  />
-                  <KPICard
-                    label="Active Deals"
-                    value={activeDealCount.toString()}
-                    change="+5 new this week"
-                    changeType="positive"
-                  />
-                  <KPICard
-                    label="Healthy Pipeline %"
-                    value={`${healthyPercent}%`}
-                    change="-3% from last week"
-                    changeType="negative"
-                  />
-                  <KPICard
-                    label="Avg Engagement"
-                    value={avgEngagement}
-                    change="Improved from Steady"
-                    changeType="positive"
-                  />
+                  <div
+                    onClick={() => setExpandedKPIPanel(expandedKPIPanel === 'mrr' ? null : 'mrr')}
+                    className="cursor-pointer hover:shadow-lg transition-shadow"
+                  >
+                    <KPICard
+                      label="Total MRR"
+                      value={`$${(totalMRR / 1000).toFixed(1)}K`}
+                      change="+8.3% vs last month"
+                      changeType="positive"
+                    />
+                  </div>
+                  <div
+                    onClick={() => setExpandedKPIPanel(expandedKPIPanel === 'deals' ? null : 'deals')}
+                    className="cursor-pointer hover:shadow-lg transition-shadow"
+                  >
+                    <KPICard
+                      label="Active Deals"
+                      value={activeDealCount.toString()}
+                      change="+5 new this week"
+                      changeType="positive"
+                    />
+                  </div>
+                  <div
+                    onClick={() => setExpandedKPIPanel(expandedKPIPanel === 'pipeline' ? null : 'pipeline')}
+                    className="cursor-pointer hover:shadow-lg transition-shadow"
+                  >
+                    <KPICard
+                      label="Healthy Pipeline %"
+                      value={`${healthyPercent}%`}
+                      change="-3% from last week"
+                      changeType="negative"
+                    />
+                  </div>
+                  <div
+                    onClick={() => setExpandedKPIPanel(expandedKPIPanel === 'engagement' ? null : 'engagement')}
+                    className="cursor-pointer hover:shadow-lg transition-shadow"
+                  >
+                    <KPICard
+                      label="Avg Engagement"
+                      value={avgEngagement}
+                      change="Improved from Steady"
+                      changeType="positive"
+                    />
+                  </div>
                 </div>
 
-                {/* Insight Cards */}
+                {expandedKPIPanel && (
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6 animate-in fade-in slide-in-from-top-2">
+                    {expandedKPIPanel === 'mrr' && (
+                      <div>
+                        <h3 className="text-13px uppercase font-bold tracking-widest text-[#888] mb-4">Top 5 Advisors by MRR</h3>
+                        <div className="space-y-3">
+                          {advisors.sort((a, b) => b.mrr - a.mrr).slice(0, 5).map((advisor, idx) => (
+                            <div key={advisor.id} className="flex items-center justify-between pb-3 border-b border-[#f0ede9] last:border-0">
+                              <div className="flex items-center gap-3">
+                                <span className="text-13px font-medium text-gray-900">{idx + 1}. {advisor.name}</span>
+                              </div>
+                              <span className="text-13px font-bold" style={{ color: '#157A6E' }}>${(advisor.mrr / 1000).toFixed(1)}K</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {expandedKPIPanel === 'deals' && (
+                      <div>
+                        <h3 className="text-13px uppercase font-bold tracking-widest text-[#888] mb-4">5 Most Recent Active Deals</h3>
+                        <div className="space-y-3">
+                          {deals
+                            .filter(d => !['Stalled', 'Closed Won'].includes(d.stage))
+                            .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime())
+                            .slice(0, 5)
+                            .map((deal, idx) => (
+                              <div key={deal.id} className="flex items-center justify-between pb-3 border-b border-[#f0ede9] last:border-0">
+                                <div className="flex-1">
+                                  <p className="text-13px font-medium text-gray-900">{deal.name}</p>
+                                  <p className="text-11px text-gray-600">{deal.stage}</p>
+                                </div>
+                                <DealHealthBadge health={deal.health} />
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {expandedKPIPanel === 'pipeline' && (
+                      <div>
+                        <h3 className="text-13px uppercase font-bold tracking-widest text-[#888] mb-4">Pipeline Health Breakdown</h3>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between pb-2">
+                            <span className="text-13px text-gray-700">Healthy</span>
+                            <span className="text-13px font-bold text-green-600">{dealHealthCounts.Healthy}</span>
+                          </div>
+                          <div className="flex items-center justify-between pb-2">
+                            <span className="text-13px text-gray-700">Monitor</span>
+                            <span className="text-13px font-bold text-yellow-600">{dealHealthCounts.Monitor}</span>
+                          </div>
+                          <div className="flex items-center justify-between pb-2">
+                            <span className="text-13px text-gray-700">At Risk</span>
+                            <span className="text-13px font-bold text-orange-600">{dealHealthCounts['At Risk']}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-13px text-gray-700">Stalled</span>
+                            <span className="text-13px font-bold text-red-600">{dealHealthCounts.Stalled}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {expandedKPIPanel === 'engagement' && (
+                      <div>
+                        <h3 className="text-13px uppercase font-bold tracking-widest text-[#888] mb-4">Pulse Distribution</h3>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between pb-2">
+                            <span className="text-13px text-gray-700">Strong</span>
+                            <span className="text-13px font-bold text-green-600">{pulseDistribution.Strong}</span>
+                          </div>
+                          <div className="flex items-center justify-between pb-2">
+                            <span className="text-13px text-gray-700">Steady</span>
+                            <span className="text-13px font-bold text-blue-600">{pulseDistribution.Steady}</span>
+                          </div>
+                          <div className="flex items-center justify-between pb-2">
+                            <span className="text-13px text-gray-700">Fading</span>
+                            <span className="text-13px font-bold text-yellow-600">{pulseDistribution.Fading}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-13px text-gray-700">Flatline</span>
+                            <span className="text-13px font-bold text-red-600">{pulseDistribution.Flatline}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Risk */}
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-6 border-l-4" style={{ borderLeftColor: '#ef4444' }}>
                     <p className="text-10px uppercase font-semibold tracking-widest text-[#888] mb-2">Risk Alert</p>
                     <h3 className="font-bold text-gray-900 mb-2">Tom Bradley</h3>
                     <p className="text-13px text-gray-700">At-risk account flagged for friction in quoting process. Recommend executive check-in this week.</p>
                   </div>
 
-                  {/* Opportunity */}
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-6 border-l-4" style={{ borderLeftColor: '#157A6E' }}>
                     <p className="text-10px uppercase font-semibold tracking-widest text-[#888] mb-2">Opportunity</p>
                     <h3 className="font-bold text-gray-900 mb-2">Sarah Chen</h3>
                     <p className="text-13px text-gray-700">Strong trajectory with $45K pipeline growth. Ready for portfolio expansion—consider tier upgrade.</p>
                   </div>
 
-                  {/* Info */}
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-6 border-l-4" style={{ borderLeftColor: '#2563eb' }}>
                     <p className="text-10px uppercase font-semibold tracking-widest text-[#888] mb-2">Info</p>
                     <h3 className="font-bold text-gray-900 mb-2">Portfolio Health</h3>
@@ -379,19 +544,46 @@ export default function ManagerPage() {
                   </div>
                 </div>
 
-                {/* Two-column Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Morning Briefing */}
                   <div className="bg-white rounded-xl border border-[#e8e5e1]">
-                    <div className="px-5 py-3.5 border-b border-[#f0ede9]">
-                      <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Morning Briefing</h3>
+                    <div className="px-6 py-4 border-b border-[#f0ede9] flex items-center justify-between">
+                      <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">
+                        Morning Briefing <span className="inline-block ml-2 px-2 py-0.5 rounded-full text-10px font-bold bg-[#157A6E] text-white">{morningBriefingItems.length} items</span>
+                      </h3>
                     </div>
-                    <MorningBriefing actNow={managerBriefing.actNow} capitalize={managerBriefing.capitalize} nurture={managerBriefing.nurture} />
+                    <div className="p-6 space-y-3">
+                      {topActNow.slice(0, 1).map((item, idx) => (
+                        <div key={`act-${idx}`} className="text-13px text-gray-700 pb-2 border-b border-[#f0ede9]">
+                          <span className="text-11px uppercase font-bold text-[#888]">Act Now: </span>
+                          {item.advisorName ? `${item.advisorName}, ${item.dealName}` : item.dealName}
+                          {item.mrrAtRisk && <span className="ml-2 font-bold text-red-600">${(item.mrrAtRisk / 1000).toFixed(1)}K</span>}
+                        </div>
+                      ))}
+                      {topCapitalize.slice(0, 1).map((item, idx) => (
+                        <div key={`cap-${idx}`} className="text-13px text-gray-700 pb-2 border-b border-[#f0ede9]">
+                          <span className="text-11px uppercase font-bold text-[#888]">Capitalize: </span>
+                          {item.advisorName ? `${item.advisorName}, ${item.dealName}` : item.dealName}
+                          {item.mrrAtRisk && <span className="ml-2 font-bold text-green-600">${(item.mrrAtRisk / 1000).toFixed(1)}K</span>}
+                        </div>
+                      ))}
+                      {topNurture.slice(0, 1).map((item, idx) => (
+                        <div key={`nur-${idx}`} className="text-13px text-gray-700">
+                          <span className="text-11px uppercase font-bold text-[#888]">Nurture: </span>
+                          {item.advisorName ? `${item.advisorName}, ${item.dealName}` : item.dealName}
+                          {item.mrrAtRisk && <span className="ml-2 font-bold text-blue-600">${(item.mrrAtRisk / 1000).toFixed(1)}K</span>}
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => setShowBriefing(true)}
+                        className="w-full mt-3 py-2 text-13px font-semibold text-[#157A6E] border-t border-[#f0ede9] pt-3 hover:text-[#0f5250]"
+                      >
+                        View Full Briefing →
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Pipeline Snapshot */}
                   <div className="bg-white rounded-xl border border-[#e8e5e1]">
-                    <div className="px-5 py-3.5 border-b border-[#f0ede9]">
+                    <div className="px-6 py-4 border-b border-[#f0ede9]">
                       <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Pipeline Snapshot</h3>
                     </div>
                     <div className="p-6 space-y-4">
@@ -423,40 +615,101 @@ export default function ManagerPage() {
               </div>
             )}
 
+            {showBriefing && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-10">
+                <div className="bg-white rounded-xl border border-[#e8e5e1] w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+                  <div className="sticky top-0 bg-white px-6 py-4 border-b border-[#f0ede9] flex items-center justify-between">
+                    <h2 className="text-18px font-bold text-gray-900">Morning Briefing</h2>
+                    <button
+                      onClick={() => setShowBriefing(false)}
+                      className="p-1 hover:bg-gray-100 rounded"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="p-6">
+                    <MorningBriefing actNow={managerBriefing.actNow} capitalize={managerBriefing.capitalize} nurture={managerBriefing.nurture} />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* ========== INTELLIGENCE HUB VIEW ========== */}
             {activeView === 'intelligence-hub' && (
               <div className="space-y-6 max-w-7xl mx-auto">
-                {/* Signal Cards Row */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow">
+                  <div
+                    onClick={() => setDrillDown(drillDown?.label === 'Strong' ? null : { label: 'Strong', advisorIds: advisors.filter(a => a.pulse === 'Strong').map(a => a.id) })}
+                    className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow"
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">Strong</p>
                     <p className="text-24px font-bold text-gray-900">{pulseSignals.Strong}</p>
                   </div>
-                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow">
+                  <div
+                    onClick={() => setDrillDown(drillDown?.label === 'Steady' ? null : { label: 'Steady', advisorIds: advisors.filter(a => a.pulse === 'Steady').map(a => a.id) })}
+                    className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow"
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">Steady</p>
                     <p className="text-24px font-bold text-gray-900">{pulseSignals.Steady}</p>
                   </div>
-                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow">
+                  <div
+                    onClick={() => setDrillDown(drillDown?.label === 'Fading' ? null : { label: 'Fading', advisorIds: advisors.filter(a => a.pulse === 'Fading').map(a => a.id) })}
+                    className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow"
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">Fading</p>
                     <p className="text-24px font-bold text-gray-900">{pulseSignals.Fading}</p>
                   </div>
-                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow">
+                  <div
+                    onClick={() => setDrillDown(drillDown?.label === 'Flatline' ? null : { label: 'Flatline', advisorIds: advisors.filter(a => a.pulse === 'Flatline').map(a => a.id) })}
+                    className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow"
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">Flatline</p>
                     <p className="text-24px font-bold text-gray-900">{pulseSignals.Flatline}</p>
                   </div>
-                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow">
+                  <div
+                    onClick={() => setDrillDown(drillDown?.label === 'Climbing' ? null : { label: 'Climbing', advisorIds: advisors.filter(a => a.trajectory === 'Climbing' || a.trajectory === 'Accelerating').map(a => a.id) })}
+                    className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow"
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">Climbing</p>
                     <p className="text-24px font-bold text-gray-900" style={{ color: '#16a34a' }}>{pulseSignals.Climbing}</p>
                   </div>
-                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow">
+                  <div
+                    onClick={() => setDrillDown(drillDown?.label === 'Freefall' ? null : { label: 'Freefall', advisorIds: advisors.filter(a => a.trajectory === 'Freefall').map(a => a.id) })}
+                    className="bg-white rounded-xl border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-shadow"
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">Freefall</p>
                     <p className="text-24px font-bold text-gray-900" style={{ color: '#ef4444' }}>{pulseSignals.Freefall}</p>
                   </div>
                 </div>
 
-                {/* Two-column: AI Insights and Risk Radar */}
+                {drillDown && (
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-13px uppercase font-bold tracking-widest text-[#888]">{drillDown.label} Advisors</h3>
+                      <button onClick={() => setDrillDown(null)} className="p-1 hover:bg-gray-100 rounded">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {advisors.filter(a => drillDown.advisorIds.includes(a.id)).map(advisor => (
+                        <div
+                          key={advisor.id}
+                          onClick={() => handleAdvisorClick(advisor.id)}
+                          className="p-4 bg-gray-50 rounded-lg border border-[#e8e5e1] cursor-pointer hover:bg-gray-100 transition-colors"
+                        >
+                          <p className="text-13px font-medium text-gray-900">{advisor.name}</p>
+                          <p className="text-11px text-gray-600 mb-2">{advisor.company}</p>
+                          <div className="flex gap-2">
+                            <PulseBadge pulse={advisor.pulse} size="sm" />
+                            <span className="text-11px font-semibold text-gray-900">${(advisor.mrr / 1000).toFixed(1)}K</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* AI Insights Feed */}
                   <div className="bg-white rounded-xl border border-[#e8e5e1]">
                     <div className="px-5 py-3.5 border-b border-[#f0ede9]">
                       <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">AI Insights Feed</h3>
@@ -471,7 +724,6 @@ export default function ManagerPage() {
                     </div>
                   </div>
 
-                  {/* Risk Radar */}
                   <div className="bg-white rounded-xl border border-[#e8e5e1]">
                     <div className="px-5 py-3.5 border-b border-[#f0ede9]">
                       <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Risk Radar</h3>
@@ -495,9 +747,7 @@ export default function ManagerPage() {
                   </div>
                 </div>
 
-                {/* Three-column: Revenue at Risk, Top Movers, Portfolio Signals */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Revenue at Risk */}
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
                     <p className="text-10px uppercase font-semibold text-[#888] mb-4">Revenue at Risk</p>
                     <p className="text-28px font-bold mb-4" style={{ color: '#ef4444' }}>${(revenueAtRisk.total / 1000).toFixed(1)}K</p>
@@ -517,7 +767,6 @@ export default function ManagerPage() {
                     </div>
                   </div>
 
-                  {/* Top Movers */}
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
                     <p className="text-10px uppercase font-semibold text-[#888] mb-4">Top Movers</p>
                     <div className="space-y-3">
@@ -542,7 +791,6 @@ export default function ManagerPage() {
                     </div>
                   </div>
 
-                  {/* Portfolio Signals */}
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
                     <p className="text-10px uppercase font-semibold text-[#888] mb-4">Portfolio Signals</p>
                     <div className="space-y-3">
@@ -583,23 +831,26 @@ export default function ManagerPage() {
             {/* ========== RELATIONSHIPS VIEW ========== */}
             {activeView === 'relationships' && (
               <div className="flex gap-6 h-full max-w-7xl mx-auto">
-                {/* Left Panel: Advisor List */}
                 <div className="w-80 flex flex-col bg-white rounded-xl border border-[#e8e5e1]">
-                  {/* Filter Pills */}
                   <div className="px-6 py-4 border-b border-[#f0ede9] flex gap-2 flex-wrap">
                     {['All', 'At Risk', 'Top 10', 'New'].map(filter => (
                       <button
                         key={filter}
-                        className="px-3 py-1 rounded-full text-11px font-semibold border border-[#e8e5e1] hover:bg-[#F7F5F2]"
+                        onClick={() => setRelationshipFilter(filter)}
+                        className="px-3 py-1 rounded-full text-11px font-semibold border transition-colors"
+                        style={{
+                          backgroundColor: relationshipFilter === filter ? '#157A6E' : 'transparent',
+                          color: relationshipFilter === filter ? 'white' : '#666',
+                          borderColor: relationshipFilter === filter ? '#157A6E' : '#e8e5e1',
+                        }}
                       >
                         {filter}
                       </button>
                     ))}
                   </div>
 
-                  {/* Advisor List */}
                   <div className="flex-1 overflow-y-auto">
-                    {advisors.map(advisor => (
+                    {filteredAdvisors.map(advisor => (
                       <div
                         key={advisor.id}
                         onClick={() => handleAdvisorClick(advisor.id)}
@@ -628,10 +879,8 @@ export default function ManagerPage() {
                   </div>
                 </div>
 
-                {/* Right Panel: Advisor Detail */}
                 {selectedAdvisor ? (
                   <div className="flex-1 flex flex-col overflow-hidden">
-                    {/* Detail Header */}
                     <div className="bg-white rounded-t-xl border border-b-0 border-[#e8e5e1] p-6 flex items-start gap-6 border-b border-[#f0ede9] pb-4">
                       <div className="w-16 h-16 rounded-full bg-[#157A6E] text-white flex items-center justify-center text-2xl font-bold flex-shrink-0">
                         {selectedAdvisor.name.split(' ').map(n => n[0]).join('')}
@@ -656,7 +905,6 @@ export default function ManagerPage() {
                       </div>
                     </div>
 
-                    {/* Tabs */}
                     <div className="bg-white border-b border-[#f0ede9] flex">
                       {(['overview', 'personal', 'deals', 'notes', 'activity'] as const).map(tab => (
                         <button
@@ -673,7 +921,6 @@ export default function ManagerPage() {
                       ))}
                     </div>
 
-                    {/* Tab Content */}
                     <div className="flex-1 overflow-y-auto bg-white rounded-b-xl border border-t-0 border-[#e8e5e1] p-6">
                       {inlineTab === 'overview' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -908,8 +1155,52 @@ export default function ManagerPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex-1 bg-white rounded-xl border border-[#e8e5e1] flex items-center justify-center">
-                    <p className="text-13px text-gray-600">Select an advisor to view details</p>
+                  <div className="flex-1 bg-white rounded-xl border border-[#e8e5e1] p-6 flex flex-col items-center justify-center">
+                    <div className="text-center space-y-6 max-w-md">
+                      <div>
+                        <h3 className="text-16px font-bold text-gray-900 mb-2">Portfolio Summary</h3>
+                        <p className="text-13px text-gray-600">Overview of your advisor network</p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-[#F7F5F2] rounded-lg p-4">
+                          <p className="text-11px uppercase font-semibold text-[#888] mb-1">Total Advisors</p>
+                          <p className="text-24px font-bold text-gray-900">{portfolioStats.totalAdvisors}</p>
+                        </div>
+                        <div className="bg-[#F7F5F2] rounded-lg p-4">
+                          <p className="text-11px uppercase font-semibold text-[#888] mb-1">Total MRR</p>
+                          <p className="text-24px font-bold text-gray-900">${(portfolioStats.totalMRRFiltered / 1000).toFixed(1)}K</p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-11px uppercase font-semibold text-[#888] mb-3">Pulse Distribution</p>
+                        <div className="h-8 bg-gray-100 rounded-full overflow-hidden flex">
+                          {portfolioStats.pulseStats.Strong > 0 && (
+                            <div className="bg-green-500 flex items-center justify-center text-white text-10px font-bold" style={{ width: `${(portfolioStats.pulseStats.Strong / portfolioStats.totalAdvisors) * 100}%` }} title="Strong">
+                              {portfolioStats.totalAdvisors > 0 && portfolioStats.pulseStats.Strong > 0 ? portfolioStats.pulseStats.Strong : ''}
+                            </div>
+                          )}
+                          {portfolioStats.pulseStats.Steady > 0 && (
+                            <div className="bg-blue-500 flex items-center justify-center text-white text-10px font-bold" style={{ width: `${(portfolioStats.pulseStats.Steady / portfolioStats.totalAdvisors) * 100}%` }} title="Steady">
+                              {portfolioStats.totalAdvisors > 0 && portfolioStats.pulseStats.Steady > 0 ? portfolioStats.pulseStats.Steady : ''}
+                            </div>
+                          )}
+                          {portfolioStats.pulseStats.Fading > 0 && (
+                            <div className="bg-yellow-500 flex items-center justify-center text-white text-10px font-bold" style={{ width: `${(portfolioStats.pulseStats.Fading / portfolioStats.totalAdvisors) * 100}%` }} title="Fading">
+                              {portfolioStats.totalAdvisors > 0 && portfolioStats.pulseStats.Fading > 0 ? portfolioStats.pulseStats.Fading : ''}
+                            </div>
+                          )}
+                          {portfolioStats.pulseStats.Flatline > 0 && (
+                            <div className="bg-red-500 flex items-center justify-center text-white text-10px font-bold" style={{ width: `${(portfolioStats.pulseStats.Flatline / portfolioStats.totalAdvisors) * 100}%` }} title="Flatline">
+                              {portfolioStats.totalAdvisors > 0 && portfolioStats.pulseStats.Flatline > 0 ? portfolioStats.pulseStats.Flatline : ''}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="text-13px text-gray-600">Select an advisor from the list to view their full profile</p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -918,33 +1209,147 @@ export default function ManagerPage() {
             {/* ========== PIPELINE VIEW ========== */}
             {activeView === 'pipeline' && (
               <div className="space-y-6 max-w-7xl mx-auto">
-                {/* KPI Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <KPICard
-                    label="Total Pipeline"
-                    value={`$${(deals.reduce((sum, d) => sum + d.mrr, 0) / 1000).toFixed(1)}K`}
-                    changeType="neutral"
-                  />
-                  <KPICard
-                    label="Weighted Pipeline"
-                    value={`$${(weightedPipeline / 1000).toFixed(1)}K`}
-                    changeType="neutral"
-                  />
-                  <KPICard
-                    label="Closing This Month"
-                    value={closingThisMonth.length.toString()}
-                    change={`$${(closingThisMonth.reduce((sum, d) => sum + d.mrr, 0) / 1000).toFixed(1)}K MRR`}
-                    changeType="neutral"
-                  />
-                  <KPICard
-                    label="Stalled Deals"
-                    value={stalledDealsCount.toString()}
-                    change={`$${(deals.filter(d => d.stage === 'Stalled').reduce((sum, d) => sum + d.mrr, 0) / 1000).toFixed(1)}K stuck`}
-                    changeType="negative"
-                  />
+                  <div
+                    onClick={() => setPipelineKPIExpanded(pipelineKPIExpanded === 'total' ? null : 'total')}
+                    className="cursor-pointer hover:shadow-lg transition-shadow"
+                  >
+                    <KPICard
+                      label="Total Pipeline"
+                      value={`$${(deals.reduce((sum, d) => sum + d.mrr, 0) / 1000).toFixed(1)}K`}
+                      changeType="neutral"
+                    />
+                  </div>
+                  <div
+                    onClick={() => setPipelineKPIExpanded(pipelineKPIExpanded === 'weighted' ? null : 'weighted')}
+                    className="cursor-pointer hover:shadow-lg transition-shadow"
+                  >
+                    <KPICard
+                      label="Weighted Pipeline"
+                      value={`$${(weightedPipeline / 1000).toFixed(1)}K`}
+                      changeType="neutral"
+                    />
+                  </div>
+                  <div
+                    onClick={() => setPipelineKPIExpanded(pipelineKPIExpanded === 'closing' ? null : 'closing')}
+                    className="cursor-pointer hover:shadow-lg transition-shadow"
+                  >
+                    <KPICard
+                      label="Closing This Month"
+                      value={closingThisMonth.length.toString()}
+                      change={`$${(closingThisMonth.reduce((sum, d) => sum + d.mrr, 0) / 1000).toFixed(1)}K MRR`}
+                      changeType="neutral"
+                    />
+                  </div>
+                  <div
+                    onClick={() => setPipelineKPIExpanded(pipelineKPIExpanded === 'stalled' ? null : 'stalled')}
+                    className="cursor-pointer hover:shadow-lg transition-shadow"
+                  >
+                    <KPICard
+                      label="Stalled Deals"
+                      value={stalledDealsCount.toString()}
+                      change={`$${(deals.filter(d => d.stage === 'Stalled').reduce((sum, d) => sum + d.mrr, 0) / 1000).toFixed(1)}K stuck`}
+                      changeType="negative"
+                    />
+                  </div>
                 </div>
 
-                {/* Stage/Timeline Mismatch Alerts */}
+                {pipelineKPIExpanded && (
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6 animate-in fade-in slide-in-from-top-2">
+                    {pipelineKPIExpanded === 'total' && (
+                      <div>
+                        <h3 className="text-13px uppercase font-bold tracking-widest text-[#888] mb-4">Pipeline Breakdown by Stage</h3>
+                        <div className="space-y-3">
+                          {(['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Stalled'] as const).map(stage => {
+                            const stageDealsMRR = deals.filter(d => d.stage === stage).reduce((sum, d) => sum + d.mrr, 0);
+                            return (
+                              <div key={stage} className="flex items-center justify-between pb-2 border-b border-[#f0ede9] last:border-0">
+                                <span className="text-13px text-gray-900">{stage}</span>
+                                <span className="text-13px font-bold" style={{ color: '#157A6E' }}>${(stageDealsMRR / 1000).toFixed(1)}K</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {pipelineKPIExpanded === 'weighted' && (
+                      <div>
+                        <h3 className="text-13px uppercase font-bold tracking-widest text-[#888] mb-4">Top 5 Deals by Weighted Value</h3>
+                        <div className="space-y-3">
+                          {deals
+                            .map(d => ({
+                              ...d,
+                              weight: STAGE_WEIGHTS.find(w => w.stage === d.stage)?.weight || 0,
+                            }))
+                            .sort((a, b) => (b.mrr * b.weight) - (a.mrr * a.weight))
+                            .slice(0, 5)
+                            .map((deal, idx) => {
+                              const advisor = advisors.find(a => a.id === deal.advisorId);
+                              return (
+                                <div key={deal.id} className="flex items-center justify-between pb-2 border-b border-[#f0ede9] last:border-0">
+                                  <div>
+                                    <p className="text-13px font-medium text-gray-900">{deal.name}</p>
+                                    <p className="text-11px text-gray-600">{advisor?.name}</p>
+                                  </div>
+                                  <span className="text-13px font-bold" style={{ color: '#157A6E' }}>${((deal.mrr * deal.weight) / 1000).toFixed(1)}K</span>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+
+                    {pipelineKPIExpanded === 'closing' && (
+                      <div>
+                        <h3 className="text-13px uppercase font-bold tracking-widest text-[#888] mb-4">Deals Closing This Month</h3>
+                        <div className="space-y-3">
+                          {closingThisMonth.length === 0 ? (
+                            <p className="text-13px text-gray-600">No deals closing this month</p>
+                          ) : (
+                            closingThisMonth.map((deal, idx) => {
+                              const advisor = advisors.find(a => a.id === deal.advisorId);
+                              return (
+                                <div key={deal.id} className="flex items-center justify-between pb-2 border-b border-[#f0ede9] last:border-0">
+                                  <div>
+                                    <p className="text-13px font-medium text-gray-900">{deal.name}</p>
+                                    <p className="text-11px text-gray-600">{advisor?.name} · {deal.closeDate}</p>
+                                  </div>
+                                  <span className="text-13px font-bold" style={{ color: '#157A6E' }}>${(deal.mrr / 1000).toFixed(1)}K</span>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {pipelineKPIExpanded === 'stalled' && (
+                      <div>
+                        <h3 className="text-13px uppercase font-bold tracking-widest text-[#888] mb-4">Stalled Deals</h3>
+                        <div className="space-y-3">
+                          {deals.filter(d => d.stage === 'Stalled').length === 0 ? (
+                            <p className="text-13px text-gray-600">No stalled deals</p>
+                          ) : (
+                            deals.filter(d => d.stage === 'Stalled').map((deal, idx) => {
+                              const advisor = advisors.find(a => a.id === deal.advisorId);
+                              return (
+                                <div key={deal.id} className="flex items-center justify-between pb-2 border-b border-[#f0ede9] last:border-0">
+                                  <div>
+                                    <p className="text-13px font-medium text-gray-900">{deal.name}</p>
+                                    <p className="text-11px text-gray-600">{advisor?.name} · {deal.daysInStage}d stalled</p>
+                                  </div>
+                                  <span className="text-13px font-bold text-red-600">${(deal.mrr / 1000).toFixed(1)}K</span>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {stageTimelineMismatches.length > 0 && (
                   <div className="bg-white rounded-xl border border-[#e8e5e1]">
                     <div className="px-5 py-3.5 border-b border-[#f0ede9] border-l-4" style={{ borderLeftColor: '#ef4444' }}>
@@ -979,109 +1384,123 @@ export default function ManagerPage() {
                   </div>
                 )}
 
-                {/* Kanban Board */}
-                <div className="overflow-x-auto pb-4">
-                  <div className="flex gap-4" style={{ minWidth: '1920px' }}>
-                    {(['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Stalled'] as const).map(stage => {
-                      const stageBorderColors: Record<string, string> = {
-                        'Discovery': '#2563eb',
-                        'Qualifying': '#4f46e5',
-                        'Proposal': '#f59e0b',
-                        'Negotiating': '#fb923c',
-                        'Closed Won': '#16a34a',
-                        'Stalled': '#ef4444',
-                      };
+                <div className="bg-white rounded-xl border border-[#e8e5e1]">
+                  <div className="px-6 py-4 border-b border-[#f0ede9]">
+                    <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Pipeline by Stage</h3>
+                  </div>
+                  <div className="p-6">
+                    <div className="flex gap-4 overflow-x-auto pb-4 flex-wrap">
+                      {(['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Stalled'] as const).map(stage => {
+                        const stageBorderColors: Record<string, string> = {
+                          'Discovery': '#2563eb',
+                          'Qualifying': '#4f46e5',
+                          'Proposal': '#f59e0b',
+                          'Negotiating': '#fb923c',
+                          'Closed Won': '#16a34a',
+                          'Stalled': '#ef4444',
+                        };
 
-                      const stageDeals = deals.filter(d => d.stage === stage);
-                      const stageMRR = stageDeals.reduce((sum, d) => sum + d.mrr, 0);
+                        const stageDeals = deals.filter(d => d.stage === stage);
+                        const stageMRR = stageDeals.reduce((sum, d) => sum + d.mrr, 0);
+                        const isExpanded = expandedStage === stage;
 
-                      return (
-                        <div key={stage} className="flex-1 min-w-[280px]">
-                          {/* Column Header */}
-                          <div className="bg-white border border-[#e8e5e1] rounded-xl p-4 mb-3 border-t-4" style={{ borderTopColor: stageBorderColors[stage] }}>
-                            <div className="flex items-center justify-between mb-2">
-                              <h3 className="text-13px font-bold text-gray-900">{stage}</h3>
-                              <span className="inline-block px-2.5 py-0.5 rounded-full text-11px font-semibold bg-gray-100 text-gray-700">
-                                {stageDeals.length}
-                              </span>
-                            </div>
-                            <p className="text-13px font-semibold" style={{ color: '#157A6E' }}>
-                              ${(stageMRR / 1000).toFixed(1)}K MRR
-                            </p>
-                          </div>
-
-                          {/* Cards Container */}
-                          <div className="flex flex-col gap-3">
-                            {stageDeals.length === 0 ? (
-                              <div className="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-center">
-                                <p className="text-11px text-gray-500">No deals in this stage</p>
+                        return (
+                          <div key={stage} className="flex-1 min-w-[200px]">
+                            <button
+                              onClick={() => setExpandedStage(isExpanded ? null : stage)}
+                              className="w-full bg-white border border-[#e8e5e1] rounded-xl p-4 mb-3 border-t-4 hover:shadow-md transition-shadow text-left"
+                              style={{ borderTopColor: stageBorderColors[stage] }}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h3 className="text-13px font-bold text-gray-900">{stage}</h3>
+                                  <p className="text-13px font-semibold mt-1" style={{ color: '#157A6E' }}>
+                                    ${(stageMRR / 1000).toFixed(1)}K MRR
+                                  </p>
+                                </div>
+                                <div className="flex flex-col items-end">
+                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-11px font-semibold bg-gray-100 text-gray-700">
+                                    {stageDeals.length}
+                                  </span>
+                                  {isExpanded ? <ChevronUp className="w-4 h-4 mt-2" /> : <ChevronDown className="w-4 h-4 mt-2" />}
+                                </div>
                               </div>
-                            ) : (
-                              stageDeals.map(deal => {
-                                const advisor = advisors.find(a => a.id === deal.advisorId);
-                                return (
-                                  <div
-                                    key={deal.id}
-                                    className="bg-white border border-[#e8e5e1] rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow"
-                                  >
-                                    <h4 className="text-13px font-bold text-gray-900 mb-2">{deal.name}</h4>
-                                    <p className="text-11px text-gray-600 mb-2">
-                                      <span
-                                        className="font-medium cursor-pointer hover:underline"
-                                        onClick={() => advisor && handleAdvisorClick(advisor.id)}
-                                        style={{ color: '#157A6E' }}
-                                      >
-                                        {advisor?.name || 'Unknown'}
-                                      </span>
-                                    </p>
+                            </button>
 
-                                    <div className="mb-2">
-                                      <p className="text-11px text-gray-600">MRR</p>
-                                      <p className="text-13px font-bold text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</p>
-                                    </div>
-
-                                    <div className="mb-2">
-                                      <DealHealthBadge health={deal.health} />
-                                    </div>
-
-                                    <div className={`px-2 py-1 rounded text-11px font-medium mb-2 inline-block ${getDaysInStageColor(deal.daysInStage)}`}>
-                                      {deal.daysInStage}d in stage
-                                    </div>
-
-                                    <div className="mb-2">
-                                      <div className="flex items-center justify-between mb-1">
-                                        <p className="text-11px text-gray-600">Probability</p>
-                                        <p className="text-11px font-semibold text-gray-700">{deal.probability}%</p>
-                                      </div>
-                                      <div className="bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                                        <div
-                                          className="h-1.5 rounded-full transition-all"
-                                          style={{ width: `${deal.probability}%`, backgroundColor: '#157A6E' }}
-                                        />
-                                      </div>
-                                    </div>
-
-                                    {deal.confidenceScore && (
-                                      <div className="flex items-center gap-1">
-                                        <p className="text-11px text-gray-600">Confidence:</p>
-                                        <div
-                                          className="px-2 py-0.5 rounded text-11px font-semibold text-white"
-                                          style={{
-                                            backgroundColor: deal.confidenceScore === 'High' ? '#16a34a' : deal.confidenceScore === 'Medium' ? '#f59e0b' : '#ef4444',
-                                          }}
-                                        >
-                                          {deal.confidenceScore}
-                                        </div>
-                                      </div>
-                                    )}
+                            {isExpanded && (
+                              <div className="space-y-2">
+                                {stageDeals.length === 0 ? (
+                                  <div className="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-center">
+                                    <p className="text-11px text-gray-500">No deals in this stage</p>
                                   </div>
-                                );
-                              })
+                                ) : (
+                                  stageDeals.map(deal => {
+                                    const advisor = advisors.find(a => a.id === deal.advisorId);
+                                    return (
+                                      <div
+                                        key={deal.id}
+                                        className="bg-white border border-[#e8e5e1] rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow"
+                                      >
+                                        <h4 className="text-13px font-bold text-gray-900 mb-2">{deal.name}</h4>
+                                        <p className="text-11px text-gray-600 mb-2">
+                                          <span
+                                            className="font-medium cursor-pointer hover:underline"
+                                            onClick={() => advisor && handleAdvisorClick(advisor.id)}
+                                            style={{ color: '#157A6E' }}
+                                          >
+                                            {advisor?.name || 'Unknown'}
+                                          </span>
+                                        </p>
+
+                                        <div className="mb-2">
+                                          <p className="text-11px text-gray-600">MRR</p>
+                                          <p className="text-13px font-bold text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</p>
+                                        </div>
+
+                                        <div className="mb-2">
+                                          <DealHealthBadge health={deal.health} />
+                                        </div>
+
+                                        <div className={`px-2 py-1 rounded text-11px font-medium mb-2 inline-block ${getDaysInStageColor(deal.daysInStage)}`}>
+                                          {deal.daysInStage}d in stage
+                                        </div>
+
+                                        <div className="mb-2">
+                                          <div className="flex items-center justify-between mb-1">
+                                            <p className="text-11px text-gray-600">Probability</p>
+                                            <p className="text-11px font-semibold text-gray-700">{deal.probability}%</p>
+                                          </div>
+                                          <div className="bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                            <div
+                                              className="h-1.5 rounded-full transition-all"
+                                              style={{ width: `${deal.probability}%`, backgroundColor: '#157A6E' }}
+                                            />
+                                          </div>
+                                        </div>
+
+                                        {deal.confidenceScore && (
+                                          <div className="flex items-center gap-1">
+                                            <p className="text-11px text-gray-600">Confidence:</p>
+                                            <div
+                                              className="px-2 py-0.5 rounded text-11px font-semibold text-white"
+                                              style={{
+                                                backgroundColor: deal.confidenceScore === 'High' ? '#16a34a' : deal.confidenceScore === 'Medium' ? '#f59e0b' : '#ef4444',
+                                              }}
+                                            >
+                                              {deal.confidenceScore}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })
+                                )}
+                              </div>
                             )}
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1090,7 +1509,6 @@ export default function ManagerPage() {
             {/* ========== STRATEGIC VIEW ========== */}
             {activeView === 'strategic' && (
               <div className="space-y-6 max-w-7xl mx-auto">
-                {/* 5-Column Scorecard */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">Total Advisors</p>
@@ -1114,41 +1532,51 @@ export default function ManagerPage() {
                   </div>
                 </div>
 
-                {/* Two-column: Advisor Quadrant and Tier Breakdown */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Advisor Quadrant */}
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
                     <p className="text-10px uppercase font-semibold text-[#888] mb-4">Advisor Quadrant</p>
-                    <div className="relative h-64 bg-gray-50 rounded-lg border border-gray-200 p-4">
-                      {/* Axis Labels */}
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-2 text-10px font-semibold text-gray-600">Low Engagement</div>
-                      <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full pl-2 text-10px font-semibold text-gray-600">High Engagement</div>
+                    <div className="relative h-96 bg-gray-50 rounded-lg border border-gray-200 p-4">
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-2 text-10px font-semibold text-gray-600">Low</div>
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full pl-2 text-10px font-semibold text-gray-600">High</div>
                       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full pt-2 text-10px font-semibold text-gray-600">Low MRR</div>
                       <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full pb-2 text-10px font-semibold text-gray-600">High MRR</div>
 
-                      {/* Positioned dots */}
-                      {advisors.slice(0, 12).map(advisor => {
-                        const engagementX = advisor.pulse === 'Strong' ? 75 : advisor.pulse === 'Steady' ? 50 : 25;
-                        const mrrY = 100 - (advisor.mrr / Math.max(...advisors.map(a => a.mrr))) * 75;
-                        const healthColor = advisor.dealHealth === 'Healthy' ? '#16a34a' : advisor.dealHealth === 'At Risk' ? '#ef4444' : '#f59e0b';
+                      <div className="absolute inset-4 border-l border-b border-gray-300" />
+                      <div className="absolute top-1/2 left-0 right-0 border-t border-gray-300 -translate-y-1/2" />
+
+                      <div className="absolute top-2 left-1/2 -translate-x-1/2 text-9px font-semibold text-gray-500">Stars</div>
+                      <div className="absolute top-2 right-2 text-9px font-semibold text-gray-500">Growth</div>
+                      <div className="absolute bottom-2 left-2 text-9px font-semibold text-gray-500">Harvest</div>
+                      <div className="absolute bottom-2 right-2 text-9px font-semibold text-gray-500">Watch</div>
+
+                      {advisors.map(advisor => {
+                        const engagementScore = calculateEngagementScore(advisor.pulse);
+                        const maxEngagement = 100;
+                        const engagementX = (engagementScore / maxEngagement) * 80 + 10;
+
+                        const maxMRR = Math.max(...advisors.map(a => a.mrr));
+                        const mrrY = 100 - ((advisor.mrr / maxMRR) * 80 + 10);
+
+                        const tierColor = getTierColor(advisor.tier || 'other');
+
                         return (
                           <div
                             key={advisor.id}
-                            className="absolute w-3 h-3 rounded-full border-2 border-white shadow-sm cursor-pointer hover:w-4 hover:h-4"
+                            onClick={() => handleAdvisorClick(advisor.id)}
+                            className="absolute w-4 h-4 rounded-full border-2 border-white shadow-md cursor-pointer hover:w-5 hover:h-5 hover:shadow-lg transition-all"
                             style={{
                               left: `${engagementX}%`,
                               top: `${mrrY}%`,
                               transform: 'translate(-50%, -50%)',
-                              backgroundColor: healthColor,
+                              backgroundColor: tierColor,
                             }}
-                            title={advisor.name}
+                            title={`${advisor.name} - $${(advisor.mrr / 1000).toFixed(1)}K`}
                           />
                         );
                       })}
                     </div>
                   </div>
 
-                  {/* Tier Breakdown */}
                   <div className="bg-white rounded-xl border border-[#e8e5e1]">
                     <div className="px-6 py-4 border-b border-[#f0ede9]">
                       <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Tier Breakdown</h3>
@@ -1160,24 +1588,34 @@ export default function ManagerPage() {
                             <th className="px-6 py-3 text-left text-11px uppercase font-bold text-[#888]">Tier</th>
                             <th className="px-6 py-3 text-left text-11px uppercase font-bold text-[#888]">Count</th>
                             <th className="px-6 py-3 text-left text-11px uppercase font-bold text-[#888]">MRR</th>
-                            <th className="px-6 py-3 text-left text-11px uppercase font-bold text-[#888]">Health</th>
+                            <th className="px-6 py-3 text-left text-11px uppercase font-bold text-[#888]">Avg MRR</th>
+                            <th className="px-6 py-3 text-left text-11px uppercase font-bold text-[#888]">Avg Engagement</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {['Strategic', 'Enterprise', 'Mid-Market', 'Growth'].map((tier, idx) => {
+                          {['top10', 'next20', 'other'].map((tier, idx) => {
                             const tierAdvisors = advisors.filter(a => a.tier === tier);
                             const tierMRR = tierAdvisors.reduce((sum, a) => sum + a.mrr, 0);
-                            const tierHealthy = tierAdvisors.filter(a => a.dealHealth === 'Healthy').length;
+                            const avgMRR = tierAdvisors.length > 0 ? tierMRR / tierAdvisors.length : 0;
+                            const tierLabels: Record<string, string> = {
+                              'top10': 'Top 10',
+                              'next20': 'Next 20',
+                              'other': 'Other',
+                            };
+
+                            const strongCount = tierAdvisors.filter(a => a.pulse === 'Strong').length;
+                            const steadyCount = tierAdvisors.filter(a => a.pulse === 'Steady').length;
+                            const avgEngagementTier = tierAdvisors.length > 0
+                              ? (strongCount * 90 + steadyCount * 60 + (tierAdvisors.length - strongCount - steadyCount) * 30) / tierAdvisors.length
+                              : 0;
+
                             return (
                               <tr key={tier} className="border-b border-[#f0ede9] hover:bg-[#F7F5F2]">
-                                <td className="px-6 py-3">
-                                  {tierAdvisors.length > 0 && <TierBadge tier={tier as any} />}
-                                </td>
+                                <td className="px-6 py-3 text-13px font-bold text-gray-900">{tierLabels[tier]}</td>
                                 <td className="px-6 py-3 text-13px font-medium text-gray-900">{tierAdvisors.length}</td>
                                 <td className="px-6 py-3 text-13px font-medium text-gray-900">${(tierMRR / 1000).toFixed(1)}K</td>
-                                <td className="px-6 py-3 text-13px font-medium" style={{ color: tierHealthy === tierAdvisors.length ? '#16a34a' : tierHealthy >= tierAdvisors.length * 0.7 ? '#f59e0b' : '#ef4444' }}>
-                                  {tierHealthy}/{tierAdvisors.length}
-                                </td>
+                                <td className="px-6 py-3 text-13px font-medium text-gray-900">${(avgMRR / 1000).toFixed(1)}K</td>
+                                <td className="px-6 py-3 text-13px font-medium text-gray-900">{Math.round(avgEngagementTier)}%</td>
                               </tr>
                             );
                           })}
@@ -1187,9 +1625,44 @@ export default function ManagerPage() {
                   </div>
                 </div>
 
-                {/* Two-column: Cohort Trajectory and Recommended Next Moves */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Cohort Trajectory */}
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-4">Supplier Activity</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-13px">
+                        <thead>
+                          <tr className="border-b border-[#f0ede9]">
+                            <th className="px-3 py-2 text-left text-11px uppercase font-bold text-[#888]">Advisor</th>
+                            <th className="px-3 py-2 text-center text-11px uppercase font-bold text-[#888]">Quotes</th>
+                            <th className="px-3 py-2 text-center text-11px uppercase font-bold text-[#888]">Won</th>
+                            <th className="px-3 py-2 text-center text-11px uppercase font-bold text-[#888]">Rate</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {advisors.slice(0, 8).map((advisor, idx) => {
+                            const quotesData = calculateQuotesData(advisor);
+                            const rate = quotesData.submitted > 0 ? Math.round((quotesData.won / quotesData.submitted) * 100) : 0;
+                            return (
+                              <tr key={advisor.id} className="border-b border-[#f0ede9] hover:bg-[#F7F5F2]">
+                                <td className="px-3 py-2">
+                                  <button
+                                    onClick={() => handleAdvisorClick(advisor.id)}
+                                    className="text-[#157A6E] font-medium cursor-pointer hover:underline"
+                                  >
+                                    {advisor.name}
+                                  </button>
+                                </td>
+                                <td className="px-3 py-2 text-center font-medium text-gray-900">{quotesData.submitted}</td>
+                                <td className="px-3 py-2 text-center font-medium text-gray-900">{quotesData.won}</td>
+                                <td className="px-3 py-2 text-center font-medium text-gray-900">{rate}%</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
                     <p className="text-10px uppercase font-semibold text-[#888] mb-4">Cohort Trajectory</p>
                     <div className="space-y-4">
@@ -1227,30 +1700,29 @@ export default function ManagerPage() {
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  {/* AI-Recommended Next Moves */}
-                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
-                    <p className="text-10px uppercase font-semibold text-[#888] mb-4">AI-Recommended Next Moves</p>
-                    <ol className="space-y-3">
-                      {[
-                        'Re-engage Tom Bradley this week (fading pulse, $45K at risk)',
-                        'Expand Sarah Chen\'s portfolio to Enterprise tier (strong trajectory)',
-                        'Schedule friction review call with Nina Patel (quoting delays)',
-                        'Executive sponsorship for $120K deal (in negotiating 28 days)',
-                        'Personal outreach to 3 flatline advisors (preventive retention)',
-                      ].map((move, idx) => (
-                        <li key={idx} className="flex gap-3">
-                          <div
-                            className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white text-11px font-bold"
-                            style={{ backgroundColor: '#157A6E' }}
-                          >
-                            {idx + 1}
-                          </div>
-                          <span className="text-13px text-gray-700 pt-0.5">{move}</span>
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
+                <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                  <p className="text-10px uppercase font-semibold text-[#888] mb-4">AI-Recommended Next Moves</p>
+                  <ol className="space-y-3">
+                    {[
+                      'Re-engage Tom Bradley this week (fading pulse, $45K at risk)',
+                      'Expand Sarah Chen\'s portfolio to Enterprise tier (strong trajectory)',
+                      'Schedule friction review call with Nina Patel (quoting delays)',
+                      'Executive sponsorship for $120K deal (in negotiating 28 days)',
+                      'Personal outreach to 3 flatline advisors (preventive retention)',
+                    ].map((move, idx) => (
+                      <li key={idx} className="flex gap-3">
+                        <div
+                          className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-white text-11px font-bold"
+                          style={{ backgroundColor: '#157A6E' }}
+                        >
+                          {idx + 1}
+                        </div>
+                        <span className="text-13px text-gray-700 pt-0.5">{move}</span>
+                      </li>
+                    ))}
+                  </ol>
                 </div>
               </div>
             )}
@@ -1260,7 +1732,6 @@ export default function ManagerPage() {
         </div>
       </div>
 
-      {/* Advisor Panel Slide-Over (only on non-relationships views) */}
       <AdvisorPanel
         advisor={selectedAdvisor}
         deals={deals}

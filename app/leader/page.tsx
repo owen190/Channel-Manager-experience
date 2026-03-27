@@ -23,7 +23,6 @@ import { deals } from '@/lib/data/deals';
 import { leaderBriefing } from '@/lib/data/briefings';
 import { Advisor, Nudge, Deal, DealStage, OverrideRequest, ForecastHistoryEntry } from '@/lib/types';
 
-// Engagement label helper
 function EngLabel({ score }: { score: EngagementScore }) {
   const colors: Record<EngagementScore, string> = {
     Strong: 'bg-green-100 text-green-800',
@@ -39,12 +38,15 @@ export default function LeaderDashboard() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [expandedReps, setExpandedReps] = useState<string[]>([]);
   const [inlineTab, setInlineTab] = useState<'overview' | 'personal' | 'deals' | 'notes' | 'activity'>('overview');
+  const [expandedKPIPanel, setExpandedKPIPanel] = useState<string | null>(null);
+  const [expandedForecastRep, setExpandedForecastRep] = useState<string | null>(null);
+  const [expandedHistoricalQuarter, setExpandedHistoricalQuarter] = useState<string | null>(null);
+  const [relationshipFilter, setRelationshipFilter] = useState('All');
+  const [expandedStage, setExpandedStage] = useState<DealStage | null>(null);
+  const [expandedPipelineRep, setExpandedPipelineRep] = useState<string | null>(null);
 
-  // Leader info
   const userName = 'Priya M.';
   const userInitials = 'PM';
-
-  // ==================== Data Calculations ====================
 
   const teamMRR = reps.reduce((sum, rep) => sum + rep.managedMRR, 0);
   const prevTeamMRR = teamMRR * 0.942;
@@ -119,7 +121,6 @@ export default function LeaderDashboard() {
     { pattern: 'Forecast gap widening', repsAffected: 'Marcus, Natasha', impact: '$89K gap', action: 'Weekly commit reviews' }
   ];
 
-  // Stage/timeline mismatch deals
   const stageTimelineMismatches = allDeals.filter(d => {
     if (d.stage === 'Discovery' && d.daysInStage > 25) return true;
     if (d.stage === 'Qualifying' && d.daysInStage > 20) return true;
@@ -133,7 +134,6 @@ export default function LeaderDashboard() {
     { id: 'nudge-3', title: 'Capacity Crisis', description: 'Ernie at 57/30 partners', time: '2h', type: 'capacity', priority: 'critical' }
   ];
 
-  // Helper functions
   const toggleRepExpansion = (repId: string) => {
     setExpandedReps(prev =>
       prev.includes(repId) ? prev.filter(id => id !== repId) : [...prev, repId]
@@ -160,7 +160,77 @@ export default function LeaderDashboard() {
     return 'bg-green-100 text-green-700';
   };
 
-  // ==================== MAIN RENDER ====================
+  const getEngagementScore = (pulse: string): number => {
+    const scoreMap: Record<string, number> = {
+      'Strong': 90,
+      'Steady': 60,
+      'Rising': 75,
+      'Fading': 30,
+      'Flatline': 10,
+    };
+    return scoreMap[pulse] || 50;
+  };
+
+  const filteredAdvisors = useMemo(() => {
+    if (relationshipFilter === 'All') return advisors;
+    if (relationshipFilter === 'At Risk') return advisors.filter(a => a.pulse === 'Fading' || a.pulse === 'Flatline');
+    if (relationshipFilter === 'Top 10') return advisors.filter(a => a.tier === 'top10');
+    if (relationshipFilter === 'New') return advisors.filter(a => a.connectedSince > '2025-09-01');
+    return advisors;
+  }, [relationshipFilter]);
+
+  const portfolioSummary = useMemo(() => {
+    const summary = {
+      totalAdvisors: filteredAdvisors.length,
+      totalMRR: filteredAdvisors.reduce((sum, a) => sum + a.mrr, 0),
+      strongCount: filteredAdvisors.filter(a => a.pulse === 'Strong').length,
+      steadyCount: filteredAdvisors.filter(a => a.pulse === 'Steady').length,
+      fadingCount: filteredAdvisors.filter(a => a.pulse === 'Fading').length,
+      flatlineCount: filteredAdvisors.filter(a => a.pulse === 'Flatline').length,
+      risingCount: filteredAdvisors.filter(a => a.pulse === 'Rising').length,
+    };
+    return summary;
+  }, [filteredAdvisors]);
+
+  const stageDistribution = useMemo(() => {
+    const stages: Record<DealStage, number> = {
+      'Discovery': 0,
+      'Qualifying': 0,
+      'Proposal': 0,
+      'Negotiating': 0,
+      'Closed Won': 0,
+      'Stalled': 0
+    };
+    allDeals.forEach(deal => {
+      stages[deal.stage]++;
+    });
+    return stages;
+  }, []);
+
+  const repPipelineData = useMemo(() => {
+    return reps.map(rep => {
+      const repDeals = allDeals.filter(d => d.repId === rep.id);
+      const repPipeline = repDeals.reduce((sum, d) => sum + d.mrr, 0);
+      const stageBreakdown: Record<DealStage, number> = {
+        'Discovery': 0,
+        'Qualifying': 0,
+        'Proposal': 0,
+        'Negotiating': 0,
+        'Closed Won': 0,
+        'Stalled': 0
+      };
+      repDeals.forEach(deal => {
+        stageBreakdown[deal.stage]++;
+      });
+      return {
+        repId: rep.id,
+        repName: rep.name,
+        totalPipeline: repPipeline,
+        dealCount: repDeals.length,
+        stageBreakdown
+      };
+    });
+  }, []);
 
   return (
     <div className="flex h-screen" style={{ backgroundColor: '#F7F5F2' }}>
@@ -184,10 +254,8 @@ export default function LeaderDashboard() {
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 overflow-y-auto p-6">
 
-            {/* ========== COMMAND CENTER VIEW ========== */}
             {activeView === 'command-center' && (
               <div className="space-y-6 max-w-7xl mx-auto">
-                {/* Forecast Banner */}
                 <div className="rounded-xl p-6 text-white" style={{ background: 'linear-gradient(135deg, #157A6E 0%, #0f5250 100%)' }}>
                   <div className="flex items-start justify-between">
                     <div>
@@ -212,38 +280,154 @@ export default function LeaderDashboard() {
                   </div>
                 </div>
 
-                {/* KPI Cards Row */}
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                  <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+                  <div
+                    className="bg-white border border-[#e8e5e1] rounded-[10px] p-5 cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setExpandedKPIPanel(expandedKPIPanel === 'team-mrr' ? null : 'team-mrr')}
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">Team MRR</p>
                     <p className="text-2xl font-bold text-gray-900">{formatCurrency(teamMRR)}</p>
                     <p className="text-11px text-gray-600 mt-1">+{mrrChange}% growth</p>
                   </div>
-                  <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+                  <div
+                    className="bg-white border border-[#e8e5e1] rounded-[10px] p-5 cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setExpandedKPIPanel(expandedKPIPanel === 'avg-deal' ? null : 'avg-deal')}
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">Avg Deal Size</p>
                     <p className="text-2xl font-bold text-gray-900">$45.2K</p>
                     <p className="text-11px text-gray-600 mt-1">+$2.1K vs last month</p>
                   </div>
-                  <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+                  <div
+                    className="bg-white border border-[#e8e5e1] rounded-[10px] p-5 cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setExpandedKPIPanel(expandedKPIPanel === 'win-rate' ? null : 'win-rate')}
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">Win Rate</p>
                     <p className="text-2xl font-bold" style={{ color: '#16a34a' }}>68%</p>
                     <p className="text-11px text-gray-600 mt-1">Industry avg: 62%</p>
                   </div>
-                  <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+                  <div
+                    className="bg-white border border-[#e8e5e1] rounded-[10px] p-5 cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setExpandedKPIPanel(expandedKPIPanel === 'cycle-time' ? null : 'cycle-time')}
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">Cycle Time</p>
                     <p className="text-2xl font-bold text-gray-900">42 days</p>
                     <p className="text-11px text-gray-600 mt-1">-3 days vs Q4</p>
                   </div>
-                  <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+                  <div
+                    className="bg-white border border-[#e8e5e1] rounded-[10px] p-5 cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setExpandedKPIPanel(expandedKPIPanel === 'at-risk' ? null : 'at-risk')}
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">At Risk $</p>
                     <p className="text-2xl font-bold" style={{ color: '#ef4444' }}>$182K</p>
                     <p className="text-11px text-gray-600 mt-1">15% of pipeline</p>
                   </div>
                 </div>
 
-                {/* Team Performance & Coaching Signals */}
+                {expandedKPIPanel && (
+                  <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+                    {expandedKPIPanel === 'team-mrr' && (
+                      <div>
+                        <h4 className="text-13px font-bold text-gray-900 mb-4">Team MRR Breakdown by Rep</h4>
+                        <div className="space-y-2">
+                          {reps.map(rep => (
+                            <div key={rep.id} className="flex items-center justify-between p-3 bg-[#F7F5F2] rounded-lg">
+                              <span className="text-13px font-medium text-gray-900">{rep.name}</span>
+                              <span className="text-13px font-bold" style={{ color: '#157A6E' }}>{formatCurrency(rep.managedMRR)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {expandedKPIPanel === 'avg-deal' && (
+                      <div>
+                        <h4 className="text-13px font-bold text-gray-900 mb-4">Top 5 Deals by Size</h4>
+                        <div className="space-y-2">
+                          {allDeals
+                            .sort((a, b) => b.mrr - a.mrr)
+                            .slice(0, 5)
+                            .map((deal, idx) => (
+                              <div key={deal.id} className="flex items-center justify-between p-3 bg-[#F7F5F2] rounded-lg">
+                                <div className="flex-1">
+                                  <span className="text-13px font-medium text-gray-900">{deal.name}</span>
+                                  <p className="text-11px text-gray-600">{advisors.find(a => a.id === deal.advisorId)?.name}</p>
+                                </div>
+                                <span className="text-13px font-bold" style={{ color: '#157A6E' }}>{formatCurrency(deal.mrr)}</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                    {expandedKPIPanel === 'win-rate' && (
+                      <div>
+                        <h4 className="text-13px font-bold text-gray-900 mb-4">Win vs Loss by Rep</h4>
+                        <div className="space-y-3">
+                          {reps.map(rep => {
+                            const repDeals = allDeals.filter(d => d.repId === rep.id);
+                            const wins = repDeals.filter(d => d.stage === 'Closed Won').length;
+                            const losses = repDeals.filter(d => d.stage === 'Stalled').length;
+                            const total = wins + losses || 1;
+                            const winRate = Math.round((wins / total) * 100);
+                            return (
+                              <div key={rep.id} className="p-3 bg-[#F7F5F2] rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-13px font-medium text-gray-900">{rep.name}</span>
+                                  <span className="text-12px font-bold" style={{ color: '#16a34a' }}>{winRate}%</span>
+                                </div>
+                                <div className="flex gap-2 text-11px text-gray-600">
+                                  <span>Wins: {wins}</span>
+                                  <span>Losses: {losses}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {expandedKPIPanel === 'cycle-time' && (
+                      <div>
+                        <h4 className="text-13px font-bold text-gray-900 mb-4">Cycle Time by Rep</h4>
+                        <div className="space-y-2">
+                          {reps.map(rep => {
+                            const repDeals = allDeals.filter(d => d.repId === rep.id && (d.stage === 'Closed Won' || d.stage === 'Stalled'));
+                            const avgCycleTime = repDeals.length > 0
+                              ? Math.round(repDeals.reduce((sum, d) => sum + d.daysInStage, 0) / repDeals.length)
+                              : 0;
+                            return (
+                              <div key={rep.id} className="flex items-center justify-between p-3 bg-[#F7F5F2] rounded-lg">
+                                <span className="text-13px font-medium text-gray-900">{rep.name}</span>
+                                <span className="text-13px font-bold text-gray-900">{avgCycleTime} days</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {expandedKPIPanel === 'at-risk' && (
+                      <div>
+                        <h4 className="text-13px font-bold text-gray-900 mb-4">At-Risk Deals</h4>
+                        <div className="space-y-2">
+                          {allDeals
+                            .filter(d => d.health === 'At Risk' || d.health === 'Stalled')
+                            .map(deal => {
+                              const rep = reps.find(r => r.id === deal.repId);
+                              const advisor = advisors.find(a => a.id === deal.advisorId);
+                              return (
+                                <div key={deal.id} className="p-3 bg-[#F7F5F2] rounded-lg border-l-4" style={{ borderLeftColor: '#ef4444' }}>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-13px font-medium text-gray-900">{deal.name}</span>
+                                    <span className="text-12px font-bold" style={{ color: '#ef4444' }}>{formatCurrency(deal.mrr)}</span>
+                                  </div>
+                                  <p className="text-11px text-gray-600">{rep?.name} · {advisor?.name}</p>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Team Performance */}
                   <div className="lg:col-span-2 bg-white border border-[#e8e5e1] rounded-[10px]">
                     <div className="px-5 py-3.5 border-b border-[#f0ede9]">
                       <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Team Performance</h3>
@@ -281,7 +465,6 @@ export default function LeaderDashboard() {
                     </div>
                   </div>
 
-                  {/* Coaching Signals */}
                   <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
                     <div className="px-5 py-3.5 border-b border-[#f0ede9]">
                       <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Coaching Signals</h3>
@@ -315,7 +498,6 @@ export default function LeaderDashboard() {
                   </div>
                 </div>
 
-                {/* Forecast by Rep Table */}
                 <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
                   <div className="px-5 py-3.5 border-b border-[#f0ede9]">
                     <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Forecast by Rep</h3>
@@ -336,7 +518,11 @@ export default function LeaderDashboard() {
                         {reps.map((rep) => {
                           const quotaPercentage = Math.round((rep.currentCommit / rep.quotaTarget) * 100);
                           return (
-                            <tr key={rep.id} className="border-b border-[#e8e5e1] hover:bg-[#F7F5F2]/30 transition-colors">
+                            <tr
+                              key={rep.id}
+                              className="border-b border-[#e8e5e1] hover:bg-[#F7F5F2]/30 transition-colors cursor-pointer"
+                              onClick={() => setExpandedForecastRep(expandedForecastRep === rep.id ? null : rep.id)}
+                            >
                               <td className="px-5 py-3 text-13px font-semibold text-gray-900">{rep.name}</td>
                               <td className="px-5 py-3 text-right text-13px text-gray-700">{formatCurrency(rep.quotaTarget)}</td>
                               <td className="px-5 py-3 text-right text-13px font-semibold text-gray-900">{formatCurrency(rep.currentCommit)}</td>
@@ -362,14 +548,36 @@ export default function LeaderDashboard() {
                       </tbody>
                     </table>
                   </div>
+                  {expandedForecastRep && (
+                    <div className="px-5 py-4 border-t border-[#f0ede9] bg-[#F7F5F2]">
+                      <h4 className="text-13px font-bold text-gray-900 mb-3">Deals for {reps.find(r => r.id === expandedForecastRep)?.name}</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {allDeals
+                          .filter(d => d.repId === expandedForecastRep)
+                          .map(deal => {
+                            const advisor = advisors.find(a => a.id === deal.advisorId);
+                            return (
+                              <div key={deal.id} className="p-3 bg-white rounded-lg border border-[#e8e5e1]">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <p className="text-13px font-semibold text-gray-900">{deal.name}</p>
+                                    <p className="text-11px text-gray-600">{advisor?.name}</p>
+                                    <p className="text-11px text-gray-600 mt-1">{deal.stage}</p>
+                                  </div>
+                                  <span className="text-13px font-bold" style={{ color: '#157A6E' }}>{formatCurrency(deal.mrr)}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* ========== FORECAST VIEW ========== */}
             {activeView === 'forecast' && (
               <div className="space-y-6 max-w-7xl mx-auto">
-                {/* Commit vs Target */}
                 <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
                   <div className="px-5 py-3.5 border-b border-[#f0ede9]">
                     <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Commit vs Target Tracker</h3>
@@ -399,7 +607,6 @@ export default function LeaderDashboard() {
                   </div>
                 </div>
 
-                {/* Override Requests */}
                 {overrideRequests.length > 0 && (
                   <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
                     <div className="px-5 py-3.5 border-b border-[#f0ede9] border-l-4" style={{ borderLeftColor: '#f59e0b' }}>
@@ -423,22 +630,52 @@ export default function LeaderDashboard() {
                   </div>
                 )}
 
-                {/* Historical Forecast */}
                 <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
                   <div className="px-5 py-3.5 border-b border-[#f0ede9]">
                     <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Historical Forecast Accuracy</h3>
                   </div>
                   <div className="divide-y divide-[#e8e5e1]">
                     {historicalForecast.map((item) => (
-                      <div key={item.quarter} className="px-5 py-4 flex items-center justify-between hover:bg-[#F7F5F2]/30">
-                        <div>
-                          <p className="text-13px font-semibold text-gray-900">{item.quarter}</p>
-                          <p className="text-11px text-gray-600">Target: {formatCurrency(item.target)}</p>
+                      <div key={item.quarter}>
+                        <div
+                          className="px-5 py-4 flex items-center justify-between hover:bg-[#F7F5F2]/30 cursor-pointer transition-colors"
+                          onClick={() => setExpandedHistoricalQuarter(expandedHistoricalQuarter === item.quarter ? null : item.quarter)}
+                        >
+                          <div>
+                            <p className="text-13px font-semibold text-gray-900">{item.quarter}</p>
+                            <p className="text-11px text-gray-600">Target: {formatCurrency(item.target)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-13px font-semibold text-gray-900">{formatCurrency(item.actual)}</p>
+                            <p className="text-11px" style={{ color: item.percentage >= 90 ? '#16a34a' : '#f59e0b' }}>{item.percentage}% accuracy</p>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-13px font-semibold text-gray-900">{formatCurrency(item.actual)}</p>
-                          <p className="text-11px" style={{ color: item.percentage >= 90 ? '#16a34a' : '#f59e0b' }}>{item.percentage}% accuracy</p>
-                        </div>
+                        {expandedHistoricalQuarter === item.quarter && (
+                          <div className="px-5 py-4 bg-[#F7F5F2] border-t border-[#e8e5e1]">
+                            <div className="grid grid-cols-2 gap-4 max-w-md">
+                              <div>
+                                <p className="text-11px text-gray-600 mb-1">Target Revenue</p>
+                                <p className="text-lg font-bold text-gray-900">{formatCurrency(item.target)}</p>
+                              </div>
+                              <div>
+                                <p className="text-11px text-gray-600 mb-1">Actual Revenue</p>
+                                <p className="text-lg font-bold text-gray-900">{formatCurrency(item.actual)}</p>
+                              </div>
+                              <div>
+                                <p className="text-11px text-gray-600 mb-1">Variance</p>
+                                <p className="text-lg font-bold" style={{ color: item.actual >= item.target ? '#16a34a' : '#f59e0b' }}>
+                                  {formatCurrency(item.actual - item.target)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-11px text-gray-600 mb-1">Accuracy %</p>
+                                <p className="text-lg font-bold" style={{ color: item.percentage >= 90 ? '#16a34a' : '#f59e0b' }}>
+                                  {item.percentage}%
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -446,19 +683,36 @@ export default function LeaderDashboard() {
               </div>
             )}
 
-            {/* ========== TEAM VIEW ========== */}
             {activeView === 'team' && (
               <div className="space-y-6 max-w-7xl mx-auto">
-                {/* Rep Cards */}
                 <div className="grid grid-cols-1 gap-4">
                   {reps.map((rep) => {
                     const repDeals = allDeals.filter(d => d.repId === rep.id);
                     const isExpanded = expandedReps.includes(rep.id);
                     const quotaPercentage = Math.round((rep.currentCommit / rep.quotaTarget) * 100);
+                    const repAdvisors = advisors.filter(a => repDeals.some(d => d.advisorId === a.id));
+                    const winRate = (() => {
+                      const wins = repDeals.filter(d => d.stage === 'Closed Won').length;
+                      const losses = repDeals.filter(d => d.stage === 'Stalled').length;
+                      const total = wins + losses || 1;
+                      return Math.round((wins / total) * 100);
+                    })();
+                    const avgCycleTime = (() => {
+                      const completedDeals = repDeals.filter(d => d.stage === 'Closed Won' || d.stage === 'Stalled');
+                      if (completedDeals.length === 0) return 0;
+                      return Math.round(completedDeals.reduce((sum, d) => sum + d.daysInStage, 0) / completedDeals.length);
+                    })();
+                    const capacityUtilization = (() => {
+                      if (rep.partnerCapacity === 0) return 0;
+                      return Math.round((rep.partnerCount / rep.partnerCapacity) * 100);
+                    })();
 
                     return (
                       <div key={rep.id} className="bg-white border border-[#e8e5e1] rounded-[10px]">
-                        <div className="px-5 py-4 flex items-center justify-between cursor-pointer hover:bg-[#F7F5F2]/30 transition-colors" onClick={() => toggleRepExpansion(rep.id)}>
+                        <div
+                          className="px-5 py-4 flex items-center justify-between cursor-pointer hover:bg-[#F7F5F2]/30 transition-colors"
+                          onClick={() => toggleRepExpansion(rep.id)}
+                        >
                           <div className="flex items-center gap-4 flex-1">
                             <div className="w-10 h-10 rounded-full bg-[#157A6E] text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
                               {rep.name.split(' ').map(n => n[0]).join('')}
@@ -483,49 +737,81 @@ export default function LeaderDashboard() {
 
                         {isExpanded && (
                           <div className="px-5 py-4 border-t border-[#e8e5e1] space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div className="p-3 rounded-lg" style={{ backgroundColor: '#F7F5F2' }}>
-                                <p className="text-11px text-gray-600 mb-1">Managed MRR</p>
-                                <p className="text-lg font-bold text-gray-900">{formatCurrency(rep.managedMRR)}</p>
+                                <p className="text-11px text-gray-600 mb-1">Win Rate</p>
+                                <p className="text-lg font-bold text-gray-900">{winRate}%</p>
                               </div>
                               <div className="p-3 rounded-lg" style={{ backgroundColor: '#F7F5F2' }}>
-                                <p className="text-11px text-gray-600 mb-1">Active Deals</p>
-                                <p className="text-lg font-bold text-gray-900">{rep.activeDeals}</p>
+                                <p className="text-11px text-gray-600 mb-1">Avg Cycle Time</p>
+                                <p className="text-lg font-bold text-gray-900">{avgCycleTime} days</p>
                               </div>
                               <div className="p-3 rounded-lg" style={{ backgroundColor: '#F7F5F2' }}>
-                                <p className="text-11px text-gray-600 mb-1">Partner Capacity</p>
-                                <p className="text-lg font-bold text-gray-900">{rep.partnerCount}/{rep.partnerCapacity}</p>
-                              </div>
-                              <div className="p-3 rounded-lg" style={{ backgroundColor: '#F7F5F2' }}>
-                                <p className="text-11px text-gray-600 mb-1">Quota Progress</p>
-                                <div className="flex items-center gap-2">
-                                  <div className="h-2 flex-1 bg-gray-200 rounded-full overflow-hidden">
-                                    <div className="h-full" style={{ width: `${Math.min(quotaPercentage, 100)}%`, backgroundColor: quotaPercentage >= 90 ? '#16a34a' : quotaPercentage >= 80 ? '#f59e0b' : '#ef4444' }} />
-                                  </div>
-                                  <span className="text-11px font-semibold">{quotaPercentage}%</span>
-                                </div>
+                                <p className="text-11px text-gray-600 mb-1">Capacity Utilization</p>
+                                <p className="text-lg font-bold text-gray-900">{capacityUtilization}%</p>
                               </div>
                             </div>
 
-                            {repDeals.length > 0 && (
-                              <div>
-                                <p className="text-12px font-bold uppercase tracking-widest text-[#888] mb-2">Recent Deals</p>
-                                <div className="space-y-2">
-                                  {repDeals.slice(0, 3).map((deal) => (
-                                    <div key={deal.id} className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: '#F7F5F2' }}>
-                                      <div>
-                                        <p className="text-13px font-semibold text-gray-900">{deal.name}</p>
-                                        <p className="text-11px text-gray-600">{deal.stage} · {deal.daysInStage}d</p>
-                                      </div>
-                                      <div className="text-right flex items-center gap-3">
-                                        <DealHealthBadge health={deal.health} />
-                                        <p className="text-13px font-bold" style={{ color: '#157A6E' }}>{formatCurrency(deal.mrr)}</p>
-                                      </div>
-                                    </div>
-                                  ))}
+                            {repAdvisors.length > 0 && (
+                              <div className="border-t border-[#e8e5e1] pt-4">
+                                <h4 className="text-12px uppercase font-bold tracking-widest text-[#888] mb-3">Advisor Quadrant</h4>
+                                <div className="relative w-full h-[250px] bg-[#F7F5F2] rounded-lg p-4 flex items-end justify-start" style={{ border: '1px solid #e8e5e1' }}>
+                                  <svg className="absolute inset-0 w-full h-full" style={{ color: '#d1d5db' }}>
+                                    <line x1="50%" y1="0" x2="50%" y2="100%" stroke="currentColor" strokeWidth="1" strokeDasharray="4" />
+                                    <line x1="0" y1="50%" x2="100%" y2="50%" stroke="currentColor" strokeWidth="1" strokeDasharray="4" />
+                                  </svg>
+                                  <div className="absolute top-1 left-2 text-10px text-gray-500 font-semibold">Stars</div>
+                                  <div className="absolute top-1 right-2 text-10px text-gray-500 font-semibold">Growth</div>
+                                  <div className="absolute bottom-1 left-2 text-10px text-gray-500 font-semibold">Watch</div>
+                                  <div className="absolute bottom-1 right-2 text-10px text-gray-500 font-semibold">Harvest</div>
+
+                                  {repAdvisors.map(advisor => {
+                                    const engagementScore = getEngagementScore(advisor.pulse);
+                                    const mrrMax = Math.max(...repAdvisors.map(a => a.mrr), 500000);
+                                    const xPercent = (engagementScore / 100) * 100;
+                                    const yPercent = (advisor.mrr / mrrMax) * 100;
+                                    const colorMap: Record<string, string> = {
+                                      'Strategic': '#157A6E',
+                                      'Key': '#f59e0b',
+                                      'Growth': '#16a34a',
+                                      'Emerging': '#8b5cf6'
+                                    };
+                                    const color = colorMap[advisor.tier] || '#6b7280';
+                                    return (
+                                      <div
+                                        key={advisor.id}
+                                        className="absolute w-5 h-5 rounded-full flex items-center justify-center cursor-pointer hover:scale-125 transition-transform"
+                                        style={{
+                                          left: `${xPercent}%`,
+                                          bottom: `${yPercent}%`,
+                                          backgroundColor: color,
+                                          transform: 'translate(-50%, 50%)',
+                                        }}
+                                        title={`${advisor.name} (${advisor.pulse})`}
+                                      />
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}
+
+                            <div className="border-t border-[#e8e5e1] pt-4">
+                              <h4 className="text-12px uppercase font-bold tracking-widest text-[#888] mb-3">Top 3 Advisors by MRR</h4>
+                              <div className="space-y-2">
+                                {repAdvisors
+                                  .sort((a, b) => b.mrr - a.mrr)
+                                  .slice(0, 3)
+                                  .map(advisor => (
+                                    <div key={advisor.id} className="flex items-center justify-between p-3 bg-[#F7F5F2] rounded-lg">
+                                      <div className="flex items-center gap-2 flex-1">
+                                        <span className="text-13px font-medium text-gray-900">{advisor.name}</span>
+                                        <PulseBadge pulse={advisor.pulse} />
+                                      </div>
+                                      <span className="text-13px font-bold" style={{ color: '#157A6E' }}>{formatCurrency(advisor.mrr)}</span>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -535,284 +821,522 @@ export default function LeaderDashboard() {
               </div>
             )}
 
-            {/* ========== RELATIONSHIPS VIEW (Master-Detail) ========== */}
             {activeView === 'relationships' && (
-              <div className="flex gap-6 h-full max-w-7xl mx-auto">
-                {/* Left Panel: Advisor List */}
-                <div className="w-80 flex flex-col bg-white rounded-xl border border-[#e8e5e1]">
-                  {/* Filter Pills */}
-                  <div className="px-6 py-4 border-b border-[#f0ede9] flex gap-2 flex-wrap">
-                    {['All', 'At Risk', 'Top 10', 'New'].map(filter => (
-                      <button
-                        key={filter}
-                        className="px-3 py-1 rounded-full text-11px font-semibold border border-[#e8e5e1] hover:bg-[#F7F5F2]"
-                      >
-                        {filter}
-                      </button>
-                    ))}
-                  </div>
+              <div className="space-y-6 max-w-7xl mx-auto">
+                <div className="flex gap-2">
+                  {['All', 'At Risk', 'Top 10', 'New'].map(filter => (
+                    <button
+                      key={filter}
+                      onClick={() => setRelationshipFilter(filter)}
+                      className={`px-4 py-2 rounded-full text-13px font-semibold transition-colors ${
+                        relationshipFilter === filter
+                          ? 'text-white'
+                          : 'bg-white border border-[#e8e5e1] text-gray-900 hover:bg-[#F7F5F2]'
+                      }`}
+                      style={relationshipFilter === filter ? { backgroundColor: '#157A6E' } : {}}
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                </div>
 
-                  {/* Advisor List */}
-                  <div className="flex-1 overflow-y-auto">
-                    {advisors.map(advisor => (
-                      <div
-                        key={advisor.id}
-                        onClick={() => handleAdvisorClick(advisor.id)}
-                        className="px-6 py-4 border-b border-[#f0ede9] cursor-pointer hover:bg-[#F7F5F2] transition-colors"
-                        style={{
-                          backgroundColor: selectedAdvisor?.id === advisor.id ? '#f0f9f7' : undefined,
-                          borderLeftWidth: selectedAdvisor?.id === advisor.id ? '4px' : '0px',
-                          borderLeftColor: selectedAdvisor?.id === advisor.id ? '#157A6E' : undefined,
-                        }}
-                      >
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="w-8 h-8 rounded-full bg-[#157A6E] text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {advisor.name.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-13px font-medium text-gray-900 truncate">{advisor.name}</p>
-                            <p className="text-11px text-gray-600 truncate">{advisor.company}</p>
-                          </div>
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  <div className="lg:col-span-1 bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+                    <h3 className="text-12px uppercase font-bold tracking-widest text-[#888] mb-4">Portfolio Summary</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-11px text-gray-600 mb-1">Total Advisors</p>
+                        <p className="text-2xl font-bold text-gray-900">{portfolioSummary.totalAdvisors}</p>
+                      </div>
+                      <div>
+                        <p className="text-11px text-gray-600 mb-1">Total MRR</p>
+                        <p className="text-2xl font-bold" style={{ color: '#157A6E' }}>{formatCurrency(portfolioSummary.totalMRR)}</p>
+                      </div>
+                      <div className="pt-3 border-t border-[#e8e5e1] space-y-2">
+                        <div className="flex items-center justify-between text-11px">
+                          <span className="text-gray-600">Strong</span>
+                          <span className="font-semibold text-gray-900">{portfolioSummary.strongCount}</span>
                         </div>
-                        <div className="flex gap-2 items-center">
-                          <PulseBadge pulse={advisor.pulse} size="sm" />
-                          <span className="text-11px font-semibold text-gray-900 ml-auto">${(advisor.mrr / 1000).toFixed(1)}K</span>
+                        <div className="flex items-center justify-between text-11px">
+                          <span className="text-gray-600">Steady</span>
+                          <span className="font-semibold text-gray-900">{portfolioSummary.steadyCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-11px">
+                          <span className="text-gray-600">Rising</span>
+                          <span className="font-semibold text-gray-900">{portfolioSummary.risingCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-11px">
+                          <span className="text-gray-600">Fading</span>
+                          <span className="font-semibold text-gray-900">{portfolioSummary.fadingCount}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-11px">
+                          <span className="text-gray-600">Flatline</span>
+                          <span className="font-semibold text-gray-900">{portfolioSummary.flatlineCount}</span>
                         </div>
                       </div>
-                    ))}
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-3">
+                    {selectedAdvisor && panelOpen ? (
+                      <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
+                        <div className="flex items-start justify-between mb-6">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-full bg-[#157A6E] text-white flex items-center justify-center text-lg font-bold">
+                              {selectedAdvisor.name.split(' ').map(n => n[0]).join('')}
+                            </div>
+                            <div>
+                              <h2 className="text-2xl font-bold text-gray-900">{selectedAdvisor.name}</h2>
+                              <p className="text-13px text-gray-600">{selectedAdvisor.company}</p>
+                            </div>
+                          </div>
+                          <button onClick={() => setPanelOpen(false)} className="p-1.5 hover:bg-[#F7F5F2] rounded-lg transition-colors">
+                            <X className="w-5 h-5 text-gray-400" />
+                          </button>
+                        </div>
+
+                        <div className="flex gap-8 mb-6">
+                          <div>
+                            <p className="text-11px text-gray-600 mb-1">MRR Generated</p>
+                            <p className="text-2xl font-bold" style={{ color: '#157A6E' }}>{formatCurrency(selectedAdvisor.mrr)}</p>
+                          </div>
+                          <div>
+                            <p className="text-11px text-gray-600 mb-1">Pulse</p>
+                            <PulseBadge pulse={selectedAdvisor.pulse} />
+                          </div>
+                          <div>
+                            <p className="text-11px text-gray-600 mb-1">Tier</p>
+                            <TierBadge tier={selectedAdvisor.tier} />
+                          </div>
+                          <div>
+                            <p className="text-11px text-gray-600 mb-1">Partner Since</p>
+                            <p className="text-13px font-semibold text-gray-900">{selectedAdvisor.connectedSince}</p>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-[#e8e5e1] pt-6">
+                          <div className="flex gap-4 mb-6">
+                            {(['overview', 'personal', 'deals', 'notes', 'activity'] as const).map(tab => (
+                              <button
+                                key={tab}
+                                onClick={() => setInlineTab(tab)}
+                                className={`px-4 py-2 text-13px font-semibold rounded-lg transition-colors ${
+                                  inlineTab === tab
+                                    ? 'text-white'
+                                    : 'bg-[#F7F5F2] text-gray-900 hover:bg-gray-300'
+                                }`}
+                                style={inlineTab === tab ? { backgroundColor: '#157A6E' } : {}}
+                              >
+                                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                              </button>
+                            ))}
+                          </div>
+
+                          {inlineTab === 'overview' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                              <div className="space-y-4">
+                                <div>
+                                  <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Quick Stats</h3>
+                                  <dl className="space-y-3 text-13px">
+                                    <div className="flex justify-between"><dt className="text-gray-600">Tier</dt><dd className="font-medium"><TierBadge tier={selectedAdvisor.tier} /></dd></div>
+                                    <div className="flex justify-between"><dt className="text-gray-600">Pulse</dt><dd className="font-medium"><PulseBadge pulse={selectedAdvisor.pulse} /></dd></div>
+                                    <div className="flex justify-between"><dt className="text-gray-600">Connected Since</dt><dd className="font-medium">{selectedAdvisor.connectedSince}</dd></div>
+                                    <div className="flex justify-between"><dt className="text-gray-600">Company</dt><dd className="font-medium">{selectedAdvisor.company}</dd></div>
+                                  </dl>
+                                </div>
+                              </div>
+                              <div>
+                                <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Recent Activity</h3>
+                                <div className="space-y-3">
+                                  {selectedAdvisor.activity.slice(0, 3).map((item, idx) => (
+                                    <div key={idx} className="border-l-2 border-gray-300 pl-4 py-2">
+                                      <div className="flex items-center gap-2 mb-1"><SentimentBadge tone={item.sentiment} /><span className="text-11px text-gray-500">{item.time}</span></div>
+                                      <p className="text-13px text-gray-700">{item.text}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {inlineTab === 'personal' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                              <div className="space-y-6">
+                                <div>
+                                  <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Profile</h3>
+                                  <dl className="space-y-3 text-13px">
+                                    {selectedAdvisor.location && (
+                                      <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Location</dt><dd className="font-medium">{selectedAdvisor.location}</dd></div>
+                                    )}
+                                    {selectedAdvisor.birthday && (
+                                      <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><Cake className="w-3.5 h-3.5" /> Birthday</dt><dd className="font-medium">{selectedAdvisor.birthday}</dd></div>
+                                    )}
+                                    {selectedAdvisor.education && (
+                                      <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> Education</dt><dd className="font-medium">{selectedAdvisor.education}</dd></div>
+                                    )}
+                                  </dl>
+                                </div>
+                                {selectedAdvisor.family && <div><h3 className="font-bold text-gray-900 mb-2 text-12px uppercase tracking-widest text-[#888]">Family</h3><p className="text-13px text-gray-700">{selectedAdvisor.family}</p></div>}
+                                {selectedAdvisor.hobbies && <div><h3 className="font-bold text-gray-900 mb-2 text-12px uppercase tracking-widest text-[#888]">Hobbies & Interests</h3><p className="text-13px text-gray-700">{selectedAdvisor.hobbies}</p></div>}
+                                {selectedAdvisor.funFact && <div><h3 className="font-bold text-gray-900 mb-2 text-12px uppercase tracking-widest text-[#888]">Fun Fact</h3><p className="text-13px text-gray-700">{selectedAdvisor.funFact}</p></div>}
+                              </div>
+                              <div className="space-y-6">
+                                <div>
+                                  <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Channel Relationships</h3>
+                                  <dl className="space-y-3 text-13px">
+                                    {selectedAdvisor.tsds?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">TSDs</dt><dd className="font-medium">{selectedAdvisor.tsds.join(', ')}</dd></div>}
+                                    {selectedAdvisor.previousCompanies?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">Previous Companies</dt><dd className="font-medium">{selectedAdvisor.previousCompanies.join(', ')}</dd></div>}
+                                    {selectedAdvisor.mutualConnections?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">Mutual Connections</dt><dd className="font-medium">{selectedAdvisor.mutualConnections.join(', ')}</dd></div>}
+                                  </dl>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {inlineTab === 'deals' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {deals.filter(d => selectedAdvisor.deals.includes(d.id)).length === 0 ? (
+                                <p className="text-13px text-gray-600 col-span-full">No deals found</p>
+                              ) : (
+                                deals.filter(d => selectedAdvisor.deals.includes(d.id)).map(deal => (
+                                  <div key={deal.id} className="bg-white border border-[#e8e5e1] rounded-xl p-4">
+                                    <div className="flex items-start justify-between mb-3">
+                                      <h4 className="text-13px font-semibold text-gray-900">{deal.name}</h4>
+                                      <DealHealthBadge health={deal.health} />
+                                    </div>
+                                    <dl className="space-y-1 text-11px text-gray-600 mb-3">
+                                      <div className="flex justify-between"><dt>MRR:</dt><dd className="font-medium text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</dd></div>
+                                      <div className="flex justify-between"><dt>Stage:</dt><dd className="font-medium text-gray-900">{deal.stage}</dd></div>
+                                      <div className="flex justify-between"><dt>Days in Stage:</dt><dd className="font-medium text-gray-900">{deal.daysInStage}</dd></div>
+                                    </dl>
+                                    <div className="bg-gray-200 rounded h-2 mb-1 overflow-hidden">
+                                      <div className="h-2 rounded" style={{ width: `${deal.probability}%`, backgroundColor: '#157A6E' }} />
+                                    </div>
+                                    <p className="text-11px text-gray-500">Probability: {deal.probability}%</p>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+
+                          {inlineTab === 'notes' && (
+                            <div className="max-w-2xl space-y-4">
+                              {selectedAdvisor.notes.map((note, idx) => (
+                                <div key={idx} className="p-3 rounded-lg text-13px text-gray-700" style={{ backgroundColor: '#F7F5F2' }}>• {note}</div>
+                              ))}
+                              <div className="flex gap-2 pt-4 border-t border-[#e8e5e1]">
+                                <button className="py-2 px-4 border border-[#e8e5e1] rounded-lg text-13px hover:bg-[#F7F5F2] flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Log Call</button>
+                                <button className="py-2 px-4 border border-[#e8e5e1] rounded-lg text-13px hover:bg-[#F7F5F2] flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" /> Schedule</button>
+                              </div>
+                            </div>
+                          )}
+
+                          {inlineTab === 'activity' && (
+                            <div className="max-w-2xl space-y-3">
+                              {selectedAdvisor.activity.map((item, idx) => (
+                                <div key={idx} className="border-l-2 border-gray-300 pl-4 py-2">
+                                  <div className="flex items-center gap-2 mb-1"><SentimentBadge tone={item.sentiment} /><span className="text-11px text-gray-500">{item.time}</span></div>
+                                  <p className="text-13px text-gray-700">{item.text}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 bg-white rounded-xl border border-[#e8e5e1] flex items-center justify-center min-h-[500px]">
+                        <p className="text-13px text-gray-600">Select an advisor from the list</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Right Panel: Advisor Detail */}
-                {selectedAdvisor ? (
-                  <div className="flex-1 flex flex-col overflow-hidden">
-                    {/* Detail Header */}
-                    <div className="bg-white rounded-t-xl border border-b-0 border-[#e8e5e1] p-6 flex items-start gap-6 border-b border-[#f0ede9] pb-4">
-                      <div className="w-16 h-16 rounded-full bg-[#157A6E] text-white flex items-center justify-center text-2xl font-bold flex-shrink-0">
-                        {selectedAdvisor.name.split(' ').map(n => n[0]).join('')}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1">
-                          <h2 className="text-24px font-bold text-gray-900">{selectedAdvisor.name}</h2>
-                          {selectedAdvisor.tier && <TierBadge tier={selectedAdvisor.tier} />}
-                        </div>
-                        <p className="text-13px text-gray-600 mb-3">{selectedAdvisor.title} · {selectedAdvisor.company}</p>
-                        <div className="flex gap-2 flex-wrap">
-                          <PulseBadge pulse={selectedAdvisor.pulse} size="sm" />
-                          <TrajectoryBadge trajectory={selectedAdvisor.trajectory} />
-                          <SentimentBadge tone={selectedAdvisor.tone} />
-                          <FrictionBadge level={selectedAdvisor.friction} />
-                          <DealHealthBadge health={selectedAdvisor.dealHealth} />
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-11px text-gray-500 uppercase mb-1">MRR</p>
-                        <p className="text-28px font-bold" style={{ color: '#157A6E' }}>${(selectedAdvisor.mrr / 1000).toFixed(1)}K</p>
-                      </div>
+                {!selectedAdvisor || !panelOpen ? (
+                  <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+                    <div className="px-5 py-3.5 border-b border-[#f0ede9]">
+                      <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Advisors</h3>
                     </div>
-
-                    {/* Tabs */}
-                    <div className="bg-white border-b border-[#f0ede9] flex">
-                      {(['overview', 'personal', 'deals', 'notes', 'activity'] as const).map(tab => (
-                        <button
-                          key={tab}
-                          onClick={() => setInlineTab(tab)}
-                          className="flex-1 px-6 py-3 text-13px font-semibold uppercase tracking-widest transition-colors border-b-2"
-                          style={{
-                            color: inlineTab === tab ? '#157A6E' : '#888',
-                            borderBottomColor: inlineTab === tab ? '#157A6E' : 'transparent',
+                    <div className="divide-y divide-[#f0ede9]">
+                      {filteredAdvisors.map((advisor) => (
+                        <div
+                          key={advisor.id}
+                          className="px-5 py-4 flex items-center gap-4 hover:bg-[#F7F5F2]/50 transition-colors cursor-pointer"
+                          onClick={() => {
+                            setSelectedAdvisor(advisor);
+                            setPanelOpen(true);
                           }}
                         >
-                          {tab}
-                        </button>
+                          <div className="w-10 h-10 rounded-full bg-[#157A6E] text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                            {advisor.name.split(' ').map(n => n[0]).join('')}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-13px font-semibold text-gray-900">{advisor.name}</p>
+                            <p className="text-11px text-gray-600">{advisor.company}</p>
+                          </div>
+                          <div className="flex items-center gap-4 flex-shrink-0">
+                            <PulseBadge pulse={advisor.pulse} />
+                            <div className="text-right">
+                              <p className="text-13px font-bold" style={{ color: '#157A6E' }}>{formatCurrency(advisor.mrr)}</p>
+                              <p className="text-11px text-gray-500">Since {advisor.connectedSince}</p>
+                            </div>
+                          </div>
+                        </div>
                       ))}
                     </div>
-
-                    {/* Tab Content */}
-                    <div className="flex-1 overflow-y-auto bg-white rounded-b-xl border border-t-0 border-[#e8e5e1] p-6">
-                      {inlineTab === 'overview' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                          <div className="space-y-6">
-                            <div>
-                              <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Relationship Context</h3>
-                              <dl className="space-y-2 text-13px">
-                                <div className="flex justify-between"><dt className="text-gray-600">Connected Since</dt><dd className="font-medium">{selectedAdvisor.connectedSince}</dd></div>
-                                <div className="flex justify-between"><dt className="text-gray-600">Best Day to Reach</dt><dd className="font-medium">{selectedAdvisor.bestDayToReach}</dd></div>
-                                <div className="flex justify-between"><dt className="text-gray-600">Comm Preference</dt><dd className="font-medium">{selectedAdvisor.commPreference}</dd></div>
-                                <div className="flex justify-between"><dt className="text-gray-600">Referred By</dt><dd className="font-medium">{selectedAdvisor.referredBy}</dd></div>
-                              </dl>
-                            </div>
-                            <div>
-                              <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Engagement Breakdown</h3>
-                              <div className="space-y-2">
-                                <div className="flex justify-between items-center"><span className="text-13px text-gray-600">Engagement</span><EngLabel score={selectedAdvisor.engagementBreakdown.engagement} /></div>
-                                <div className="flex justify-between items-center"><span className="text-13px text-gray-600">Pipeline Strength</span><EngLabel score={selectedAdvisor.engagementBreakdown.pipelineStrength} /></div>
-                                <div className="flex justify-between items-center"><span className="text-13px text-gray-600">Responsiveness</span><EngLabel score={selectedAdvisor.engagementBreakdown.responsiveness} /></div>
-                                <div className="flex justify-between items-center"><span className="text-13px text-gray-600">Growth Potential</span><EngLabel score={selectedAdvisor.engagementBreakdown.growthPotential} /></div>
-                              </div>
-                            </div>
-                            {selectedAdvisor.personalIntel && (
-                              <div>
-                                <h3 className="font-bold text-gray-900 mb-2 text-12px uppercase tracking-widest text-[#888]">Personal Intel</h3>
-                                <p className="text-13px text-gray-700">{selectedAdvisor.personalIntel}</p>
-                              </div>
-                            )}
-                          </div>
-                          <div className="space-y-6">
-                            <div className="p-4 rounded-lg border-l-4" style={{ backgroundColor: '#f0f9f7', borderLeftColor: '#157A6E' }}>
-                              <p className="text-13px italic text-gray-700">"{selectedAdvisor.diagnosis}"</p>
-                            </div>
-                            <div>
-                              <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Active Deals ({selectedAdvisor.deals.length})</h3>
-                              <div className="space-y-2">
-                                {deals.filter(d => selectedAdvisor.deals.includes(d.id)).slice(0, 3).map(deal => (
-                                  <div key={deal.id} className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: '#F7F5F2' }}>
-                                    <div>
-                                      <p className="text-13px font-medium text-gray-900">{deal.name}</p>
-                                      <p className="text-11px text-gray-500">{deal.stage} · {deal.daysInStage}d</p>
-                                    </div>
-                                    <div className="text-right">
-                                      <p className="text-13px font-bold" style={{ color: '#157A6E' }}>${(deal.mrr / 1000).toFixed(1)}K</p>
-                                      <DealHealthBadge health={deal.health} />
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                            <div>
-                              <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Recent Activity</h3>
-                              <div className="space-y-2">
-                                {selectedAdvisor.activity.slice(0, 4).map((item, idx) => (
-                                  <div key={idx} className="flex items-start gap-3 p-2">
-                                    <SentimentBadge tone={item.sentiment} />
-                                    <div>
-                                      <p className="text-13px text-gray-700">{item.text}</p>
-                                      <p className="text-11px text-gray-400">{item.time}</p>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {inlineTab === 'personal' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                          <div className="space-y-6">
-                            <div>
-                              <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Profile</h3>
-                              <dl className="space-y-3 text-13px">
-                                {selectedAdvisor.location && (
-                                  <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Location</dt><dd className="font-medium">{selectedAdvisor.location}</dd></div>
-                                )}
-                                {selectedAdvisor.birthday && (
-                                  <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><Cake className="w-3.5 h-3.5" /> Birthday</dt><dd className="font-medium">{selectedAdvisor.birthday}</dd></div>
-                                )}
-                                {selectedAdvisor.education && (
-                                  <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> Education</dt><dd className="font-medium">{selectedAdvisor.education}</dd></div>
-                                )}
-                              </dl>
-                            </div>
-                            {selectedAdvisor.family && <div><h3 className="font-bold text-gray-900 mb-2 text-12px uppercase tracking-widest text-[#888]">Family</h3><p className="text-13px text-gray-700">{selectedAdvisor.family}</p></div>}
-                            {selectedAdvisor.hobbies && <div><h3 className="font-bold text-gray-900 mb-2 text-12px uppercase tracking-widest text-[#888]">Hobbies & Interests</h3><p className="text-13px text-gray-700">{selectedAdvisor.hobbies}</p></div>}
-                            {selectedAdvisor.funFact && <div><h3 className="font-bold text-gray-900 mb-2 text-12px uppercase tracking-widest text-[#888]">Fun Fact</h3><p className="text-13px text-gray-700">{selectedAdvisor.funFact}</p></div>}
-                          </div>
-                          <div className="space-y-6">
-                            <div>
-                              <h3 className="font-bold text-gray-900 mb-3 text-12px uppercase tracking-widest text-[#888]">Channel Relationships</h3>
-                              <dl className="space-y-3 text-13px">
-                                {selectedAdvisor.tsds?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">TSDs</dt><dd className="font-medium">{selectedAdvisor.tsds.join(', ')}</dd></div>}
-                                {selectedAdvisor.previousCompanies?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">Previous Companies</dt><dd className="font-medium">{selectedAdvisor.previousCompanies.join(', ')}</dd></div>}
-                                {selectedAdvisor.mutualConnections?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">Mutual Connections</dt><dd className="font-medium">{selectedAdvisor.mutualConnections.join(', ')}</dd></div>}
-                              </dl>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {inlineTab === 'deals' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {deals.filter(d => selectedAdvisor.deals.includes(d.id)).length === 0 ? (
-                            <p className="text-13px text-gray-600 col-span-full">No deals found</p>
-                          ) : (
-                            deals.filter(d => selectedAdvisor.deals.includes(d.id)).map(deal => (
-                              <div key={deal.id} className="bg-white border border-[#e8e5e1] rounded-xl p-4">
-                                <div className="flex items-start justify-between mb-3">
-                                  <h4 className="text-13px font-semibold text-gray-900">{deal.name}</h4>
-                                  <DealHealthBadge health={deal.health} />
-                                </div>
-                                <dl className="space-y-1 text-11px text-gray-600 mb-3">
-                                  <div className="flex justify-between"><dt>MRR:</dt><dd className="font-medium text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</dd></div>
-                                  <div className="flex justify-between"><dt>Stage:</dt><dd className="font-medium text-gray-900">{deal.stage}</dd></div>
-                                  <div className="flex justify-between"><dt>Days in Stage:</dt><dd className="font-medium text-gray-900">{deal.daysInStage}</dd></div>
-                                </dl>
-                                <div className="bg-gray-200 rounded h-2 mb-1 overflow-hidden">
-                                  <div className="h-2 rounded" style={{ width: `${deal.probability}%`, backgroundColor: '#157A6E' }} />
-                                </div>
-                                <p className="text-11px text-gray-500">Probability: {deal.probability}%</p>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      )}
-
-                      {inlineTab === 'notes' && (
-                        <div className="max-w-2xl space-y-4">
-                          {selectedAdvisor.notes.map((note, idx) => (
-                            <div key={idx} className="p-3 rounded-lg text-13px text-gray-700" style={{ backgroundColor: '#F7F5F2' }}>• {note}</div>
-                          ))}
-                          <div className="flex gap-2 pt-4 border-t border-[#e8e5e1]">
-                            <button className="py-2 px-4 border border-[#e8e5e1] rounded-lg text-13px hover:bg-[#F7F5F2] flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Log Call</button>
-                            <button className="py-2 px-4 border border-[#e8e5e1] rounded-lg text-13px hover:bg-[#F7F5F2] flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" /> Schedule</button>
-                          </div>
-                        </div>
-                      )}
-
-                      {inlineTab === 'activity' && (
-                        <div className="max-w-2xl space-y-3">
-                          {selectedAdvisor.activity.map((item, idx) => (
-                            <div key={idx} className="border-l-2 border-gray-300 pl-4 py-2">
-                              <div className="flex items-center gap-2 mb-1"><SentimentBadge tone={item.sentiment} /><span className="text-11px text-gray-500">{item.time}</span></div>
-                              <p className="text-13px text-gray-700">{item.text}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
                   </div>
-                ) : (
-                  <div className="flex-1 bg-white rounded-xl border border-[#e8e5e1] flex items-center justify-center">
-                    <p className="text-13px text-gray-600">Select an advisor to view details</p>
-                  </div>
-                )}
+                ) : null}
               </div>
             )}
 
-            {/* ========== PIPELINE VIEW ========== */}
             {activeView === 'pipeline' && (
               <div className="space-y-6 max-w-7xl mx-auto">
-                {/* Pipeline KPIs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+                  <div
+                    className="bg-white border border-[#e8e5e1] rounded-[10px] p-5 cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setExpandedKPIPanel(expandedKPIPanel === 'total-pipeline' ? null : 'total-pipeline')}
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">Total Pipeline</p>
                     <p className="text-2xl font-bold text-gray-900">{formatCurrency(teamPipeline)}</p>
                   </div>
-                  <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+                  <div
+                    className="bg-white border border-[#e8e5e1] rounded-[10px] p-5 cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setExpandedKPIPanel(expandedKPIPanel === 'weighted-pipeline' ? null : 'weighted-pipeline')}
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">Weighted Pipeline</p>
                     <p className="text-2xl font-bold text-gray-900">{formatCurrency(weightedPipeline)}</p>
                   </div>
-                  <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+                  <div
+                    className="bg-white border border-[#e8e5e1] rounded-[10px] p-5 cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setExpandedKPIPanel(expandedKPIPanel === 'healthy-deals' ? null : 'healthy-deals')}
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">Healthy Deals</p>
                     <p className="text-2xl font-bold" style={{ color: '#16a34a' }}>{healthyPercentage}%</p>
                   </div>
-                  <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+                  <div
+                    className="bg-white border border-[#e8e5e1] rounded-[10px] p-5 cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setExpandedKPIPanel(expandedKPIPanel === 'at-risk-deals' ? null : 'at-risk-deals')}
+                  >
                     <p className="text-10px uppercase font-semibold text-[#888] mb-2">At Risk / Stalled</p>
                     <p className="text-2xl font-bold" style={{ color: '#ef4444' }}>{atRiskPercentage}% ({stalledDealsCount} stalled)</p>
                   </div>
                 </div>
 
-                {/* Stage/Timeline Mismatch Alerts */}
+                {expandedKPIPanel && (
+                  <div className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
+                    {expandedKPIPanel === 'total-pipeline' && (
+                      <div>
+                        <h4 className="text-13px font-bold text-gray-900 mb-4">Pipeline Summary</h4>
+                        <p className="text-11px text-gray-600">Total Pipeline Value: <span className="text-13px font-bold text-gray-900">{formatCurrency(teamPipeline)}</span></p>
+                        <p className="text-11px text-gray-600 mt-2">Active Deals: <span className="text-13px font-bold text-gray-900">{activeDealCount}</span></p>
+                      </div>
+                    )}
+                    {expandedKPIPanel === 'weighted-pipeline' && (
+                      <div>
+                        <h4 className="text-13px font-bold text-gray-900 mb-4">Weighted Pipeline Value</h4>
+                        <p className="text-11px text-gray-600">Weighted by stage probability: <span className="text-13px font-bold text-gray-900">{formatCurrency(weightedPipeline)}</span></p>
+                      </div>
+                    )}
+                    {expandedKPIPanel === 'healthy-deals' && (
+                      <div>
+                        <h4 className="text-13px font-bold text-gray-900 mb-4">Healthy Deals ({healthyDeals})</h4>
+                        <div className="space-y-2">
+                          {allDeals
+                            .filter(d => d.health === 'Healthy')
+                            .map(deal => (
+                              <div key={deal.id} className="flex items-center justify-between p-3 bg-[#F7F5F2] rounded-lg">
+                                <span className="text-13px font-medium text-gray-900">{deal.name}</span>
+                                <span className="text-13px font-bold" style={{ color: '#16a34a' }}>{formatCurrency(deal.mrr)}</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                    {expandedKPIPanel === 'at-risk-deals' && (
+                      <div>
+                        <h4 className="text-13px font-bold text-gray-900 mb-4">At-Risk / Stalled Deals ({atRiskDeals})</h4>
+                        <div className="space-y-2">
+                          {allDeals
+                            .filter(d => d.health === 'At Risk' || d.health === 'Stalled')
+                            .map(deal => (
+                              <div key={deal.id} className="flex items-center justify-between p-3 bg-[#F7F5F2] rounded-lg border-l-4" style={{ borderLeftColor: '#ef4444' }}>
+                                <div>
+                                  <span className="text-13px font-medium text-gray-900">{deal.name}</span>
+                                  <p className="text-11px text-gray-600">{deal.stage}</p>
+                                </div>
+                                <span className="text-13px font-bold" style={{ color: '#ef4444' }}>{formatCurrency(deal.mrr)}</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+                  <div className="px-5 py-3.5 border-b border-[#f0ede9]">
+                    <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Pipeline by Stage</h3>
+                  </div>
+                  <div className="p-5">
+                    <div className="flex gap-1 h-12 mb-4">
+                      {(['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Stalled'] as const).map(stage => {
+                        const stageBorderColors: Record<string, string> = {
+                          'Discovery': '#2563eb',
+                          'Qualifying': '#4f46e5',
+                          'Proposal': '#f59e0b',
+                          'Negotiating': '#fb923c',
+                          'Closed Won': '#16a34a',
+                          'Stalled': '#ef4444',
+                        };
+                        const count = stageDistribution[stage];
+                        const totalDeals = Object.values(stageDistribution).reduce((a, b) => a + b, 0);
+                        const percentage = totalDeals > 0 ? (count / totalDeals) * 100 : 0;
+                        return (
+                          <div
+                            key={stage}
+                            className="flex-1 rounded cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-center text-white text-10px font-bold"
+                            style={{ backgroundColor: stageBorderColors[stage], width: `${percentage}%` }}
+                            onClick={() => setExpandedStage(expandedStage === stage ? null : stage)}
+                            title={`${stage}: ${count} deals`}
+                          >
+                            {count > 0 && <span>{count}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-2 flex-wrap text-11px">
+                      {(['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Stalled'] as const).map(stage => {
+                        const stageBorderColors: Record<string, string> = {
+                          'Discovery': '#2563eb',
+                          'Qualifying': '#4f46e5',
+                          'Proposal': '#f59e0b',
+                          'Negotiating': '#fb923c',
+                          'Closed Won': '#16a34a',
+                          'Stalled': '#ef4444',
+                        };
+                        return (
+                          <div key={stage} className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stageBorderColors[stage] }} />
+                            <span className="text-gray-600">{stage} ({stageDistribution[stage]})</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {expandedStage && (
+                  <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+                    <div className="px-5 py-3.5 border-b border-[#f0ede9]">
+                      <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Deals in {expandedStage}</h3>
+                    </div>
+                    <div className="p-5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {allDeals
+                          .filter(d => d.stage === expandedStage)
+                          .map(deal => {
+                            const advisor = advisors.find(a => a.id === deal.advisorId);
+                            const rep = reps.find(r => r.id === deal.repId);
+                            return (
+                              <div key={deal.id} className="p-4 bg-[#F7F5F2] rounded-lg border border-[#e8e5e1]">
+                                <div className="flex items-start justify-between mb-2">
+                                  <h4 className="text-13px font-semibold text-gray-900">{deal.name}</h4>
+                                  <DealHealthBadge health={deal.health} />
+                                </div>
+                                <p className="text-11px text-gray-600 mb-2">
+                                  <span className="font-medium">{advisor?.name}</span>
+                                  {rep && <span className="text-gray-400"> · {rep.name}</span>}
+                                </p>
+                                <div className="space-y-1 text-11px mb-3">
+                                  <p className="text-gray-600">MRR: <span className="font-bold text-gray-900">{formatCurrency(deal.mrr)}</span></p>
+                                  <p className="text-gray-600">Days in stage: <span className="font-bold text-gray-900">{deal.daysInStage}</span></p>
+                                  <p className="text-gray-600">Probability: <span className="font-bold text-gray-900">{deal.probability}%</span></p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
+                  <div className="px-5 py-3.5 border-b border-[#f0ede9]">
+                    <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Pipeline by Rep</h3>
+                  </div>
+                  <div className="divide-y divide-[#e8e5e1]">
+                    {repPipelineData.map((repData) => {
+                      const stageBorderColors: Record<string, string> = {
+                        'Discovery': '#2563eb',
+                        'Qualifying': '#4f46e5',
+                        'Proposal': '#f59e0b',
+                        'Negotiating': '#fb923c',
+                        'Closed Won': '#16a34a',
+                        'Stalled': '#ef4444',
+                      };
+                      return (
+                        <div key={repData.repId}>
+                          <div
+                            className="px-5 py-4 flex items-center justify-between hover:bg-[#F7F5F2]/30 transition-colors cursor-pointer"
+                            onClick={() => setExpandedPipelineRep(expandedPipelineRep === repData.repId ? null : repData.repId)}
+                          >
+                            <div className="flex-1">
+                              <p className="text-13px font-semibold text-gray-900">{repData.repName}</p>
+                              <p className="text-11px text-gray-600">{repData.dealCount} deals</p>
+                            </div>
+                            <div className="flex items-center gap-4 flex-1 mx-6">
+                              <div className="flex gap-0.5 h-6 flex-1">
+                                {(['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Stalled'] as const).map(stage => {
+                                  const count = repData.stageBreakdown[stage];
+                                  const percentage = repData.dealCount > 0 ? (count / repData.dealCount) * 100 : 0;
+                                  return (
+                                    count > 0 && (
+                                      <div
+                                        key={stage}
+                                        className="rounded-sm"
+                                        style={{
+                                          backgroundColor: stageBorderColors[stage],
+                                          width: `${percentage}%`,
+                                          height: '100%',
+                                        }}
+                                        title={`${stage}: ${count}`}
+                                      />
+                                    )
+                                  );
+                                })}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-13px font-bold" style={{ color: '#157A6E' }}>{formatCurrency(repData.totalPipeline)}</p>
+                            </div>
+                          </div>
+                          {expandedPipelineRep === repData.repId && (
+                            <div className="px-5 py-4 bg-[#F7F5F2] border-t border-[#e8e5e1]">
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {allDeals
+                                  .filter(d => d.repId === repData.repId)
+                                  .map(deal => {
+                                    const advisor = advisors.find(a => a.id === deal.advisorId);
+                                    return (
+                                      <div key={deal.id} className="p-3 bg-white rounded-lg border border-[#e8e5e1]">
+                                        <div className="flex items-start justify-between mb-1">
+                                          <h4 className="text-13px font-semibold text-gray-900">{deal.name}</h4>
+                                          <DealHealthBadge health={deal.health} />
+                                        </div>
+                                        <p className="text-11px text-gray-600 mb-1">{advisor?.name}</p>
+                                        <p className="text-11px text-gray-600">Stage: <span className="font-bold">{deal.stage}</span></p>
+                                        <p className="text-13px font-bold" style={{ color: '#157A6E' }}>{formatCurrency(deal.mrr)}</p>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {stageTimelineMismatches.length > 0 && (
                   <div className="bg-white rounded-[10px] border border-[#e8e5e1]">
                     <div className="px-5 py-3.5 border-b border-[#f0ede9] border-l-4" style={{ borderLeftColor: '#ef4444' }}>
@@ -842,168 +1366,14 @@ export default function LeaderDashboard() {
                     </div>
                   </div>
                 )}
-
-                {/* Kanban Board */}
-                <div className="overflow-x-auto pb-4">
-                  <div className="flex gap-4" style={{ minWidth: '1920px' }}>
-                    {(['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Stalled'] as const).map(stage => {
-                      const stageBorderColors: Record<string, string> = {
-                        'Discovery': '#2563eb',
-                        'Qualifying': '#4f46e5',
-                        'Proposal': '#f59e0b',
-                        'Negotiating': '#fb923c',
-                        'Closed Won': '#16a34a',
-                        'Stalled': '#ef4444',
-                      };
-                      const stageDeals = allDeals.filter(d => d.stage === stage);
-                      const stageMRR = stageDeals.reduce((sum, d) => sum + d.mrr, 0);
-
-                      return (
-                        <div key={stage} className="flex-1 min-w-[280px]">
-                          <div className="bg-white border border-[#e8e5e1] rounded-xl p-4 mb-3 border-t-4" style={{ borderTopColor: stageBorderColors[stage] }}>
-                            <div className="flex items-center justify-between mb-2">
-                              <h3 className="text-13px font-bold text-gray-900">{stage}</h3>
-                              <span className="inline-block px-2.5 py-0.5 rounded-full text-11px font-semibold bg-gray-100 text-gray-700">{stageDeals.length}</span>
-                            </div>
-                            <p className="text-13px font-semibold" style={{ color: '#157A6E' }}>${(stageMRR / 1000).toFixed(1)}K MRR</p>
-                          </div>
-                          <div className="flex flex-col gap-3">
-                            {stageDeals.length === 0 ? (
-                              <div className="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-center">
-                                <p className="text-11px text-gray-500">No deals in this stage</p>
-                              </div>
-                            ) : (
-                              stageDeals.map(deal => {
-                                const advisor = advisors.find(a => a.id === deal.advisorId);
-                                const rep = reps.find(r => r.id === deal.repId);
-                                return (
-                                  <div key={deal.id} className="bg-white border border-[#e8e5e1] rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
-                                    <h4 className="text-13px font-bold text-gray-900 mb-2">{deal.name}</h4>
-                                    <p className="text-11px text-gray-600 mb-1">
-                                      <span className="font-medium cursor-pointer hover:underline" onClick={() => advisor && handleAdvisorClick(advisor.id)} style={{ color: '#157A6E' }}>{advisor?.name || 'Unknown'}</span>
-                                      {rep && <span className="text-gray-400"> · {rep.name}</span>}
-                                    </p>
-                                    <div className="mb-2">
-                                      <p className="text-11px text-gray-600">MRR</p>
-                                      <p className="text-13px font-bold text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</p>
-                                    </div>
-                                    <div className="mb-2"><DealHealthBadge health={deal.health} /></div>
-                                    <div className={`px-2 py-1 rounded text-11px font-medium mb-2 inline-block ${getDaysInStageColor(deal.daysInStage)}`}>{deal.daysInStage}d in stage</div>
-                                    <div className="mb-2">
-                                      <div className="flex items-center justify-between mb-1">
-                                        <p className="text-11px text-gray-600">Probability</p>
-                                        <p className="text-11px font-semibold text-gray-700">{deal.probability}%</p>
-                                      </div>
-                                      <div className="bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                                        <div className="h-1.5 rounded-full transition-all" style={{ width: `${deal.probability}%`, backgroundColor: '#157A6E' }} />
-                                      </div>
-                                    </div>
-                                    {deal.confidenceScore && (
-                                      <div className="flex items-center gap-1">
-                                        <p className="text-11px text-gray-600">Confidence:</p>
-                                        <div className="px-2 py-0.5 rounded text-11px font-semibold text-white" style={{ backgroundColor: deal.confidenceScore === 'High' ? '#16a34a' : deal.confidenceScore === 'Medium' ? '#f59e0b' : '#ef4444' }}>{deal.confidenceScore}</div>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ========== INTELLIGENCE VIEW ========== */}
-            {activeView === 'intelligence' && (
-              <div className="space-y-6 max-w-7xl mx-auto">
-                {/* Friction Insights */}
-                <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
-                  <div className="px-5 py-3.5 border-b border-[#f0ede9]">
-                    <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Friction Insights</h3>
-                  </div>
-                  <div className="divide-y divide-[#e8e5e1]">
-                    {frictionInsights.map((insight, idx) => (
-                      <div key={idx} className="px-5 py-4 flex items-center justify-between hover:bg-[#F7F5F2]/30 transition-colors">
-                        <div>
-                          <p className="text-13px font-semibold text-gray-900">{insight.issue}</p>
-                          <p className="text-11px text-gray-600 mt-1">{insight.count} reps affected</p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-11px font-bold ${
-                          insight.severity === 'HIGH' ? 'bg-red-100 text-red-700' :
-                          insight.severity === 'MODERATE' ? 'bg-amber-100 text-amber-700' :
-                          'bg-green-100 text-green-700'
-                        }`}>{insight.severity}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Competitive Landscape */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {competitiveLandscape.map((comp) => (
-                    <div key={comp.competitor} className="bg-white border border-[#e8e5e1] rounded-[10px] p-5">
-                      <h4 className="text-13px font-bold text-gray-900 mb-4">{comp.competitor}</h4>
-                      <div className="space-y-3">
-                        <div>
-                          <p className="text-11px text-gray-600 mb-1">Active Deals</p>
-                          <p className="text-2xl font-bold text-gray-900">{comp.dealCount}</p>
-                        </div>
-                        <div>
-                          <p className="text-11px text-gray-600 mb-1">Pipeline at Risk</p>
-                          <p className="text-lg font-bold" style={{ color: '#ef4444' }}>{formatCurrency(comp.pipelineAtRisk)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Diagnostic Matrix */}
-                <div className="bg-white border border-[#e8e5e1] rounded-[10px]">
-                  <div className="px-5 py-3.5 border-b border-[#f0ede9]">
-                    <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Diagnostic Matrix</h3>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-[#F7F5F2]">
-                        <tr className="border-b border-[#e8e5e1]">
-                          <th className="px-5 py-3 text-left text-11px font-semibold text-gray-700 uppercase">Pattern</th>
-                          <th className="px-5 py-3 text-left text-11px font-semibold text-gray-700 uppercase">Reps Affected</th>
-                          <th className="px-5 py-3 text-left text-11px font-semibold text-gray-700 uppercase">Impact</th>
-                          <th className="px-5 py-3 text-left text-11px font-semibold text-gray-700 uppercase">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {diagnosticMatrix.map((item, idx) => (
-                          <tr key={idx} className="border-b border-[#e8e5e1] hover:bg-[#F7F5F2]/30 transition-colors">
-                            <td className="px-5 py-3 text-13px font-semibold text-gray-900">{item.pattern}</td>
-                            <td className="px-5 py-3 text-13px text-gray-700">{item.repsAffected}</td>
-                            <td className="px-5 py-3 text-13px font-medium" style={{ color: '#ef4444' }}>{item.impact}</td>
-                            <td className="px-5 py-3 text-13px font-medium" style={{ color: '#157A6E' }}>{item.action}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
               </div>
             )}
 
           </div>
+
           <AIChat role="leader" selectedAdvisor={selectedAdvisor} />
         </div>
       </div>
-
-      {/* Advisor Panel */}
-      <AdvisorPanel
-        isOpen={panelOpen && activeView !== 'relationships'}
-        onClose={() => setPanelOpen(false)}
-        advisor={selectedAdvisor}
-        deals={selectedAdvisor ? deals.filter(d => selectedAdvisor.deals.includes(d.id)) : []}
-      />
     </div>
   );
 }
