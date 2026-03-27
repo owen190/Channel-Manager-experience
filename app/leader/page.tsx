@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Clock, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { AIChat } from '@/components/shared/AIChat';
@@ -230,7 +231,7 @@ export default function LeaderDashboard() {
       {/* Quarter End Alert Banner */}
       <div className="bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-500 p-6 rounded-lg">
         <div className="flex items-center gap-3">
-          <span className="text-3xl">â°</span>
+          <Clock className="w-8 h-8 text-red-500 flex-shrink-0" />
           <div>
             <h3 className="font-bold text-red-900 text-lg">
               5 Days Remaining in Q1 2026
@@ -334,7 +335,7 @@ export default function LeaderDashboard() {
                       style={{ width: `${Math.min((rep.partnerCount / rep.partnerCapacity) * 100, 100)}%` }}
                     />
                   </div>
-                  {isOverCapacity && <p className="text-xs text-red-600 font-semibold mt-1">Over Capacity â ï¸</p>}
+                  {isOverCapacity && <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1">Over Capacity <AlertTriangle className="w-3 h-3" /></p>}
                 </div>
 
                 {/* Partner Tier Breakdown */}
@@ -584,7 +585,7 @@ export default function LeaderDashboard() {
         <div className="space-y-3">
           {stageMismatchAlerts.map((alert, idx) => (
             <div key={idx} className="bg-orange-50 border border-orange-200 rounded-lg p-4 flex items-start gap-3">
-              <span className="text-2xl">â ï¸</span>
+              <AlertTriangle className="w-6 h-6 text-orange-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h4 className="font-bold text-orange-900">{alert.rep}</h4>
                 <p className="text-sm text-orange-800 mt-1">
@@ -660,7 +661,7 @@ export default function LeaderDashboard() {
                     />
                   </div>
                   {isOverCapacity && (
-                    <p className="text-xs text-red-600 font-bold mt-2">â ï¸ OVER CAPACITY</p>
+                    <p className="text-xs text-red-600 font-bold mt-2 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> OVER CAPACITY</p>
                   )}
                 </div>
 
@@ -844,7 +845,7 @@ export default function LeaderDashboard() {
                   className="w-full bg-white hover:bg-gray-50 p-4 flex justify-between items-center transition-colors"
                 >
                   <div className="flex items-center gap-4 flex-1 text-left">
-                    <span className="text-lg">{isExpanded ? 'â¼' : 'â¶'}</span>
+                    <span className="text-gray-500">{isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}</span>
                     <div>
                       <h4 className="font-bold text-gray-900">{rep.name}</h4>
                       <p className="text-xs text-gray-600">

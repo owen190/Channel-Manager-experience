@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays } from 'lucide-react';
 import { Advisor, Deal, EngagementScore } from '@/lib/types';
 import { PulseBadge } from './PulseBadge';
 import { TrajectoryBadge } from './TrajectoryBadge';
@@ -97,7 +98,7 @@ export function AdvisorPanel({
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700 text-2xl"
             >
-              Ã
+              ×
             </button>
           </div>
 
@@ -277,7 +278,7 @@ export function AdvisorPanel({
                   <dl className="space-y-2 text-sm">
                     {advisor.location && (
                       <div className="flex justify-between">
-                        <dt className="text-gray-600">ð Location</dt>
+                        <dt className="text-gray-600 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Location</dt>
                         <dd className="font-medium text-gray-900">
                           {advisor.location}
                         </dd>
@@ -285,7 +286,7 @@ export function AdvisorPanel({
                     )}
                     {advisor.birthday && (
                       <div className="flex justify-between">
-                        <dt className="text-gray-600">ð Birthday</dt>
+                        <dt className="text-gray-600 flex items-center gap-1.5"><Cake className="w-3.5 h-3.5" /> Birthday</dt>
                         <dd className="font-medium text-gray-900">
                           {advisor.birthday}
                         </dd>
@@ -293,7 +294,7 @@ export function AdvisorPanel({
                     )}
                     {advisor.education && (
                       <div className="flex justify-between">
-                        <dt className="text-gray-600">ð Education</dt>
+                        <dt className="text-gray-600 flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> Education</dt>
                         <dd className="font-medium text-gray-900">
                           {advisor.education}
                         </dd>
@@ -301,7 +302,7 @@ export function AdvisorPanel({
                     )}
                     {advisor.title && (
                       <div className="flex justify-between">
-                        <dt className="text-gray-600">ð¼ Title</dt>
+                        <dt className="text-gray-600 flex items-center gap-1.5"><Briefcase className="w-3.5 h-3.5" /> Title</dt>
                         <dd className="font-medium text-gray-900">
                           {advisor.title}
                         </dd>
@@ -458,7 +459,7 @@ export function AdvisorPanel({
                       key={idx}
                       className="p-3 bg-tcs-bg rounded-lg text-sm text-gray-700"
                     >
-                      â¢ {note}
+                      • {note}
                     </div>
                   ))}
                 </div>
@@ -498,11 +499,11 @@ export function AdvisorPanel({
                   </div>
                 )}
                 <div className="border-t border-tcs-border pt-4 flex gap-2">
-                  <button className="flex-1 py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg">
-                    ð Log Call
+                  <button className="flex-1 py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center justify-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5" /> Log Call
                   </button>
-                  <button className="flex-1 py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg">
-                    ð Schedule
+                  <button className="flex-1 py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center justify-center gap-1.5">
+                    <CalendarDays className="w-3.5 h-3.5" /> Schedule
                   </button>
                 </div>
               </div>

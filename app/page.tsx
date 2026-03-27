@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { Handshake, BarChart3 } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
@@ -27,7 +28,7 @@ export default function Home() {
           onClick={() => router.push('/manager')}
           className="bg-white rounded-xl shadow-lg p-8 text-left transition-all duration-300 hover:shadow-2xl hover:border-2 hover:border-[#157A6E] hover:transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[#157A6E] focus:ring-offset-2 focus:ring-offset-[#0F1115]"
         >
-          <div className="text-4xl mb-4">ð¤</div>
+          <div className="text-[#157A6E] mb-4"><Handshake className="w-10 h-10" /></div>
           <h2 className="font-newsreader text-2xl font-bold text-[#0F1115] mb-1">
             Channel Manager
           </h2>
@@ -51,7 +52,7 @@ export default function Home() {
           onClick={() => router.push('/leader')}
           className="bg-white rounded-xl shadow-lg p-8 text-left transition-all duration-300 hover:shadow-2xl hover:border-2 hover:border-[#157A6E] hover:transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[#157A6E] focus:ring-offset-2 focus:ring-offset-[#0F1115]"
         >
-          <div className="text-4xl mb-4">ð</div>
+          <div className="text-[#157A6E] mb-4"><BarChart3 className="w-10 h-10" /></div>
           <h2 className="font-newsreader text-2xl font-bold text-[#0F1115] mb-1">
             Sales Leader
           </h2>
@@ -74,7 +75,7 @@ export default function Home() {
 
       {/* Integration Footer */}
       <div className="text-center text-gray-500 text-sm border-t border-gray-800 pt-8 max-w-4xl w-full">
-        <p>Integrates with Salesforce â¢ Gong â¢ Fireflies â¢ Microsoft Teams</p>
+        <p>Integrates with Salesforce • Gong • Fireflies • Microsoft Teams</p>
       </div>
     </div>
   );

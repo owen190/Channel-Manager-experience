@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { Clock, AlertTriangle, Flag } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { KPICard } from '@/components/shared/KPICard';
@@ -206,7 +207,7 @@ export default function ManagerPage() {
               <div className="space-y-8">
                 {/* Quarter Alert Banner */}
                 <div className="bg-red-50 border border-red-200 rounded-lg p-6 flex items-center gap-4">
-                  <div className="text-4xl">â°</div>
+                  <div className="text-red-500"><Clock className="w-10 h-10" /></div>
                   <div>
                     <h2 className="font-bold text-lg text-red-900 mb-1">
                       {DAYS_REMAINING} Days Remaining in Q1 2026
@@ -348,7 +349,7 @@ export default function ManagerPage() {
                         <SentimentBadge tone={advisor.tone} />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900">{advisor.activity[0]?.text || 'No activity'}</p>
-                          <p className="text-xs text-gray-500">{advisor.activity[0]?.time || ''} â¢ {advisor.name}</p>
+                          <p className="text-xs text-gray-500">{advisor.activity[0]?.time || ''} • {advisor.name}</p>
                         </div>
                       </div>
                     ))}
@@ -544,7 +545,7 @@ export default function ManagerPage() {
                           <p className="font-semibold text-gray-900">{deal.name}</p>
                           <p className="text-xs text-gray-600 mb-2">{advisors.find(a => a.id === deal.advisorId)?.name}</p>
                           <div className="space-y-1 text-xs">
-                            <p><span className="font-medium">Stage:</span> {deal.stage} (â ï¸ aggressive close date)</p>
+                            <p className="flex items-center gap-1"><span className="font-medium">Stage:</span> {deal.stage} <AlertTriangle className="w-3 h-3 text-amber-500 inline" /> aggressive close date</p>
                             <p><span className="font-medium">Close Date:</span> {deal.closeDate}</p>
                             <p><span className="font-medium">Probability:</span> {deal.probability}%</p>
                           </div>
@@ -683,7 +684,7 @@ export default function ManagerPage() {
                         <div className="text-xs text-gray-600 flex items-center justify-between">
                           <span>Last Modified: {deal.lastModified}</span>
                           {isHygieneIssue(deal.lastModified) && (
-                            <span className="text-red-600 font-semibold">ð© Stale</span>
+                            <span className="text-red-600 font-semibold flex items-center gap-1"><Flag className="w-3 h-3" /> Stale</span>
                           )}
                         </div>
                       </div>
