@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays } from 'lucide-react';
+import { MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays, Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle } from 'lucide-react';
 import { Advisor, Deal, EngagementScore } from '@/lib/types';
+import { deals } from '@/lib/data/deals';
 import { PulseBadge } from './PulseBadge';
 import { TrajectoryBadge } from './TrajectoryBadge';
 import { SentimentBadge } from './SentimentBadge';
@@ -17,7 +18,7 @@ interface AdvisorPanelProps {
   onClose: () => void;
 }
 
-type TabType = 'overview' | 'personal' | 'deals' | 'notes' | 'activity';
+type TabType = 'overview' | 'personal' | 'deals' | 'notes' | 'activity' | 'ai-prep';
 
 function EngagementLabel({ score }: { score: EngagementScore }) {
   const colors = {
@@ -68,14 +69,14 @@ export function AdvisorPanel({
       {/* Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40"
+          className="fixed inset-0 left-64 bg-black bg-opacity-50 z-60"
           onClick={onClose}
         />
       )}
 
       {/* Panel */}
       <div
-        className={`fixed right-0 top-0 bottom-0 w-[420px] bg-white shadow-xl z-50 transform transition-transform ${
+        className={`fixed right-0 top-0 bottom-0 w-[420px] max-w-[calc(100vw-256px)] bg-white shadow-xl z-70 transform transition-transform ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -116,7 +117,7 @@ export function AdvisorPanel({
 
           {/* Tabs */}
           <div className="border-b border-tcs-border flex">
-            {(['overview', 'personal', 'deals', 'notes', 'activity'] as TabType[]).map(
+            {(['overview', 'personal', 'deals', 'ai-prep', 'notes', 'activity'] as TabType[]).map(
               (tab) => (
                 <button
                   key={tab}
@@ -127,7 +128,7 @@ export function AdvisorPanel({
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
-                  {tab}
+                  {tab === 'ai-prep' ? 'AI Prep' : tab}
                 </button>
               )
             )}
@@ -527,6 +528,176 @@ export function AdvisorPanel({
                     </div>
                   ))
                 )}
+              </div>
+            )}
+
+            {activeTab === 'ai-prep' && (
+              <div className="space-y-6">
+                {/* Call Prep Summary */}
+                <div className="p-4 bg-gradient-to-r from-tcs-teal to-teal-600 rounded-lg text-white">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium">Call Prep Summary</p>
+                      <p className="text-xs mt-2 opacity-90">
+                        Based on {advisor.name}'s current pulse ({advisor.pulse}) and {advisor.trajectory} trajectory, here's your prep for the next conversation:
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Suggested Talking Points */}
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase flex items-center gap-2">
+                    <Target className="w-4 h-4 text-tcs-teal" />
+                    Suggested Talking Points
+                  </h3>
+                  <ul className="space-y-2">
+                    {advisorDeals.length > 0 && (
+                      <li className="text-sm text-gray-700 flex gap-2">
+                        <span className="text-tcs-teal font-bold">•</span>
+                        <span>
+                          {advisorDeals.length === 1
+                            ? `Check in on ${advisorDeals[0].name} status—currently in ${advisorDeals[0].stage} stage`
+                            : `Follow up on {advisor.name}'s ${advisorDeals.length} active deals—especially ${advisorDeals[0].name} which is ${advisorDeals[0].health.toLowerCase()}`}
+                        </span>
+                      </li>
+                    )}
+                    {advisor.personalIntel && (
+                      <li className="text-sm text-gray-700 flex gap-2">
+                        <span className="text-tcs-teal font-bold">•</span>
+                        <span>Bring up their background: {advisor.personalIntel}</span>
+                      </li>
+                    )}
+                    {advisor.hobbies && (
+                      <li className="text-sm text-gray-700 flex gap-2">
+                        <span className="text-tcs-teal font-bold">•</span>
+                        <span>Ask about their hobbies—they enjoy {advisor.hobbies.toLowerCase()}</span>
+                      </li>
+                    )}
+                    {advisor.friction !== 'Low' && (
+                      <li className="text-sm text-gray-700 flex gap-2">
+                        <span className="text-tcs-teal font-bold">•</span>
+                        <span>Address {advisor.friction.toLowerCase()} friction—show understanding and commitment to resolving concerns</span>
+                      </li>
+                    )}
+                    {(advisor.trajectory === 'Slipping' || advisor.trajectory === 'Freefall') && (
+                      <li className="text-sm text-gray-700 flex gap-2">
+                        <span className="text-tcs-teal font-bold">•</span>
+                        <span>Re-engagement strategy: Demonstrate renewed commitment and propose high-impact initiatives</span>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+
+                {/* Relationship Health Check */}
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase flex items-center gap-2">
+                    <Heart className="w-4 h-4 text-tcs-teal" />
+                    Relationship Health Check
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">Engagement</span>
+                      <EngagementLabel score={advisor.engagementBreakdown.engagement} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">Pipeline Strength</span>
+                      <EngagementLabel score={advisor.engagementBreakdown.pipelineStrength} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">Responsiveness</span>
+                      <EngagementLabel score={advisor.engagementBreakdown.responsiveness} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">Growth Potential</span>
+                      <EngagementLabel score={advisor.engagementBreakdown.growthPotential} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Personal Connection Points */}
+                {(advisor.birthday || advisor.family || advisor.hobbies || advisor.funFact) && (
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase flex items-center gap-2">
+                      <MessageCircle className="w-4 h-4 text-tcs-teal" />
+                      Personal Connection Points
+                    </h3>
+                    <ul className="space-y-2">
+                      {advisor.birthday && (
+                        <li className="text-sm text-gray-700 flex gap-2">
+                          <span className="text-tcs-teal font-bold">•</span>
+                          <span>Birthday: {advisor.birthday} — send a note or greeting</span>
+                        </li>
+                      )}
+                      {advisor.family && (
+                        <li className="text-sm text-gray-700 flex gap-2">
+                          <span className="text-tcs-teal font-bold">•</span>
+                          <span>Family: {advisor.family}</span>
+                        </li>
+                      )}
+                      {advisor.hobbies && (
+                        <li className="text-sm text-gray-700 flex gap-2">
+                          <span className="text-tcs-teal font-bold">•</span>
+                          <span>Hobbies: {advisor.hobbies}</span>
+                        </li>
+                      )}
+                      {advisor.funFact && (
+                        <li className="text-sm text-gray-700 flex gap-2">
+                          <span className="text-tcs-teal font-bold">•</span>
+                          <span>Fun Fact: {advisor.funFact}</span>
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Next Steps Recommendation */}
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase flex items-center gap-2">
+                    <Lightbulb className="w-4 h-4 text-tcs-teal" />
+                    Next Steps Recommendation
+                  </h3>
+                  <div className="bg-tcs-bg rounded-lg p-4 space-y-2">
+                    <p className="text-sm font-medium text-gray-900">
+                      {advisorDeals.some((d) => d.health === 'Stalled' || d.health === 'At Risk')
+                        ? 'Re-engagement & Unblock: '
+                        : advisorDeals.length > 0 && advisorDeals.some((d) => d.health === 'Healthy')
+                          ? 'Expansion Conversation: '
+                          : 'Exploration Meeting: '}
+                    </p>
+                    <p className="text-xs text-gray-700">
+                      {advisorDeals.some((d) => d.health === 'Stalled' || d.health === 'At Risk')
+                        ? `Focus on specific unblocking—understand blockers on ${advisorDeals[0].name} and propose concrete next steps to get momentum back.`
+                        : advisorDeals.length > 0 && advisorDeals.some((d) => d.health === 'Healthy')
+                          ? `Discuss expansion opportunities beyond current deals. Advisor is engaged and there's strong pipeline potential.`
+                          : `Schedule exploratory call to understand {advisor.name}'s strategic priorities and identify partnership opportunities.`}
+                    </p>
+                    <div className="pt-2 border-t border-gray-200 space-y-1">
+                      <p className="text-xs text-gray-600">
+                        <span className="font-medium">Best Day to Reach:</span> {advisor.bestDayToReach}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        <span className="font-medium">Preferred Channel:</span> {advisor.commPreference}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Diagnosis */}
+                <div className="p-4 border-l-4 border-blue-500 bg-blue-50 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-blue-900 uppercase mb-1">
+                        Diagnosis
+                      </p>
+                      <p className="text-sm text-gray-700 italic">
+                        "{advisor.diagnosis}"
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>

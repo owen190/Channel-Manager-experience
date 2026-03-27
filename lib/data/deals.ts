@@ -46,6 +46,27 @@ export const deals: Deal[] = [
   },
   {
     id: 'deal-3',
+    name: 'TelcoAdvise Fiber Network Consolidation',
+    advisorId: 'advisor-1',
+    repId: 'rep-1',
+    mrr: 11000,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 40,
+    daysInStage: 5,
+    closeDate: '2026-05-10',
+    actionItems: [
+      { id: 'ai-5', text: 'Initial needs assessment with executive team', daysOld: 1, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-6', text: 'Schedule site visit for current infrastructure review', daysOld: 2, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'Arista Networks',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-25'
+  },
+  {
+    id: 'deal-4',
     name: 'NetConnect Pro Infrastructure Modernization',
     advisorId: 'advisor-2',
     repId: 'rep-2',
@@ -56,8 +77,8 @@ export const deals: Deal[] = [
     daysInStage: 10,
     closeDate: '2026-03-28',
     actionItems: [
-      { id: 'ai-5', text: 'Legal review of SLA terms', daysOld: 4, assignedTo: 'Mike Rivera', status: 'pending' },
-      { id: 'ai-6', text: 'CFO approval on pricing', daysOld: 2, assignedTo: 'Mike Rivera', status: 'pending' }
+      { id: 'ai-7', text: 'Legal review of SLA terms', daysOld: 4, assignedTo: 'Mike Rivera', status: 'pending' },
+      { id: 'ai-8', text: 'CFO approval on pricing', daysOld: 2, assignedTo: 'Mike Rivera', status: 'pending' }
     ],
     competitor: 'Arista Networks',
     committed: true,
@@ -67,7 +88,7 @@ export const deals: Deal[] = [
     overrideRequested: false
   },
   {
-    id: 'deal-4',
+    id: 'deal-5',
     name: 'NetConnect Pro Disaster Recovery Solution',
     advisorId: 'advisor-2',
     repId: 'rep-2',
@@ -78,8 +99,8 @@ export const deals: Deal[] = [
     daysInStage: 18,
     closeDate: '2026-04-20',
     actionItems: [
-      { id: 'ai-7', text: 'Disaster recovery walkthrough simulation', daysOld: 6, assignedTo: 'Sales', status: 'pending' },
-      { id: 'ai-8', text: 'Implementation timeline definition', daysOld: 3, assignedTo: 'Mike Rivera', status: 'pending' }
+      { id: 'ai-9', text: 'Disaster recovery walkthrough simulation', daysOld: 6, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-10', text: 'Implementation timeline definition', daysOld: 3, assignedTo: 'Mike Rivera', status: 'pending' }
     ],
     competitor: 'Zayo Group',
     committed: false,
@@ -88,7 +109,28 @@ export const deals: Deal[] = [
     lastModified: '2026-03-23'
   },
   {
-    id: 'deal-5',
+    id: 'deal-6',
+    name: 'NetConnect Pro Cloud Connectivity Suite',
+    advisorId: 'advisor-2',
+    repId: 'rep-2',
+    mrr: 5400,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 35,
+    daysInStage: 8,
+    closeDate: '2026-05-05',
+    actionItems: [
+      { id: 'ai-11', text: 'Initial cloud connectivity assessment', daysOld: 3, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-12', text: 'Meet with cloud architect on requirements', daysOld: 5, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'Level 3',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Low',
+    lastModified: '2026-03-24'
+  },
+  {
+    id: 'deal-7',
     name: 'FiberFirst Capacity Planning Initiative',
     advisorId: 'advisor-3',
     repId: 'rep-3',
@@ -99,8 +141,8 @@ export const deals: Deal[] = [
     daysInStage: 35,
     closeDate: '2026-03-28',
     actionItems: [
-      { id: 'ai-9', text: 'Detailed RFP response completion', daysOld: 9, assignedTo: 'James Wu', status: 'overdue' },
-      { id: 'ai-10', text: 'Technical evaluation committee meeting', daysOld: 12, assignedTo: 'James Wu', status: 'overdue' }
+      { id: 'ai-13', text: 'Detailed RFP response completion', daysOld: 9, assignedTo: 'James Wu', status: 'overdue' },
+      { id: 'ai-14', text: 'Technical evaluation committee meeting', daysOld: 12, assignedTo: 'James Wu', status: 'overdue' }
     ],
     competitor: 'Infinera',
     committed: false,
@@ -112,7 +154,7 @@ export const deals: Deal[] = [
     overrideNote: 'Deal in early stage but close date set aggressively - technical evaluation still pending'
   },
   {
-    id: 'deal-6',
+    id: 'deal-8',
     name: 'FiberFirst Signal Quality Improvement',
     advisorId: 'advisor-3',
     repId: 'rep-3',
@@ -123,8 +165,8 @@ export const deals: Deal[] = [
     daysInStage: 28,
     closeDate: '2026-03-30',
     actionItems: [
-      { id: 'ai-11', text: 'Initial needs assessment with James', daysOld: 14, assignedTo: 'Sales', status: 'pending' },
-      { id: 'ai-12', text: 'Lab testing with FiberFirst equipment', daysOld: 7, assignedTo: 'Engineering', status: 'pending' }
+      { id: 'ai-15', text: 'Initial needs assessment with James', daysOld: 14, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-16', text: 'Lab testing with FiberFirst equipment', daysOld: 7, assignedTo: 'Engineering', status: 'pending' }
     ],
     competitor: 'Coherent Inc',
     committed: false,
@@ -136,7 +178,28 @@ export const deals: Deal[] = [
     overrideNote: 'Aggressive close date given stage - still in discovery phase'
   },
   {
-    id: 'deal-7',
+    id: 'deal-9',
+    name: 'FiberFirst Infrastructure Audit and Optimization',
+    advisorId: 'advisor-3',
+    repId: 'rep-3',
+    mrr: 3600,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 65,
+    daysInStage: 12,
+    closeDate: '2026-04-22',
+    actionItems: [
+      { id: 'ai-17', text: 'Complete comprehensive infrastructure audit', daysOld: 4, assignedTo: 'Engineering', status: 'pending' },
+      { id: 'ai-18', text: 'Prepare optimization recommendations presentation', daysOld: 6, assignedTo: 'James Wu', status: 'pending' }
+    ],
+    competitor: 'Tellabs',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-21'
+  },
+  {
+    id: 'deal-10',
     name: 'CloudBridge Multi-Cloud Governance Platform',
     advisorId: 'advisor-4',
     repId: 'rep-4',
@@ -147,8 +210,8 @@ export const deals: Deal[] = [
     daysInStage: 16,
     closeDate: '2026-04-10',
     actionItems: [
-      { id: 'ai-13', text: 'Security architecture review with CISO', daysOld: 5, assignedTo: 'David Park', status: 'pending' },
-      { id: 'ai-14', text: 'Compliance certification documentation', daysOld: 8, assignedTo: 'Sales', status: 'pending' }
+      { id: 'ai-19', text: 'Security architecture review with CISO', daysOld: 5, assignedTo: 'David Park', status: 'pending' },
+      { id: 'ai-20', text: 'Compliance certification documentation', daysOld: 8, assignedTo: 'Sales', status: 'pending' }
     ],
     competitor: 'VMware',
     committed: false,
@@ -157,7 +220,7 @@ export const deals: Deal[] = [
     lastModified: '2026-03-23'
   },
   {
-    id: 'deal-8',
+    id: 'deal-11',
     name: 'CloudBridge Cost Optimization Suite',
     advisorId: 'advisor-4',
     repId: 'rep-4',
@@ -168,8 +231,8 @@ export const deals: Deal[] = [
     daysInStage: 42,
     closeDate: '2026-04-05',
     actionItems: [
-      { id: 'ai-15', text: 'Cost analysis model customization', daysOld: 16, assignedTo: 'David Park', status: 'pending' },
-      { id: 'ai-16', text: 'Budget approval from procurement', daysOld: 11, assignedTo: 'David Park', status: 'pending' }
+      { id: 'ai-21', text: 'Cost analysis model customization', daysOld: 16, assignedTo: 'David Park', status: 'pending' },
+      { id: 'ai-22', text: 'Budget approval from procurement', daysOld: 11, assignedTo: 'David Park', status: 'pending' }
     ],
     competitor: 'CloudHealth',
     committed: false,
@@ -178,7 +241,28 @@ export const deals: Deal[] = [
     lastModified: '2026-03-19'
   },
   {
-    id: 'deal-9',
+    id: 'deal-12',
+    name: 'CloudBridge Kubernetes Migration Program',
+    advisorId: 'advisor-4',
+    repId: 'rep-4',
+    mrr: 5200,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 30,
+    daysInStage: 9,
+    closeDate: '2026-05-15',
+    actionItems: [
+      { id: 'ai-23', text: 'Kubernetes environment assessment', daysOld: 3, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-24', text: 'Meet with DevOps team on migration approach', daysOld: 4, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'AWS Professional Services',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-25'
+  },
+  {
+    id: 'deal-13',
     name: 'SignalPath Regional Partnership Expansion',
     advisorId: 'advisor-5',
     repId: 'rep-3',
@@ -189,8 +273,8 @@ export const deals: Deal[] = [
     daysInStage: 11,
     closeDate: '2026-03-31',
     actionItems: [
-      { id: 'ai-17', text: 'Partnership program structure finalization', daysOld: 4, assignedTo: 'Rachel Kim', status: 'pending' },
-      { id: 'ai-18', text: 'Go-to-market materials development', daysOld: 6, assignedTo: 'Marketing', status: 'pending' }
+      { id: 'ai-25', text: 'Partnership program structure finalization', daysOld: 4, assignedTo: 'Rachel Kim', status: 'pending' },
+      { id: 'ai-26', text: 'Go-to-market materials development', daysOld: 6, assignedTo: 'Marketing', status: 'pending' }
     ],
     competitor: 'None - partnership only',
     committed: true,
@@ -199,7 +283,7 @@ export const deals: Deal[] = [
     lastModified: '2026-03-24'
   },
   {
-    id: 'deal-10',
+    id: 'deal-14',
     name: 'SignalPath Sales Enablement Program',
     advisorId: 'advisor-5',
     repId: 'rep-3',
@@ -210,8 +294,8 @@ export const deals: Deal[] = [
     daysInStage: 7,
     closeDate: '2026-03-27',
     actionItems: [
-      { id: 'ai-19', text: 'Training curriculum finalization', daysOld: 2, assignedTo: 'Rachel Kim', status: 'pending' },
-      { id: 'ai-20', text: 'First cohort scheduling', daysOld: 3, assignedTo: 'Rachel Kim', status: 'pending' }
+      { id: 'ai-27', text: 'Training curriculum finalization', daysOld: 2, assignedTo: 'Rachel Kim', status: 'pending' },
+      { id: 'ai-28', text: 'First cohort scheduling', daysOld: 3, assignedTo: 'Rachel Kim', status: 'pending' }
     ],
     competitor: 'Domo',
     committed: true,
@@ -220,7 +304,28 @@ export const deals: Deal[] = [
     lastModified: '2026-03-25'
   },
   {
-    id: 'deal-11',
+    id: 'deal-15',
+    name: 'SignalPath Customer Success Platform Integration',
+    advisorId: 'advisor-5',
+    repId: 'rep-3',
+    mrr: 4800,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 50,
+    daysInStage: 6,
+    closeDate: '2026-04-28',
+    actionItems: [
+      { id: 'ai-29', text: 'Customer success platform assessment', daysOld: 2, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-30', text: 'Define integration requirements and roadmap', daysOld: 4, assignedTo: 'Engineering', status: 'pending' }
+    ],
+    competitor: 'Totango',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-24'
+  },
+  {
+    id: 'deal-16',
     name: 'WaveConnect Channel Program Launch',
     advisorId: 'advisor-6',
     repId: 'rep-5',
@@ -231,8 +336,8 @@ export const deals: Deal[] = [
     daysInStage: 67,
     closeDate: '2026-02-28',
     actionItems: [
-      { id: 'ai-21', text: 'Follow up on budget approval status', daysOld: 31, assignedTo: 'Tom Bradley', status: 'overdue' },
-      { id: 'ai-22', text: 'Clarify internal organizational changes', daysOld: 21, assignedTo: 'Sales', status: 'overdue' }
+      { id: 'ai-31', text: 'Follow up on budget approval status', daysOld: 31, assignedTo: 'Tom Bradley', status: 'overdue' },
+      { id: 'ai-32', text: 'Clarify internal organizational changes', daysOld: 21, assignedTo: 'Sales', status: 'overdue' }
     ],
     competitor: 'Ingram Micro',
     committed: false,
@@ -241,7 +346,7 @@ export const deals: Deal[] = [
     lastModified: '2026-03-01'
   },
   {
-    id: 'deal-12',
+    id: 'deal-17',
     name: 'WaveConnect Infrastructure Refresh',
     advisorId: 'advisor-6',
     repId: 'rep-5',
@@ -252,8 +357,8 @@ export const deals: Deal[] = [
     daysInStage: 51,
     closeDate: '2026-03-31',
     actionItems: [
-      { id: 'ai-23', text: 'Technical requirements refinement', daysOld: 25, assignedTo: 'Tom Bradley', status: 'pending' },
-      { id: 'ai-24', text: 'Competitive response to RFP', daysOld: 18, assignedTo: 'Sales', status: 'pending' }
+      { id: 'ai-33', text: 'Technical requirements refinement', daysOld: 25, assignedTo: 'Tom Bradley', status: 'pending' },
+      { id: 'ai-34', text: 'Competitive response to RFP', daysOld: 18, assignedTo: 'Sales', status: 'pending' }
     ],
     competitor: 'CommScope',
     committed: false,
@@ -263,7 +368,7 @@ export const deals: Deal[] = [
     overrideRequested: false
   },
   {
-    id: 'deal-13',
+    id: 'deal-18',
     name: 'DataStream Analytics Implementation',
     advisorId: 'advisor-7',
     repId: 'rep-2',
@@ -274,8 +379,8 @@ export const deals: Deal[] = [
     daysInStage: 6,
     closeDate: '2026-03-29',
     actionItems: [
-      { id: 'ai-25', text: 'Contract final review with legal', daysOld: 2, assignedTo: 'Lisa Zhang', status: 'pending' },
-      { id: 'ai-26', text: 'Implementation schedule confirmation', daysOld: 1, assignedTo: 'Lisa Zhang', status: 'pending' }
+      { id: 'ai-35', text: 'Contract final review with legal', daysOld: 2, assignedTo: 'Lisa Zhang', status: 'pending' },
+      { id: 'ai-36', text: 'Implementation schedule confirmation', daysOld: 1, assignedTo: 'Lisa Zhang', status: 'pending' }
     ],
     competitor: 'Splunk',
     committed: true,
@@ -284,7 +389,7 @@ export const deals: Deal[] = [
     lastModified: '2026-03-25'
   },
   {
-    id: 'deal-14',
+    id: 'deal-19',
     name: 'DataStream Team Expansion Program',
     advisorId: 'advisor-7',
     repId: 'rep-2',
@@ -295,8 +400,8 @@ export const deals: Deal[] = [
     daysInStage: 12,
     closeDate: '2026-04-12',
     actionItems: [
-      { id: 'ai-27', text: 'Training program customization', daysOld: 5, assignedTo: 'Lisa Zhang', status: 'pending' },
-      { id: 'ai-28', text: 'Team certification timeline', daysOld: 3, assignedTo: 'Professional Services', status: 'pending' }
+      { id: 'ai-37', text: 'Training program customization', daysOld: 5, assignedTo: 'Lisa Zhang', status: 'pending' },
+      { id: 'ai-38', text: 'Team certification timeline', daysOld: 3, assignedTo: 'Professional Services', status: 'pending' }
     ],
     competitor: 'Coursera for Business',
     committed: false,
@@ -305,7 +410,7 @@ export const deals: Deal[] = [
     lastModified: '2026-03-23'
   },
   {
-    id: 'deal-15',
+    id: 'deal-20',
     name: 'PrimeLine Customer Data Platform',
     advisorId: 'advisor-8',
     repId: 'rep-4',
@@ -316,8 +421,8 @@ export const deals: Deal[] = [
     daysInStage: 88,
     closeDate: '2026-03-31',
     actionItems: [
-      { id: 'ai-29', text: 'Reconnect with Alex Morgan', daysOld: 43, assignedTo: 'Sales', status: 'overdue' },
-      { id: 'ai-30', text: 'Identify new internal champion', daysOld: 35, assignedTo: 'Sales', status: 'overdue' }
+      { id: 'ai-39', text: 'Reconnect with Alex Morgan', daysOld: 43, assignedTo: 'Sales', status: 'overdue' },
+      { id: 'ai-40', text: 'Identify new internal champion', daysOld: 35, assignedTo: 'Sales', status: 'overdue' }
     ],
     competitor: 'Segment',
     committed: false,
@@ -327,7 +432,7 @@ export const deals: Deal[] = [
     overrideRequested: false
   },
   {
-    id: 'deal-16',
+    id: 'deal-21',
     name: 'PrimeLine Sales Tools Integration',
     advisorId: 'advisor-8',
     repId: 'rep-4',
@@ -338,8 +443,8 @@ export const deals: Deal[] = [
     daysInStage: 76,
     closeDate: '2026-03-27',
     actionItems: [
-      { id: 'ai-31', text: 'Initial discovery meeting reschedule', daysOld: 38, assignedTo: 'Alex Morgan', status: 'overdue' },
-      { id: 'ai-32', text: 'Solution requirements documentation', daysOld: 52, assignedTo: 'Sales', status: 'overdue' }
+      { id: 'ai-41', text: 'Initial discovery meeting reschedule', daysOld: 38, assignedTo: 'Alex Morgan', status: 'overdue' },
+      { id: 'ai-42', text: 'Solution requirements documentation', daysOld: 52, assignedTo: 'Sales', status: 'overdue' }
     ],
     competitor: 'Salesforce Einstein',
     committed: false,
@@ -349,7 +454,7 @@ export const deals: Deal[] = [
     overrideRequested: false
   },
   {
-    id: 'deal-17',
+    id: 'deal-22',
     name: 'CoreConnect Systems Integration Project',
     advisorId: 'advisor-9',
     repId: 'rep-5',
@@ -360,8 +465,8 @@ export const deals: Deal[] = [
     daysInStage: 120,
     closeDate: '2026-02-28',
     actionItems: [
-      { id: 'ai-33', text: 'Contact Nina Patel with status update', daysOld: 67, assignedTo: 'Sales', status: 'overdue' },
-      { id: 'ai-34', text: 'Identify alternative sponsor', daysOld: 45, assignedTo: 'Sales', status: 'overdue' }
+      { id: 'ai-43', text: 'Contact Nina Patel with status update', daysOld: 67, assignedTo: 'Sales', status: 'overdue' },
+      { id: 'ai-44', text: 'Identify alternative sponsor', daysOld: 45, assignedTo: 'Sales', status: 'overdue' }
     ],
     competitor: 'Accenture',
     committed: false,
@@ -370,7 +475,7 @@ export const deals: Deal[] = [
     lastModified: '2025-12-15'
   },
   {
-    id: 'deal-18',
+    id: 'deal-23',
     name: 'CoreConnect Process Automation',
     advisorId: 'advisor-9',
     repId: 'rep-5',
@@ -381,8 +486,8 @@ export const deals: Deal[] = [
     daysInStage: 115,
     closeDate: '2026-03-01',
     actionItems: [
-      { id: 'ai-35', text: 'Account review and decision to archive', daysOld: 90, assignedTo: 'Sales', status: 'overdue' },
-      { id: 'ai-36', text: 'Final outreach attempt', daysOld: 73, assignedTo: 'Sales', status: 'overdue' }
+      { id: 'ai-45', text: 'Account review and decision to archive', daysOld: 90, assignedTo: 'Sales', status: 'overdue' },
+      { id: 'ai-46', text: 'Final outreach attempt', daysOld: 73, assignedTo: 'Sales', status: 'overdue' }
     ],
     competitor: 'UiPath',
     committed: false,
@@ -391,7 +496,7 @@ export const deals: Deal[] = [
     lastModified: '2025-12-20'
   },
   {
-    id: 'deal-19',
+    id: 'deal-24',
     name: 'LinkTech IT Modernization Consulting',
     advisorId: 'advisor-10',
     repId: 'rep-6',
@@ -402,8 +507,8 @@ export const deals: Deal[] = [
     daysInStage: 135,
     closeDate: '2026-01-31',
     actionItems: [
-      { id: 'ai-37', text: 'Archive inactive deal', daysOld: 105, assignedTo: 'Sales', status: 'overdue' },
-      { id: 'ai-38', text: 'Remove from active pipeline', daysOld: 95, assignedTo: 'Sales', status: 'overdue' }
+      { id: 'ai-47', text: 'Archive inactive deal', daysOld: 105, assignedTo: 'Sales', status: 'overdue' },
+      { id: 'ai-48', text: 'Remove from active pipeline', daysOld: 95, assignedTo: 'Sales', status: 'overdue' }
     ],
     competitor: 'Deloitte',
     committed: false,
@@ -412,7 +517,7 @@ export const deals: Deal[] = [
     lastModified: '2025-11-20'
   },
   {
-    id: 'deal-20',
+    id: 'deal-25',
     name: 'LinkTech Support Services Contract',
     advisorId: 'advisor-10',
     repId: 'rep-6',
@@ -423,13 +528,853 @@ export const deals: Deal[] = [
     daysInStage: 130,
     closeDate: '2026-02-15',
     actionItems: [
-      { id: 'ai-39', text: 'Remove from forecast', daysOld: 100, assignedTo: 'Sales', status: 'overdue' },
-      { id: 'ai-40', text: 'Final determination on relationship viability', daysOld: 85, assignedTo: 'Sales', status: 'overdue' }
+      { id: 'ai-49', text: 'Remove from forecast', daysOld: 100, assignedTo: 'Sales', status: 'overdue' },
+      { id: 'ai-50', text: 'Final determination on relationship viability', daysOld: 85, assignedTo: 'Sales', status: 'overdue' }
     ],
     competitor: 'IBM',
     committed: false,
     forecastHistory: 0,
     confidenceScore: 'Low',
     lastModified: '2025-12-10'
+  },
+  {
+    id: 'deal-26',
+    name: 'SpectrumTech Cloud Infrastructure Strategy',
+    advisorId: 'advisor-11',
+    repId: 'rep-1',
+    mrr: 4600,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 72,
+    daysInStage: 13,
+    closeDate: '2026-04-18',
+    actionItems: [
+      { id: 'ai-51', text: 'Cloud architecture design review', daysOld: 5, assignedTo: 'Priya Gupta', status: 'pending' },
+      { id: 'ai-52', text: 'Security and compliance assessment', daysOld: 7, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'Google Cloud Partners',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-23'
+  },
+  {
+    id: 'deal-27',
+    name: 'SpectrumTech Container Orchestration Platform',
+    advisorId: 'advisor-11',
+    repId: 'rep-1',
+    mrr: 3400,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 45,
+    daysInStage: 8,
+    closeDate: '2026-05-08',
+    actionItems: [
+      { id: 'ai-53', text: 'Container strategy assessment with DevOps team', daysOld: 3, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-54', text: 'Kubernetes environment audit', daysOld: 5, assignedTo: 'Engineering', status: 'pending' }
+    ],
+    competitor: 'Red Hat OpenShift',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-24'
+  },
+  {
+    id: 'deal-28',
+    name: 'LinkCom Network Operations Optimization',
+    advisorId: 'advisor-12',
+    repId: 'rep-2',
+    mrr: 4200,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 68,
+    daysInStage: 14,
+    closeDate: '2026-04-25',
+    actionItems: [
+      { id: 'ai-55', text: 'Network operations process review', daysOld: 6, assignedTo: 'Marcus Thompson', status: 'pending' },
+      { id: 'ai-56', text: 'ROI and efficiency metrics analysis', daysOld: 8, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'BMC Software',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-22'
+  },
+  {
+    id: 'deal-29',
+    name: 'LinkCom Multi-Site Monitoring Solution',
+    advisorId: 'advisor-12',
+    repId: 'rep-2',
+    mrr: 3000,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 52,
+    daysInStage: 7,
+    closeDate: '2026-05-02',
+    actionItems: [
+      { id: 'ai-57', text: 'Multi-site architecture assessment', daysOld: 2, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-58', text: 'Monitoring requirements documentation', daysOld: 4, assignedTo: 'Engineering', status: 'pending' }
+    ],
+    competitor: 'Cisco Crosswork',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-25'
+  },
+  {
+    id: 'deal-30',
+    name: 'TeleMark Partners Canada Expansion Program',
+    advisorId: 'advisor-13',
+    repId: 'rep-3',
+    mrr: 3800,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 75,
+    daysInStage: 10,
+    closeDate: '2026-04-08',
+    actionItems: [
+      { id: 'ai-59', text: 'Canadian partner enablement program design', daysOld: 4, assignedTo: 'Amara Okafor', status: 'pending' },
+      { id: 'ai-60', text: 'North American go-to-market strategy', daysOld: 5, assignedTo: 'Marketing', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'High',
+    lastModified: '2026-03-24'
+  },
+  {
+    id: 'deal-31',
+    name: 'TeleMark Partners Regional Channel Development',
+    advisorId: 'advisor-13',
+    repId: 'rep-3',
+    mrr: 3000,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 58,
+    daysInStage: 9,
+    closeDate: '2026-05-12',
+    actionItems: [
+      { id: 'ai-61', text: 'Regional partner identification in Canada', daysOld: 3, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-62', text: 'Partnership agreement framework review', daysOld: 6, assignedTo: 'Legal', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-25'
+  },
+  {
+    id: 'deal-32',
+    name: 'InfraNet Consulting Network Design Services',
+    advisorId: 'advisor-14',
+    repId: 'rep-1',
+    mrr: 3600,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 70,
+    daysInStage: 11,
+    closeDate: '2026-04-15',
+    actionItems: [
+      { id: 'ai-63', text: 'Detailed network design proposal', daysOld: 5, assignedTo: 'Victor Chen', status: 'pending' },
+      { id: 'ai-64', text: 'Technical architecture review presentation', daysOld: 7, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'Juniper Networks Professional Services',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-21'
+  },
+  {
+    id: 'deal-33',
+    name: 'InfraNet Consulting Infrastructure Assessment Program',
+    advisorId: 'advisor-14',
+    repId: 'rep-1',
+    mrr: 2600,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 48,
+    daysInStage: 10,
+    closeDate: '2026-05-10',
+    actionItems: [
+      { id: 'ai-65', text: 'Comprehensive infrastructure audit plan', daysOld: 4, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-66', text: 'Schedule initial site assessment visit', daysOld: 6, assignedTo: 'Victor Chen', status: 'pending' }
+    ],
+    competitor: 'Cisco Systems Professional Services',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-24'
+  },
+  {
+    id: 'deal-34',
+    name: 'European Telecom Advisory Strategic Partnership',
+    advisorId: 'advisor-15',
+    repId: 'rep-2',
+    mrr: 3400,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 65,
+    daysInStage: 15,
+    closeDate: '2026-04-28',
+    actionItems: [
+      { id: 'ai-67', text: 'European partnership agreement development', daysOld: 7, assignedTo: 'Isabella Rossi', status: 'pending' },
+      { id: 'ai-68', text: 'Regulatory compliance review for EMEA region', daysOld: 9, assignedTo: 'Legal', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-20'
+  },
+  {
+    id: 'deal-35',
+    name: 'European Telecom Advisory Regional Expansion',
+    advisorId: 'advisor-15',
+    repId: 'rep-2',
+    mrr: 2400,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 55,
+    daysInStage: 8,
+    closeDate: '2026-05-18',
+    actionItems: [
+      { id: 'ai-69', text: 'European market analysis and opportunity assessment', daysOld: 3, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-70', text: 'Schedule executive introductions across EMEA', daysOld: 5, assignedTo: 'Isabella Rossi', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-23'
+  },
+  {
+    id: 'deal-36',
+    name: 'ConnectPlus Networks Sales Engineering Program',
+    advisorId: 'advisor-16',
+    repId: 'rep-2',
+    mrr: 3200,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 73,
+    daysInStage: 12,
+    closeDate: '2026-04-20',
+    actionItems: [
+      { id: 'ai-71', text: 'Sales engineering enablement curriculum design', daysOld: 5, assignedTo: 'Ravi Patel', status: 'pending' },
+      { id: 'ai-72', text: 'Technical training roadmap and timeline', daysOld: 7, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'Cisco Learning Network',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-23'
+  },
+  {
+    id: 'deal-37',
+    name: 'ConnectPlus Networks Joint Go-to-Market Initiative',
+    advisorId: 'advisor-16',
+    repId: 'rep-2',
+    mrr: 2200,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 60,
+    daysInStage: 6,
+    closeDate: '2026-05-05',
+    actionItems: [
+      { id: 'ai-73', text: 'Joint GTM strategy development', daysOld: 2, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-74', text: 'Identify co-selling opportunities and accounts', daysOld: 4, assignedTo: 'Ravi Patel', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-25'
+  },
+  {
+    id: 'deal-38',
+    name: 'Global Telecom Partners European Reseller Program',
+    advisorId: 'advisor-17',
+    repId: 'rep-1',
+    mrr: 2800,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 68,
+    daysInStage: 14,
+    closeDate: '2026-04-25',
+    actionItems: [
+      { id: 'ai-75', text: 'Reseller program structure and terms definition', daysOld: 6, assignedTo: 'Sophie Leclerc', status: 'pending' },
+      { id: 'ai-76', text: 'Reseller recruitment and certification plan', daysOld: 8, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-21'
+  },
+  {
+    id: 'deal-39',
+    name: 'Global Telecom Partners Channel Enablement',
+    advisorId: 'advisor-17',
+    repId: 'rep-1',
+    mrr: 2200,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 55,
+    daysInStage: 9,
+    closeDate: '2026-05-15',
+    actionItems: [
+      { id: 'ai-77', text: 'Reseller enablement materials development', daysOld: 3, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-78', text: 'Partner training program framework', daysOld: 5, assignedTo: 'Sophie Leclerc', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-24'
+  },
+  {
+    id: 'deal-40',
+    name: 'Midwest Tech Solutions Partnership Expansion',
+    advisorId: 'advisor-18',
+    repId: 'rep-3',
+    mrr: 2800,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 76,
+    daysInStage: 10,
+    closeDate: '2026-04-12',
+    actionItems: [
+      { id: 'ai-79', text: 'Strategic partnership agreement finalization', daysOld: 4, assignedTo: 'Kevin O\'Brien', status: 'pending' },
+      { id: 'ai-80', text: 'West Coast regional expansion roadmap', daysOld: 6, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'High',
+    lastModified: '2026-03-25'
+  },
+  {
+    id: 'deal-41',
+    name: 'Midwest Tech Solutions Regional Service Offering',
+    advisorId: 'advisor-18',
+    repId: 'rep-3',
+    mrr: 2000,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 62,
+    daysInStage: 7,
+    closeDate: '2026-05-08',
+    actionItems: [
+      { id: 'ai-81', text: 'Service offering definition and scope', daysOld: 2, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-82', text: 'Pricing and commercial terms discussion', daysOld: 4, assignedTo: 'Kevin O\'Brien', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-24'
+  },
+  {
+    id: 'deal-42',
+    name: 'Momentum Networks Co-Selling Partnership',
+    advisorId: 'advisor-19',
+    repId: 'rep-1',
+    mrr: 2600,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 70,
+    daysInStage: 13,
+    closeDate: '2026-04-22',
+    actionItems: [
+      { id: 'ai-83', text: 'Co-selling agreement and framework', daysOld: 5, assignedTo: 'Leila Mousavi', status: 'pending' },
+      { id: 'ai-84', text: 'Joint customer target list identification', daysOld: 7, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'High',
+    lastModified: '2026-03-22'
+  },
+  {
+    id: 'deal-43',
+    name: 'Momentum Networks Account Expansion Program',
+    advisorId: 'advisor-19',
+    repId: 'rep-1',
+    mrr: 1800,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 55,
+    daysInStage: 8,
+    closeDate: '2026-05-10',
+    actionItems: [
+      { id: 'ai-85', text: 'Expansion revenue opportunity assessment', daysOld: 3, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-86', text: 'Account expansion strategy definition', daysOld: 5, assignedTo: 'Leila Mousavi', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-23'
+  },
+  {
+    id: 'deal-44',
+    name: 'EuroNet Consulting Eastern European Partnerships',
+    advisorId: 'advisor-20',
+    repId: 'rep-2',
+    mrr: 2200,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 72,
+    daysInStage: 12,
+    closeDate: '2026-04-28',
+    actionItems: [
+      { id: 'ai-87', text: 'Eastern European partnership strategy', daysOld: 5, assignedTo: 'Dmitri Volkov', status: 'pending' },
+      { id: 'ai-88', text: 'Country-specific compliance and regulatory review', daysOld: 8, assignedTo: 'Legal', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-20'
+  },
+  {
+    id: 'deal-45',
+    name: 'EuroNet Consulting Regional Technical Integration',
+    advisorId: 'advisor-20',
+    repId: 'rep-2',
+    mrr: 1800,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 58,
+    daysInStage: 9,
+    closeDate: '2026-05-20',
+    actionItems: [
+      { id: 'ai-89', text: 'Technical integration requirements assessment', daysOld: 4, assignedTo: 'Engineering', status: 'pending' },
+      { id: 'ai-90', text: 'Regional technical partner onboarding plan', daysOld: 6, assignedTo: 'Dmitri Volkov', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-24'
+  },
+  {
+    id: 'deal-46',
+    name: 'Asia Pacific Networks Regional Account Growth',
+    advisorId: 'advisor-21',
+    repId: 'rep-3',
+    mrr: 2000,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 68,
+    daysInStage: 11,
+    closeDate: '2026-04-18',
+    actionItems: [
+      { id: 'ai-91', text: 'Regional account expansion strategy', daysOld: 5, assignedTo: 'Yuki Tanaka', status: 'pending' },
+      { id: 'ai-92', text: 'Multi-country rollout planning', daysOld: 7, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'High',
+    lastModified: '2026-03-24'
+  },
+  {
+    id: 'deal-47',
+    name: 'Asia Pacific Networks Partner Network Development',
+    advisorId: 'advisor-21',
+    repId: 'rep-3',
+    mrr: 1600,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 55,
+    daysInStage: 8,
+    closeDate: '2026-05-12',
+    actionItems: [
+      { id: 'ai-93', text: 'Regional partner identification and recruitment', daysOld: 3, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-94', text: 'Partner enablement program design', daysOld: 5, assignedTo: 'Yuki Tanaka', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-25'
+  },
+  {
+    id: 'deal-48',
+    name: 'LatAm Tech Advisors Latin American Expansion',
+    advisorId: 'advisor-22',
+    repId: 'rep-1',
+    mrr: 1800,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 74,
+    daysInStage: 10,
+    closeDate: '2026-04-15',
+    actionItems: [
+      { id: 'ai-95', text: 'Latin American market entry strategy', daysOld: 4, assignedTo: 'Carlos Mendez', status: 'pending' },
+      { id: 'ai-96', text: 'Multi-country partnership agreements', daysOld: 6, assignedTo: 'Legal', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'High',
+    lastModified: '2026-03-25'
+  },
+  {
+    id: 'deal-49',
+    name: 'LatAm Tech Advisors Regional Reseller Program',
+    advisorId: 'advisor-22',
+    repId: 'rep-1',
+    mrr: 1400,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 60,
+    daysInStage: 7,
+    closeDate: '2026-05-08',
+    actionItems: [
+      { id: 'ai-97', text: 'Reseller program structure definition', daysOld: 2, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-98', text: 'Regional reseller recruitment plan', daysOld: 4, assignedTo: 'Carlos Mendez', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-24'
+  },
+  {
+    id: 'deal-50',
+    name: 'Gulf Telecom Group Middle Eastern Partnerships',
+    advisorId: 'advisor-23',
+    repId: 'rep-2',
+    mrr: 1600,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 65,
+    daysInStage: 13,
+    closeDate: '2026-04-30',
+    actionItems: [
+      { id: 'ai-99', text: 'GCC region partnership strategy', daysOld: 5, assignedTo: 'Nadia Al-Rashid', status: 'pending' },
+      { id: 'ai-100', text: 'Regulatory and compliance review for UAE/KSA', daysOld: 8, assignedTo: 'Legal', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-19'
+  },
+  {
+    id: 'deal-51',
+    name: 'Gulf Telecom Group Regional Technical Services',
+    advisorId: 'advisor-23',
+    repId: 'rep-2',
+    mrr: 1200,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 52,
+    daysInStage: 10,
+    closeDate: '2026-05-25',
+    actionItems: [
+      { id: 'ai-101', text: 'Technical services delivery model definition', daysOld: 4, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-102', text: 'Regional technical team onboarding plan', daysOld: 6, assignedTo: 'Nadia Al-Rashid', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-20'
+  },
+  {
+    id: 'deal-52',
+    name: 'South Asian Telecom Solutions India Growth',
+    advisorId: 'advisor-24',
+    repId: 'rep-3',
+    mrr: 1400,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 71,
+    daysInStage: 11,
+    closeDate: '2026-04-20',
+    actionItems: [
+      { id: 'ai-103', text: 'Indian market expansion strategy', daysOld: 5, assignedTo: 'Anish Gupta', status: 'pending' },
+      { id: 'ai-104', text: 'Local partnership and reseller recruitment', daysOld: 7, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'High',
+    lastModified: '2026-03-24'
+  },
+  {
+    id: 'deal-53',
+    name: 'South Asian Telecom Solutions Startup Ecosystem Program',
+    advisorId: 'advisor-24',
+    repId: 'rep-3',
+    mrr: 1000,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 58,
+    daysInStage: 8,
+    closeDate: '2026-05-15',
+    actionItems: [
+      { id: 'ai-105', text: 'Startup ecosystem partnership development', daysOld: 3, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-106', text: 'Startup enablement and incubation program', daysOld: 5, assignedTo: 'Anish Gupta', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-25'
+  },
+  {
+    id: 'deal-54',
+    name: 'Mediterranean Tech Partners Italy Expansion',
+    advisorId: 'advisor-25',
+    repId: 'rep-1',
+    mrr: 1200,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 69,
+    daysInStage: 12,
+    closeDate: '2026-04-25',
+    actionItems: [
+      { id: 'ai-107', text: 'Italian market strategy and partnerships', daysOld: 5, assignedTo: 'Elena Rossetti', status: 'pending' },
+      { id: 'ai-108', text: 'Mediterranean regional expansion roadmap', daysOld: 7, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-21'
+  },
+  {
+    id: 'deal-55',
+    name: 'Mediterranean Tech Partners Regional Service Delivery',
+    advisorId: 'advisor-25',
+    repId: 'rep-1',
+    mrr: 1000,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 54,
+    daysInStage: 9,
+    closeDate: '2026-05-18',
+    actionItems: [
+      { id: 'ai-109', text: 'Regional service delivery model design', daysOld: 4, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-110', text: 'Local partner network establishment', daysOld: 5, assignedTo: 'Elena Rossetti', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-23'
+  },
+  {
+    id: 'deal-56',
+    name: 'Nordic Innovation Group Nordic Region Partnerships',
+    advisorId: 'advisor-26',
+    repId: 'rep-2',
+    mrr: 1200,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 70,
+    daysInStage: 11,
+    closeDate: '2026-04-28',
+    actionItems: [
+      { id: 'ai-111', text: 'Nordic region partnership strategy', daysOld: 5, assignedTo: 'Martin Svensson', status: 'pending' },
+      { id: 'ai-112', text: 'Multi-country compliance and regulatory review', daysOld: 7, assignedTo: 'Legal', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-24'
+  },
+  {
+    id: 'deal-57',
+    name: 'Nordic Innovation Group Technology Innovation Initiative',
+    advisorId: 'advisor-26',
+    repId: 'rep-2',
+    mrr: 800,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 56,
+    daysInStage: 8,
+    closeDate: '2026-05-12',
+    actionItems: [
+      { id: 'ai-113', text: 'Innovation collaboration framework definition', daysOld: 3, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-114', text: 'Joint innovation roadmap development', daysOld: 5, assignedTo: 'Martin Svensson', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-25'
+  },
+  {
+    id: 'deal-58',
+    name: 'African Tech Ventures East African Expansion',
+    advisorId: 'advisor-27',
+    repId: 'rep-1',
+    mrr: 1000,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 73,
+    daysInStage: 10,
+    closeDate: '2026-04-18',
+    actionItems: [
+      { id: 'ai-115', text: 'East African market expansion strategy', daysOld: 4, assignedTo: 'Aisha Pasha', status: 'pending' },
+      { id: 'ai-116', text: 'Regional partner network development', daysOld: 6, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'High',
+    lastModified: '2026-03-25'
+  },
+  {
+    id: 'deal-59',
+    name: 'African Tech Ventures Entrepreneur Ecosystem Program',
+    advisorId: 'advisor-27',
+    repId: 'rep-1',
+    mrr: 800,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 60,
+    daysInStage: 7,
+    closeDate: '2026-05-08',
+    actionItems: [
+      { id: 'ai-117', text: 'Entrepreneur ecosystem support program design', daysOld: 2, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-118', text: 'Startup incubation partnership framework', daysOld: 4, assignedTo: 'Aisha Pasha', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-24'
+  },
+  {
+    id: 'deal-60',
+    name: 'Nippon Tech Alliance Japan Market Partnerships',
+    advisorId: 'advisor-28',
+    repId: 'rep-2',
+    mrr: 1000,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 66,
+    daysInStage: 14,
+    closeDate: '2026-04-25',
+    actionItems: [
+      { id: 'ai-119', text: 'Japanese market entry strategy', daysOld: 6, assignedTo: 'Hiroshi Yamamoto', status: 'pending' },
+      { id: 'ai-120', text: 'Japanese regulatory compliance assessment', daysOld: 8, assignedTo: 'Legal', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-19'
+  },
+  {
+    id: 'deal-61',
+    name: 'Nippon Tech Alliance Japanese Regional Services',
+    advisorId: 'advisor-28',
+    repId: 'rep-2',
+    mrr: 600,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 50,
+    daysInStage: 11,
+    closeDate: '2026-05-30',
+    actionItems: [
+      { id: 'ai-121', text: 'Japanese market service delivery model', daysOld: 5, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-122', text: 'Local technical partnership development', daysOld: 7, assignedTo: 'Hiroshi Yamamoto', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Low',
+    lastModified: '2026-03-21'
+  },
+  {
+    id: 'deal-62',
+    name: 'Iberian Tech Group Spain-Portugal Expansion',
+    advisorId: 'advisor-29',
+    repId: 'rep-3',
+    mrr: 1000,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 72,
+    daysInStage: 11,
+    closeDate: '2026-04-22',
+    actionItems: [
+      { id: 'ai-123', text: 'Iberian region partnership strategy', daysOld: 5, assignedTo: 'Patricia Gonzalez', status: 'pending' },
+      { id: 'ai-124', text: 'Joint market expansion roadmap', daysOld: 7, assignedTo: 'Sales', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'High',
+    lastModified: '2026-03-25'
+  },
+  {
+    id: 'deal-63',
+    name: 'Iberian Tech Group Regional Reseller Development',
+    advisorId: 'advisor-29',
+    repId: 'rep-3',
+    mrr: 400,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 58,
+    daysInStage: 8,
+    closeDate: '2026-05-15',
+    actionItems: [
+      { id: 'ai-125', text: 'Iberian reseller program development', daysOld: 3, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-126', text: 'Regional reseller recruitment plan', daysOld: 5, assignedTo: 'Patricia Gonzalez', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-24'
+  },
+  {
+    id: 'deal-64',
+    name: 'Pan-African Communications Pan-African Strategy',
+    advisorId: 'advisor-30',
+    repId: 'rep-1',
+    mrr: 800,
+    health: 'Healthy',
+    stage: 'Proposal',
+    probability: 68,
+    daysInStage: 12,
+    closeDate: '2026-04-20',
+    actionItems: [
+      { id: 'ai-127', text: 'Pan-African expansion strategy development', daysOld: 5, assignedTo: 'Richard Okonkwo', status: 'pending' },
+      { id: 'ai-128', text: 'Multi-country regulatory compliance review', daysOld: 7, assignedTo: 'Legal', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 1,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-23'
+  },
+  {
+    id: 'deal-65',
+    name: 'Pan-African Communications Technical Services Partnership',
+    advisorId: 'advisor-30',
+    repId: 'rep-1',
+    mrr: 400,
+    health: 'Healthy',
+    stage: 'Discovery',
+    probability: 54,
+    daysInStage: 9,
+    closeDate: '2026-05-20',
+    actionItems: [
+      { id: 'ai-129', text: 'Pan-African technical services framework', daysOld: 4, assignedTo: 'Sales', status: 'pending' },
+      { id: 'ai-130', text: 'Local technical team partnership development', daysOld: 6, assignedTo: 'Richard Okonkwo', status: 'pending' }
+    ],
+    competitor: 'None - partnership',
+    committed: false,
+    forecastHistory: 0,
+    confidenceScore: 'Medium',
+    lastModified: '2026-03-25'
   }
 ];

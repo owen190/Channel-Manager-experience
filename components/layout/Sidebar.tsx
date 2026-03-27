@@ -1,6 +1,5 @@
 'use client';
 
-import { IntegrationBadges } from '@/components/shared/IntegrationBadges';
 import { Zap, Brain, Handshake, DollarSign, TrendingUp, BarChart3, Users } from 'lucide-react';
 import { type LucideIcon } from 'lucide-react';
 
@@ -78,14 +77,6 @@ export function Sidebar({
           );
         })}
       </nav>
-
-      {/* Integrations */}
-      <div className="border-t border-gray-700 px-4 py-4">
-        <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">
-          Integrations
-        </p>
-        <IntegrationBadges />
-      </div>
 
       {/* User Info */}
       <div className="border-t border-gray-700 px-4 py-4 flex items-center gap-3">

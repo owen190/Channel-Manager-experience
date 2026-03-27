@@ -9,7 +9,6 @@ import { KPICard } from '@/components/shared/KPICard';
 import { MorningBriefing } from '@/components/shared/MorningBriefing';
 import { AdvisorTable } from '@/components/shared/AdvisorTable';
 import { AdvisorPanel } from '@/components/shared/AdvisorPanel';
-import { IntegrationBadges } from '@/components/shared/IntegrationBadges';
 import { DealHealthBadge } from '@/components/shared/DealHealthBadge';
 import { NAV_ITEMS_LEADER, QUARTER_END, DAYS_REMAINING, STAGE_WEIGHTS } from '@/lib/constants';
 import { reps } from '@/lib/data/reps';
@@ -89,7 +88,7 @@ export default function LeaderDashboard() {
     {
       dealId: 'deal-5',
       dealName: 'FiberFirst Capacity Planning Initiative',
-      repName: 'Angelo DiMartino',
+      repName: 'Natasha Volkov',
       advisorName: 'James Wu',
       mrr: 7400,
       reason: 'Deal in early stage but close date set aggressively - technical evaluation still pending',
@@ -99,7 +98,7 @@ export default function LeaderDashboard() {
     {
       dealId: 'deal-6',
       dealName: 'FiberFirst Signal Quality Improvement',
-      repName: 'Angelo DiMartino',
+      repName: 'Natasha Volkov',
       advisorName: 'James Wu',
       mrr: 4200,
       reason: 'Aggressive close date given stage - still in discovery phase',
@@ -127,25 +126,25 @@ export default function LeaderDashboard() {
   const diagnosticMatrix = [
     {
       pattern: 'High friction + stalled',
-      repsAffected: 'Angelo, Derek W',
+      repsAffected: 'Natasha, Thomas',
       impact: '$70K risk',
       action: 'Escalate quoting SLA'
     },
     {
       pattern: 'Over-capacity',
-      repsAffected: 'Ernie',
+      repsAffected: 'Javier',
       impact: 'Burnout risk',
       action: 'Redistribute 15+ partners'
     },
     {
       pattern: 'Under-loaded',
-      repsAffected: 'Derek W',
+      repsAffected: 'Thomas',
       impact: 'Lost opportunity',
-      action: 'Assign 10 from Ernie'
+      action: 'Assign 10 from Javier'
     },
     {
       pattern: 'Forecast gap widening',
-      repsAffected: 'Chris H, Angelo',
+      repsAffected: 'Marcus, Natasha',
       impact: '$89K gap',
       action: 'Weekly commit reviews'
     }
@@ -153,16 +152,16 @@ export default function LeaderDashboard() {
 
   // Stage vs timeline mismatch alerts
   const stageMismatchAlerts = [
-    { rep: 'Angelo', dealCount: 3, stage: 'Discovery', daysInStage: 30 },
-    { rep: 'Derek Walker', dealCount: 2, stage: 'Proposal', daysInStage: 21 },
-    { rep: 'Chris Hewitt', dealCount: 1, stage: 'Negotiate', daysInStage: 14 }
+    { rep: 'Natasha', dealCount: 3, stage: 'Discovery', daysInStage: 30 },
+    { rep: 'Thomas', dealCount: 2, stage: 'Proposal', daysInStage: 21 },
+    { rep: 'Marcus', dealCount: 1, stage: 'Negotiate', daysInStage: 14 }
   ];
 
   // CRM hygiene - reps with stale notes
   const crmHygiene = [
-    { rep: 'Angelo DiMartino', dealsWithStaleNotes: 3 },
-    { rep: 'Derek Walker', dealsWithStaleNotes: 2 },
-    { rep: 'Ernie Vasquez', dealsWithStaleNotes: 1 }
+    { rep: 'Natasha Volkov', dealsWithStaleNotes: 3 },
+    { rep: 'Thomas Anderson', dealsWithStaleNotes: 2 },
+    { rep: 'Javier Romero', dealsWithStaleNotes: 1 }
   ];
 
   // Nudges
@@ -222,6 +221,14 @@ export default function LeaderDashboard() {
   const handleAdvisorSelect = (advisor: Advisor) => {
     setSelectedAdvisor(advisor);
     setPanelOpen(true);
+  };
+
+  const handleAdvisorClick = (advisorId: string) => {
+    const advisor = advisors.find(a => a.id === advisorId);
+    if (advisor) {
+      setSelectedAdvisor(advisor);
+      setPanelOpen(true);
+    }
   };
 
   // ==================== RENDER VIEWS ====================
@@ -378,12 +385,20 @@ export default function LeaderDashboard() {
       <div>
         <h2 className="text-lg font-bold text-gray-900 mb-4">Override Approval Queue</h2>
         <div className="space-y-3">
-          {overrideRequests.filter(r => r.status === 'pending').map((override) => (
+          {overrideRequests.filter(r => r.status === 'pending').map((override) => {
+            const advisor = advisors.find(a => a.name === override.advisorName);
+            return (
             <div key={override.dealId} className="bg-white border border-tcs-border rounded-lg p-4 flex justify-between items-start">
               <div className="flex-1">
                 <h4 className="font-semibold text-gray-900">{override.dealName}</h4>
                 <p className="text-sm text-gray-600 mt-1">
-                  <span className="font-medium">{override.repName}</span> | {override.advisorName}
+                  <span className="font-medium">{override.repName}</span> |
+                  <span
+                    className="text-tcs-teal hover:underline cursor-pointer ml-1"
+                    onClick={() => advisor && handleAdvisorClick(advisor.id)}
+                  >
+                    {override.advisorName}
+                  </span>
                 </p>
                 <p className="text-sm text-gray-700 mt-2">{override.reason}</p>
                 <p className="text-xs text-gray-500 mt-2">Requested: {override.requestDate}</p>
@@ -403,15 +418,11 @@ export default function LeaderDashboard() {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* Integration Status */}
-      <div>
-        <h2 className="text-lg font-bold text-gray-900 mb-4">Integration Status</h2>
-        <IntegrationBadges />
-      </div>
     </div>
   );
 
@@ -601,12 +612,20 @@ export default function LeaderDashboard() {
       <div>
         <h2 className="text-lg font-bold text-gray-900 mb-4">Forecast Override Requests</h2>
         <div className="space-y-3">
-          {overrideRequests.filter(r => r.status === 'pending').map((override) => (
+          {overrideRequests.filter(r => r.status === 'pending').map((override) => {
+            const advisor = advisors.find(a => a.name === override.advisorName);
+            return (
             <div key={override.dealId} className="bg-white border border-tcs-border rounded-lg p-4 flex justify-between items-start">
               <div className="flex-1">
                 <h4 className="font-semibold text-gray-900">{override.dealName}</h4>
                 <p className="text-sm text-gray-600 mt-1">
-                  <span className="font-medium">{override.repName}</span> | {override.advisorName}
+                  <span className="font-medium">{override.repName}</span> |
+                  <span
+                    className="text-tcs-teal hover:underline cursor-pointer ml-1"
+                    onClick={() => advisor && handleAdvisorClick(advisor.id)}
+                  >
+                    {override.advisorName}
+                  </span>
                 </p>
                 <p className="text-sm text-gray-700 mt-2">{override.reason}</p>
               </div>
@@ -625,7 +644,8 @@ export default function LeaderDashboard() {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -868,7 +888,14 @@ export default function LeaderDashboard() {
                           <div className="flex justify-between items-start mb-2">
                             <div>
                               <h5 className="font-semibold text-gray-900 text-sm">{deal.name}</h5>
-                              <p className="text-xs text-gray-600">{advisor?.name}</p>
+                              <p className="text-xs text-gray-600">
+                                <span
+                                  className="text-tcs-teal hover:underline cursor-pointer"
+                                  onClick={() => advisor && handleAdvisorClick(advisor.id)}
+                                >
+                                  {advisor?.name}
+                                </span>
+                              </p>
                             </div>
                             <DealHealthBadge health={deal.health} />
                           </div>

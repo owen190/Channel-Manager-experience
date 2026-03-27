@@ -3,7 +3,7 @@ import { Rep } from '../types';
 export const reps: Rep[] = [
   {
     id: 'rep-1',
-    name: 'Chris Hewitt',
+    name: 'Marcus Thompson',
     title: 'Senior Channel Manager',
     managedMRR: 195000,
     activeDeals: 28,
@@ -25,7 +25,7 @@ export const reps: Rep[] = [
   },
   {
     id: 'rep-2',
-    name: 'Ernie Vasquez',
+    name: 'Javier Romero',
     title: 'Channel Manager',
     managedMRR: 178000,
     activeDeals: 32,
@@ -47,7 +47,7 @@ export const reps: Rep[] = [
   },
   {
     id: 'rep-3',
-    name: 'Angelo DiMartino',
+    name: 'Natasha Volkov',
     title: 'Channel Manager',
     managedMRR: 156000,
     activeDeals: 25,
@@ -69,7 +69,7 @@ export const reps: Rep[] = [
   },
   {
     id: 'rep-4',
-    name: 'Derek Walker',
+    name: 'Thomas Anderson',
     title: 'Senior Channel Manager',
     managedMRR: 142000,
     activeDeals: 22,
@@ -91,7 +91,7 @@ export const reps: Rep[] = [
   },
   {
     id: 'rep-5',
-    name: 'Derek Kessler',
+    name: 'Kimberly Lawrence',
     title: 'Channel Manager',
     managedMRR: 118000,
     activeDeals: 20,
@@ -113,7 +113,7 @@ export const reps: Rep[] = [
   },
   {
     id: 'rep-6',
-    name: 'Sarah Martinez',
+    name: 'Diego Perez',
     title: 'Channel Manager',
     managedMRR: 103000,
     activeDeals: 20,

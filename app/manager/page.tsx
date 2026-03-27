@@ -9,7 +9,6 @@ import { MorningBriefing } from '@/components/shared/MorningBriefing';
 import { AdvisorTable } from '@/components/shared/AdvisorTable';
 import { AdvisorPanel } from '@/components/shared/AdvisorPanel';
 import { AIChat } from '@/components/shared/AIChat';
-import { IntegrationBadges } from '@/components/shared/IntegrationBadges';
 import { DealHealthBadge } from '@/components/shared/DealHealthBadge';
 import { PulseBadge } from '@/components/shared/PulseBadge';
 import { FrictionBadge } from '@/components/shared/FrictionBadge';
@@ -238,7 +237,14 @@ export default function ManagerPage() {
                           <tbody className="space-y-1">
                             {advisors.sort((a, b) => b.mrr - a.mrr).slice(0, 5).map(a => (
                               <tr key={a.id}>
-                                <td className="py-1">{a.name}</td>
+                                <td className="py-1">
+                                  <span
+                                    className="text-tcs-teal hover:underline cursor-pointer"
+                                    onClick={() => handleAdvisorClick(a.id)}
+                                  >
+                                    {a.name}
+                                  </span>
+                                </td>
                                 <td className="text-right font-semibold">${(a.mrr / 1000).toFixed(1)}K</td>
                               </tr>
                             ))}
@@ -349,18 +355,20 @@ export default function ManagerPage() {
                         <SentimentBadge tone={advisor.tone} />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900">{advisor.activity[0]?.text || 'No activity'}</p>
-                          <p className="text-xs text-gray-500">{advisor.activity[0]?.time || ''} • {advisor.name}</p>
+                          <p className="text-xs text-gray-500">{advisor.activity[0]?.time || ''} •
+                            <span
+                              className="text-tcs-teal hover:underline cursor-pointer ml-1"
+                              onClick={() => handleAdvisorClick(advisor.id)}
+                            >
+                              {advisor.name}
+                            </span>
+                          </p>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Integration Status */}
-                <div className="bg-white rounded-lg border border-tcs-border p-6">
-                  <h3 className="font-bold text-lg text-gray-900 mb-4">Integration Status</h3>
-                  <IntegrationBadges showAll={true} />
-                </div>
               </div>
             )}
 
@@ -455,7 +463,25 @@ export default function ManagerPage() {
                       <div key={idx} className="flex items-start justify-between p-4 bg-tcs-bg rounded-lg">
                         <div className="flex-1">
                           <p className="font-medium text-gray-900">{insight.issue}</p>
-                          <p className="text-sm text-gray-600">{insight.advisorCount} advisors affected</p>
+                          <div className="text-sm text-gray-600 mt-2">
+                            {insight.advisorCount} advisors affected:
+                            <div className="mt-1 space-x-2">
+                              {insight.advisorNames.map((name, nameIdx) => {
+                                const adv = advisors.find(a => a.name === name);
+                                return (
+                                  <span key={nameIdx}>
+                                    <span
+                                      className="text-tcs-teal hover:underline cursor-pointer"
+                                      onClick={() => adv && handleAdvisorClick(adv.id)}
+                                    >
+                                      {name}
+                                    </span>
+                                    {nameIdx < insight.advisorNames.length - 1 && <span>,</span>}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
                         <FrictionBadge level={insight.severity} />
                       </div>
@@ -480,15 +506,25 @@ export default function ManagerPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-tcs-border">
-                        {diagnosticMatrix.slice(0, 10).map((row, idx) => (
+                        {diagnosticMatrix.slice(0, 10).map((row, idx) => {
+                          const advisor = advisors.find(a => a.name === row.advisor);
+                          return (
                           <tr key={idx} className="hover:bg-tcs-bg">
-                            <td className="px-6 py-4 font-medium text-gray-900">{row.advisor}</td>
+                            <td className="px-6 py-4 font-medium text-gray-900">
+                              <span
+                                className="text-tcs-teal hover:underline cursor-pointer"
+                                onClick={() => advisor && handleAdvisorClick(advisor.id)}
+                              >
+                                {row.advisor}
+                              </span>
+                            </td>
                             <td className="px-6 py-4"><PulseBadge pulse={row.pulse} size="sm" /></td>
                             <td className="px-6 py-4"><DealHealthBadge health={row.dealHealth} /></td>
                             <td className="px-6 py-4"><FrictionBadge level={row.friction} /></td>
                             <td className="px-6 py-4 text-xs text-gray-600 max-w-sm">{row.diagnosis.substring(0, 80)}...</td>
                           </tr>
-                        ))}
+                        );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -540,17 +576,27 @@ export default function ManagerPage() {
                   <div className="bg-red-50 border border-red-200 rounded-lg p-6">
                     <h3 className="font-bold text-lg text-red-900 mb-4">Stage/Timeline Mismatches</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {stageTimelineMismatches.map(deal => (
+                      {stageTimelineMismatches.map(deal => {
+                        const advisor = advisors.find(a => a.id === deal.advisorId);
+                        return (
                         <div key={deal.id} className="bg-white border border-red-200 rounded-lg p-4">
                           <p className="font-semibold text-gray-900">{deal.name}</p>
-                          <p className="text-xs text-gray-600 mb-2">{advisors.find(a => a.id === deal.advisorId)?.name}</p>
+                          <p className="text-xs text-gray-600 mb-2">
+                            <span
+                              className="text-tcs-teal hover:underline cursor-pointer"
+                              onClick={() => advisor && handleAdvisorClick(advisor.id)}
+                            >
+                              {advisor?.name}
+                            </span>
+                          </p>
                           <div className="space-y-1 text-xs">
                             <p className="flex items-center gap-1"><span className="font-medium">Stage:</span> {deal.stage} <AlertTriangle className="w-3 h-3 text-amber-500 inline" /> aggressive close date</p>
                             <p><span className="font-medium">Close Date:</span> {deal.closeDate}</p>
                             <p><span className="font-medium">Probability:</span> {deal.probability}%</p>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -570,126 +616,132 @@ export default function ManagerPage() {
                   </select>
 
                   <select
-                    value={dealFilter.stage}
-                    onChange={(e) => setDealFilter({ ...dealFilter, stage: e.target.value })}
+                    value={dealFilter.health}
+                    onChange={(e) => setDealFilter({ ...dealFilter, health: e.target.value })}
                     className="px-4 py-2 border border-tcs-border rounded-lg focus:outline-none focus:border-tcs-teal bg-white"
                   >
-                    <option value="all">All Stages</option>
-                    <option value="Discovery">Discovery</option>
-                    <option value="Qualifying">Qualifying</option>
-                    <option value="Proposal">Proposal</option>
-                    <option value="Negotiating">Negotiating</option>
-                    <option value="Closed Won">Closed Won</option>
+                    <option value="all">All Health</option>
+                    <option value="Healthy">Healthy</option>
+                    <option value="Monitor">Monitor</option>
+                    <option value="At Risk">At Risk</option>
                     <option value="Stalled">Stalled</option>
                   </select>
                 </div>
 
-                {/* Deal Cards Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {filteredDeals.map(deal => {
-                    const advisor = advisors.find(a => a.id === deal.advisorId);
-                    return (
-                      <div key={deal.id} className="bg-white border border-tcs-border rounded-lg p-6">
-                        {/* Header */}
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <h4 className="font-bold text-gray-900 mb-1">{deal.name}</h4>
-                            <p className="text-sm text-gray-600">{advisor?.name || 'Unknown'}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <DealHealthBadge health={deal.health} />
-                            <span className="inline-block px-3 py-1 rounded text-sm font-semibold bg-blue-100 text-blue-700">
-                              {deal.stage}
-                            </span>
-                          </div>
-                        </div>
+                {/* Kanban Board */}
+                <div className="overflow-x-auto pb-4">
+                  <div className="flex gap-6 min-w-full pr-4">
+                    {(['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Stalled'] as const).map(stage => {
+                      const stageBorderColors = {
+                        'Discovery': 'border-t-blue-500',
+                        'Qualifying': 'border-t-indigo-500',
+                        'Proposal': 'border-t-amber-500',
+                        'Negotiating': 'border-t-orange-500',
+                        'Closed Won': 'border-t-green-500',
+                        'Stalled': 'border-t-red-500',
+                      };
 
-                        {/* MRR & Probability */}
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <p className="text-xs text-gray-600">MRR Value</p>
-                            <p className="font-bold text-lg text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-600">Probability</p>
-                            <p className="font-bold text-lg text-gray-900">{deal.probability}%</p>
-                          </div>
-                        </div>
+                      const stageDeals = deals.filter(d =>
+                        d.stage === stage &&
+                        (dealFilter.health === 'all' || d.health === dealFilter.health)
+                      );
 
-                        {/* Probability Bar */}
-                        <div className="mb-4">
-                          <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
-                            <div
-                              className="bg-tcs-teal h-2 rounded-full transition-all"
-                              style={{ width: `${deal.probability}%` }}
-                            />
-                          </div>
-                        </div>
+                      const stageMRR = stageDeals.reduce((sum, d) => sum + d.mrr, 0);
 
-                        {/* Days in Stage */}
-                        <div className={`px-3 py-2 rounded text-sm font-medium mb-4 ${getDaysInStageColor(deal.daysInStage)}`}>
-                          {deal.daysInStage} days in {deal.stage}
-                        </div>
-
-                        {/* Committed & Forecast */}
-                        <div className="space-y-2 mb-4">
-                          <label className="flex items-center gap-2 text-sm">
-                            <input type="checkbox" checked={deal.committed} readOnly className="cursor-pointer" />
-                            <span className="font-medium">Committed</span>
-                          </label>
-                          {deal.forecastHistory > 1 && (
-                            <span className="inline-block px-2 py-1 rounded text-xs font-semibold bg-amber-100 text-amber-700">
-                              Forecasted {deal.forecastHistory} months
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Action Items */}
-                        {deal.actionItems.length > 0 && (
-                          <div className="mb-4 p-3 bg-tcs-bg rounded-lg">
-                            <p className="text-xs font-semibold text-gray-700 mb-2 uppercase">Action Items</p>
-                            <div className="space-y-1">
-                              {deal.actionItems.slice(0, 3).map(item => (
-                                <div key={item.id} className={`text-xs p-2 rounded ${getActionItemColor(item.daysOld)}`}>
-                                  <p className="font-medium">{item.text}</p>
-                                  <p className="text-xs opacity-75">{item.daysOld} days old</p>
-                                </div>
-                              ))}
+                      return (
+                        <div key={stage} className="flex-shrink-0 w-full" style={{ minWidth: '320px' }}>
+                          {/* Column Header */}
+                          <div className={`bg-white border-4 border-t-4 border-tcs-border rounded-lg p-4 mb-3 ${stageBorderColors[stage]}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <h3 className="font-bold text-gray-900">{stage}</h3>
+                              <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
+                                {stageDeals.length}
+                              </span>
                             </div>
+                            <p className="text-sm font-semibold text-tcs-teal">
+                              ${(stageMRR / 1000).toFixed(1)}K MRR
+                            </p>
                           </div>
-                        )}
 
-                        {/* Confidence Meter */}
-                        {deal.confidenceScore && (
-                          <div className="mb-4">
-                            <p className="text-xs text-gray-600 mb-1">Confidence</p>
-                            <div className="flex items-center gap-2">
-                              <div className={`px-3 py-1 rounded text-xs font-semibold ${
-                                deal.confidenceScore === 'High' ? 'bg-green-100 text-green-700' :
-                                deal.confidenceScore === 'Medium' ? 'bg-amber-100 text-amber-700' :
-                                'bg-red-100 text-red-700'
-                              }`}>
-                                {deal.confidenceScore}
+                          {/* Cards Container */}
+                          <div className="flex flex-col gap-3">
+                            {stageDeals.length === 0 ? (
+                              <div className="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-center">
+                                <p className="text-xs text-gray-500">No deals in this stage</p>
                               </div>
-                              {deal.confidenceScore === 'Low' && deal.overrideRequested && (
-                                <button className="text-xs text-tcs-teal hover:underline font-medium">
-                                  Override Request
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        )}
+                            ) : (
+                              stageDeals.map(deal => {
+                                const advisor = advisors.find(a => a.id === deal.advisorId);
+                                return (
+                                  <div
+                                    key={deal.id}
+                                    className="bg-white border border-tcs-border rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow"
+                                  >
+                                    {/* Deal Name */}
+                                    <h4 className="font-bold text-gray-900 text-sm mb-2">{deal.name}</h4>
 
-                        {/* Last Modified with Hygiene Flag */}
-                        <div className="text-xs text-gray-600 flex items-center justify-between">
-                          <span>Last Modified: {deal.lastModified}</span>
-                          {isHygieneIssue(deal.lastModified) && (
-                            <span className="text-red-600 font-semibold flex items-center gap-1"><Flag className="w-3 h-3" /> Stale</span>
-                          )}
+                                    {/* Advisor Name (Clickable) */}
+                                    <p className="text-xs text-gray-600 mb-2">
+                                      <span
+                                        className="text-tcs-teal hover:underline cursor-pointer font-medium"
+                                        onClick={() => advisor && handleAdvisorClick(advisor.id)}
+                                      >
+                                        {advisor?.name || 'Unknown'}
+                                      </span>
+                                    </p>
+
+                                    {/* MRR Value */}
+                                    <div className="mb-2">
+                                      <p className="text-xs text-gray-600">MRR</p>
+                                      <p className="font-bold text-sm text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</p>
+                                    </div>
+
+                                    {/* Health Badge */}
+                                    <div className="mb-2">
+                                      <DealHealthBadge health={deal.health} />
+                                    </div>
+
+                                    {/* Days in Stage */}
+                                    <div className={`px-2 py-1 rounded text-xs font-medium mb-2 inline-block ${getDaysInStageColor(deal.daysInStage)}`}>
+                                      {deal.daysInStage}d in stage
+                                    </div>
+
+                                    {/* Probability Bar */}
+                                    <div className="mb-2">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <p className="text-xs text-gray-600">Probability</p>
+                                        <p className="text-xs font-semibold text-gray-700">{deal.probability}%</p>
+                                      </div>
+                                      <div className="bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                        <div
+                                          className="bg-tcs-teal h-1.5 rounded-full transition-all"
+                                          style={{ width: `${deal.probability}%` }}
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Confidence Score */}
+                                    {deal.confidenceScore && (
+                                      <div className="flex items-center gap-1">
+                                        <p className="text-xs text-gray-600">Confidence:</p>
+                                        <div className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                                          deal.confidenceScore === 'High' ? 'bg-green-100 text-green-700' :
+                                          deal.confidenceScore === 'Medium' ? 'bg-amber-100 text-amber-700' :
+                                          'bg-red-100 text-red-700'
+                                        }`}>
+                                          {deal.confidenceScore}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
