@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Clock, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Clock, AlertTriangle, ChevronDown, ChevronRight, ArrowLeft, MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays, Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { AIChat } from '@/components/shared/AIChat';
@@ -10,7 +10,13 @@ import { MorningBriefing } from '@/components/shared/MorningBriefing';
 import { AdvisorTable } from '@/components/shared/AdvisorTable';
 import { AdvisorPanel } from '@/components/shared/AdvisorPanel';
 import { DealHealthBadge } from '@/components/shared/DealHealthBadge';
+import { PulseBadge } from '@/components/shared/PulseBadge';
+import { TrajectoryBadge } from '@/components/shared/TrajectoryBadge';
+import { SentimentBadge } from '@/components/shared/SentimentBadge';
+import { FrictionBadge } from '@/components/shared/FrictionBadge';
+import { TierBadge } from '@/components/shared/TierBadge';
 import { NAV_ITEMS_LEADER, QUARTER_END, DAYS_REMAINING, STAGE_WEIGHTS } from '@/lib/constants';
+import { EngagementScore } from '@/lib/types';
 import { reps } from '@/lib/data/reps';
 import { advisors } from '@/lib/data/advisors';
 import { deals } from '@/lib/data/deals';
@@ -22,6 +28,7 @@ export default function LeaderDashboard() {
   const [selectedAdvisor, setSelectedAdvisor] = useState<Advisor | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [expandedReps, setExpandedReps] = useState<string[]>([]);
+  const [inlineTab, setInlineTab] = useState<'overview' | 'personal' | 'deals' | 'ai-prep' | 'notes' | 'activity'>('overview');
 
   // Leader info
   const userName = 'Bobby H.';
@@ -798,26 +805,309 @@ export default function LeaderDashboard() {
     </div>
   );
 
-  const renderRelationships = () => (
-    <div className="space-y-6">
-      <h2 className="text-lg font-bold text-gray-900">Key Partner Relationships</h2>
-      <AdvisorTable
-        advisors={advisors}
-        onAdvisorClick={(id: string) => {
-          const adv = advisors.find(a => a.id === id);
-          if (adv) { setSelectedAdvisor(adv); setPanelOpen(true); }
-        }}
-      />
-      {selectedAdvisor && panelOpen && (
-        <AdvisorPanel
-          advisor={selectedAdvisor}
-          deals={deals.filter(d => selectedAdvisor.deals.includes(d.id))}
-          isOpen={panelOpen}
-          onClose={() => setPanelOpen(false)}
+  const EngLabel = ({ score }: { score: EngagementScore }) => {
+    const colors = { Strong: 'bg-green-100 text-green-700', Steady: 'bg-blue-100 text-blue-700', Fading: 'bg-pink-100 text-pink-700' };
+    return <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${colors[score]}`}>{score}</span>;
+  };
+
+  const renderRelationships = () => {
+    // If an advisor is selected, show their full profile inline
+    if (selectedAdvisor) {
+      const advisor = selectedAdvisor;
+      const advisorDeals = deals.filter(d => advisor.deals.includes(d.id));
+      const tabs = ['overview', 'personal', 'deals', 'ai-prep', 'notes', 'activity'] as const;
+
+      return (
+        <div className="space-y-0">
+          {/* Back Button + Header */}
+          <div className="mb-6">
+            <button
+              onClick={() => { setSelectedAdvisor(null); setPanelOpen(false); setInlineTab('overview'); }}
+              className="flex items-center gap-2 text-tcs-teal hover:underline text-sm mb-4"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back to All Advisors
+            </button>
+
+            <div className="bg-white rounded-lg border border-tcs-border p-6">
+              <div className="flex items-center gap-6">
+                <div className="w-20 h-20 bg-tcs-teal rounded-full flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
+                  {advisor.name.split(' ').map(n => n[0]).join('')}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-1">
+                    <h1 className="text-2xl font-bold text-gray-900">{advisor.name}</h1>
+                    {advisor.tier && <TierBadge tier={advisor.tier} />}
+                  </div>
+                  <p className="text-gray-600">{advisor.title} · {advisor.company}</p>
+                  <div className="flex items-center gap-4 mt-3">
+                    <PulseBadge pulse={advisor.pulse} size="sm" />
+                    <TrajectoryBadge trajectory={advisor.trajectory} />
+                    <SentimentBadge tone={advisor.tone} />
+                    <FrictionBadge level={advisor.friction} />
+                    <DealHealthBadge health={advisor.dealHealth} />
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-500 uppercase">MRR</p>
+                  <p className="text-3xl font-bold text-tcs-teal">${(advisor.mrr / 1000).toFixed(1)}K</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="bg-white rounded-t-lg border border-b-0 border-tcs-border flex">
+            {tabs.map(tab => (
+              <button
+                key={tab}
+                onClick={() => setInlineTab(tab)}
+                className={`flex-1 px-4 py-3 text-sm font-medium uppercase transition-colors ${
+                  inlineTab === tab ? 'text-tcs-teal border-b-2 border-tcs-teal bg-white' : 'text-gray-500 hover:text-gray-900 bg-gray-50'
+                }`}
+              >
+                {tab === 'ai-prep' ? 'AI Prep' : tab}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content */}
+          <div className="bg-white rounded-b-lg border border-tcs-border p-6 min-h-[500px]">
+
+            {inlineTab === 'overview' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Left column */}
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Relationship Context</h3>
+                    <dl className="space-y-2 text-sm">
+                      <div className="flex justify-between"><dt className="text-gray-600">Connected Since</dt><dd className="font-medium">{advisor.connectedSince}</dd></div>
+                      <div className="flex justify-between"><dt className="text-gray-600">Best Day to Reach</dt><dd className="font-medium">{advisor.bestDayToReach}</dd></div>
+                      <div className="flex justify-between"><dt className="text-gray-600">Comm Preference</dt><dd className="font-medium">{advisor.commPreference}</dd></div>
+                      <div className="flex justify-between"><dt className="text-gray-600">Referred By</dt><dd className="font-medium">{advisor.referredBy}</dd></div>
+                    </dl>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Relationship Breakdown</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Engagement</span><EngLabel score={advisor.engagementBreakdown.engagement} /></div>
+                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Pipeline Strength</span><EngLabel score={advisor.engagementBreakdown.pipelineStrength} /></div>
+                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Responsiveness</span><EngLabel score={advisor.engagementBreakdown.responsiveness} /></div>
+                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Growth Potential</span><EngLabel score={advisor.engagementBreakdown.growthPotential} /></div>
+                    </div>
+                  </div>
+
+                  {advisor.personalIntel && (
+                    <div>
+                      <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Personal Intel</h3>
+                      <p className="text-sm text-gray-700">{advisor.personalIntel}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right column */}
+                <div className="space-y-6">
+                  <div className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
+                    <p className="text-sm italic text-gray-700">"{advisor.diagnosis}"</p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Active Deals ({advisorDeals.length})</h3>
+                    <div className="space-y-2">
+                      {advisorDeals.slice(0, 3).map(deal => (
+                        <div key={deal.id} className="flex items-center justify-between p-3 bg-tcs-bg rounded-lg">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{deal.name}</p>
+                            <p className="text-xs text-gray-500">{deal.stage} · {deal.daysInStage}d</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-bold text-tcs-teal">${(deal.mrr / 1000).toFixed(1)}K</p>
+                            <DealHealthBadge health={deal.health} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Recent Activity</h3>
+                    <div className="space-y-2">
+                      {advisor.activity.slice(0, 4).map((item, idx) => (
+                        <div key={idx} className="flex items-start gap-3 p-2">
+                          <SentimentBadge tone={item.sentiment} />
+                          <div>
+                            <p className="text-sm text-gray-700">{item.text}</p>
+                            <p className="text-xs text-gray-400">{item.time}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {inlineTab === 'personal' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Profile</h3>
+                    <dl className="space-y-3 text-sm">
+                      {advisor.location && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Location</dt><dd className="font-medium">{advisor.location}</dd></div>}
+                      {advisor.birthday && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><Cake className="w-3.5 h-3.5" /> Birthday</dt><dd className="font-medium">{advisor.birthday}</dd></div>}
+                      {advisor.education && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> Education</dt><dd className="font-medium">{advisor.education}</dd></div>}
+                      {advisor.title && <div className="flex justify-between"><dt className="text-gray-600 flex items-center gap-1.5"><Briefcase className="w-3.5 h-3.5" /> Title</dt><dd className="font-medium">{advisor.title}</dd></div>}
+                    </dl>
+                  </div>
+                  {advisor.family && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Family</h3><p className="text-sm text-gray-700">{advisor.family}</p></div>}
+                  {advisor.hobbies && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Hobbies & Interests</h3><p className="text-sm text-gray-700">{advisor.hobbies}</p></div>}
+                  {advisor.funFact && <div><h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">Fun Fact</h3><p className="text-sm text-gray-700">{advisor.funFact}</p></div>}
+                </div>
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">Channel Relationships</h3>
+                    <dl className="space-y-3 text-sm">
+                      {advisor.tsds?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">TSDs</dt><dd className="font-medium">{advisor.tsds.join(', ')}</dd></div>}
+                      {advisor.previousCompanies?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">Previous Companies</dt><dd className="font-medium">{advisor.previousCompanies.join(', ')}</dd></div>}
+                      {advisor.mutualConnections?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">Mutual Connections</dt><dd className="font-medium">{advisor.mutualConnections.join(', ')}</dd></div>}
+                      {advisor.sharedClients?.length > 0 && <div className="flex justify-between"><dt className="text-gray-600">Shared Clients</dt><dd className="font-medium">{advisor.sharedClients.join(', ')}</dd></div>}
+                    </dl>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {inlineTab === 'deals' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {advisorDeals.length === 0 ? (
+                  <p className="text-sm text-gray-600 col-span-full">No deals found</p>
+                ) : (
+                  advisorDeals.map(deal => (
+                    <div key={deal.id} className="border border-tcs-border rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <h4 className="font-semibold text-gray-900">{deal.name}</h4>
+                        <DealHealthBadge health={deal.health} />
+                      </div>
+                      <dl className="space-y-1 text-xs text-gray-600 mb-3">
+                        <div className="flex justify-between"><dt>MRR:</dt><dd className="font-medium text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</dd></div>
+                        <div className="flex justify-between"><dt>Stage:</dt><dd className="font-medium text-gray-900">{deal.stage}</dd></div>
+                        <div className="flex justify-between"><dt>Days in Stage:</dt><dd className="font-medium text-gray-900">{deal.daysInStage}</dd></div>
+                        {deal.confidenceScore && <div className="flex justify-between"><dt>Confidence:</dt><dd className="font-medium text-gray-900">{deal.confidenceScore}</dd></div>}
+                      </dl>
+                      <div className="bg-gray-100 rounded h-2 mb-1"><div className="bg-tcs-teal h-2 rounded" style={{ width: `${deal.probability}%` }} /></div>
+                      <p className="text-xs text-gray-500">Probability: {deal.probability}%</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {inlineTab === 'ai-prep' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div className="p-4 bg-gradient-to-r from-tcs-teal to-teal-600 rounded-lg text-white">
+                    <div className="flex items-start gap-3">
+                      <Sparkles className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium">Call Prep Summary</p>
+                        <p className="text-xs mt-2 opacity-90">Based on {advisor.name}'s current pulse ({advisor.pulse}) and {advisor.trajectory} trajectory, here's your prep for the next conversation.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase flex items-center gap-2"><Target className="w-4 h-4 text-tcs-teal" /> Suggested Talking Points</h3>
+                    <ul className="space-y-2">
+                      {advisorDeals.length > 0 && <li className="text-sm text-gray-700 flex gap-2"><span className="text-tcs-teal font-bold">•</span><span>{advisorDeals.length === 1 ? `Check in on ${advisorDeals[0].name} status—currently in ${advisorDeals[0].stage} stage` : `Follow up on ${advisor.name}'s ${advisorDeals.length} active deals—especially ${advisorDeals[0].name} which is ${advisorDeals[0].health.toLowerCase()}`}</span></li>}
+                      {advisor.personalIntel && <li className="text-sm text-gray-700 flex gap-2"><span className="text-tcs-teal font-bold">•</span><span>Bring up their background: {advisor.personalIntel}</span></li>}
+                      {advisor.hobbies && <li className="text-sm text-gray-700 flex gap-2"><span className="text-tcs-teal font-bold">•</span><span>Ask about their hobbies—they enjoy {advisor.hobbies.toLowerCase()}</span></li>}
+                      {advisor.friction !== 'Low' && <li className="text-sm text-gray-700 flex gap-2"><span className="text-tcs-teal font-bold">•</span><span>Address {advisor.friction.toLowerCase()} friction—show understanding and commitment</span></li>}
+                      {(advisor.trajectory === 'Slipping' || advisor.trajectory === 'Freefall') && <li className="text-sm text-gray-700 flex gap-2"><span className="text-tcs-teal font-bold">•</span><span>Re-engagement strategy: Demonstrate renewed commitment and propose high-impact initiatives</span></li>}
+                    </ul>
+                  </div>
+                </div>
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase flex items-center gap-2"><Heart className="w-4 h-4 text-tcs-teal" /> Relationship Health</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Engagement</span><EngLabel score={advisor.engagementBreakdown.engagement} /></div>
+                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Pipeline Strength</span><EngLabel score={advisor.engagementBreakdown.pipelineStrength} /></div>
+                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Responsiveness</span><EngLabel score={advisor.engagementBreakdown.responsiveness} /></div>
+                      <div className="flex justify-between items-center"><span className="text-sm text-gray-600">Growth Potential</span><EngLabel score={advisor.engagementBreakdown.growthPotential} /></div>
+                    </div>
+                  </div>
+                  {(advisor.birthday || advisor.family || advisor.hobbies) && (
+                    <div>
+                      <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase flex items-center gap-2"><MessageCircle className="w-4 h-4 text-tcs-teal" /> Personal Connection Points</h3>
+                      <ul className="space-y-2">
+                        {advisor.birthday && <li className="text-sm text-gray-700">Birthday: {advisor.birthday}</li>}
+                        {advisor.family && <li className="text-sm text-gray-700">Family: {advisor.family}</li>}
+                        {advisor.hobbies && <li className="text-sm text-gray-700">Hobbies: {advisor.hobbies}</li>}
+                      </ul>
+                    </div>
+                  )}
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase flex items-center gap-2"><Lightbulb className="w-4 h-4 text-tcs-teal" /> Next Steps</h3>
+                    <div className="bg-tcs-bg rounded-lg p-4">
+                      <p className="text-sm text-gray-700">
+                        {advisorDeals.some(d => d.health === 'Stalled' || d.health === 'At Risk')
+                          ? `Focus on unblocking ${advisorDeals[0].name}. Understand blockers and propose concrete next steps.`
+                          : advisorDeals.length > 0
+                            ? `Discuss expansion opportunities beyond current deals. Strong pipeline potential.`
+                            : `Schedule exploratory call to understand ${advisor.name}'s priorities.`}
+                      </p>
+                      <div className="mt-2 pt-2 border-t border-gray-200 text-xs text-gray-600">
+                        <p>Best Day: {advisor.bestDayToReach} · Preferred: {advisor.commPreference}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {inlineTab === 'notes' && (
+              <div className="max-w-2xl space-y-4">
+                {advisor.notes.map((note, idx) => (
+                  <div key={idx} className="p-3 bg-tcs-bg rounded-lg text-sm text-gray-700">• {note}</div>
+                ))}
+                <div className="flex gap-2 pt-4 border-t border-tcs-border">
+                  <button className="py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Log Call</button>
+                  <button className="py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" /> Schedule</button>
+                </div>
+              </div>
+            )}
+
+            {inlineTab === 'activity' && (
+              <div className="max-w-2xl space-y-3">
+                {advisor.activity.map((item, idx) => (
+                  <div key={idx} className="border-l-2 border-gray-300 pl-4 py-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <SentimentBadge tone={item.sentiment} />
+                      <span className="text-xs text-gray-500">{item.time}</span>
+                    </div>
+                    <p className="text-sm text-gray-700">{item.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Default: show advisor table
+    return (
+      <div className="space-y-6">
+        <h2 className="text-lg font-bold text-gray-900">Key Partner Relationships</h2>
+        <AdvisorTable
+          advisors={advisors}
+          onAdvisorClick={(id: string) => {
+            const adv = advisors.find(a => a.id === id);
+            if (adv) { setSelectedAdvisor(adv); setInlineTab('overview'); }
+          }}
         />
-      )}
-    </div>
-  );
+      </div>
+    );
+  };
 
   const renderPipeline = () => (
     <div className="space-y-8">

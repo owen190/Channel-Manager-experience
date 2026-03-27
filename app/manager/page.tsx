@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Clock, AlertTriangle, Flag } from 'lucide-react';
+import { Clock, AlertTriangle, Flag, ShieldAlert, DollarSign, Brain, Activity, TrendingDown, TrendingUp, Zap, Users, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { KPICard } from '@/components/shared/KPICard';
@@ -28,6 +28,7 @@ export default function ManagerPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [expandedKPI, setExpandedKPI] = useState<string | null>(null);
   const [dealFilter, setDealFilter] = useState({ health: 'all', stage: 'all' });
+  const [drillDown, setDrillDown] = useState<{ label: string; advisorIds: string[] } | null>(null);
 
   // Calculate metrics
   const totalMRR = useMemo(() => advisors.reduce((sum, a) => sum + a.mrr, 0), []);
@@ -180,6 +181,126 @@ export default function ManagerPage() {
 
   // Stalled deals count
   const stalledDealsCount = deals.filter(d => d.stage === 'Stalled').length;
+
+  // ===== INTELLIGENCE HUB COMPUTED DATA =====
+
+  // Risk Radar: Score each advisor by combining negative signals
+  const riskRadar = useMemo(() => {
+    return advisors.map(a => {
+      let score = 0;
+      // Pulse risk
+      if (a.pulse === 'Flatline') score += 30;
+      else if (a.pulse === 'Fading') score += 20;
+      // Trajectory risk
+      if (a.trajectory === 'Freefall') score += 30;
+      else if (a.trajectory === 'Slipping') score += 15;
+      // Deal health risk
+      if (a.dealHealth === 'Stalled') score += 25;
+      else if (a.dealHealth === 'At Risk') score += 20;
+      else if (a.dealHealth === 'Monitor') score += 10;
+      // Friction risk
+      if (a.friction === 'Critical') score += 25;
+      else if (a.friction === 'High') score += 15;
+      else if (a.friction === 'Moderate') score += 5;
+      // Intent risk
+      if (a.intent === 'Low') score += 10;
+      // Tone risk
+      if (a.tone === 'Cool') score += 10;
+
+      const advisorDeals = deals.filter(d => d.advisorId === a.id);
+      const atRiskMRR = advisorDeals
+        .filter(d => ['At Risk', 'Stalled', 'Monitor'].includes(d.health))
+        .reduce((sum, d) => sum + d.mrr, 0);
+
+      return { advisor: a, score, atRiskMRR, dealCount: advisorDeals.length };
+    })
+    .filter(r => r.score > 0)
+    .sort((a, b) => b.score - a.score);
+  }, []);
+
+  // Revenue at Risk
+  const revenueAtRisk = useMemo(() => {
+    const atRiskDeals = deals.filter(d => d.health === 'At Risk');
+    const stalledDeals = deals.filter(d => d.health === 'Stalled');
+    const monitorDeals = deals.filter(d => d.health === 'Monitor');
+    return {
+      total: [...atRiskDeals, ...stalledDeals, ...monitorDeals].reduce((sum, d) => sum + d.mrr, 0),
+      atRisk: { count: atRiskDeals.length, mrr: atRiskDeals.reduce((sum, d) => sum + d.mrr, 0) },
+      stalled: { count: stalledDeals.length, mrr: stalledDeals.reduce((sum, d) => sum + d.mrr, 0) },
+      monitor: { count: monitorDeals.length, mrr: monitorDeals.reduce((sum, d) => sum + d.mrr, 0) },
+    };
+  }, []);
+
+  // AI Insights Feed (dynamically generated from data)
+  const aiInsights = useMemo(() => {
+    const insights: { icon: string; text: string; type: 'critical' | 'warning' | 'positive' | 'info' }[] = [];
+
+    // Critical: Freefall advisors
+    const freefallAdvisors = advisors.filter(a => a.trajectory === 'Freefall');
+    if (freefallAdvisors.length > 0) {
+      const names = freefallAdvisors.map(a => a.name).join(' and ');
+      const totalMRR = freefallAdvisors.reduce((sum, a) => sum + a.mrr, 0);
+      insights.push({ icon: 'alert', text: `${names} ${freefallAdvisors.length === 1 ? 'is' : 'are'} in freefall trajectory with $${(totalMRR / 1000).toFixed(1)}K MRR at stake. Immediate re-engagement needed.`, type: 'critical' });
+    }
+
+    // Warning: Stalled deals with high MRR
+    const bigStalledDeals = deals.filter(d => d.health === 'Stalled').sort((a, b) => b.mrr - a.mrr);
+    if (bigStalledDeals.length > 0) {
+      const topDeal = bigStalledDeals[0];
+      const advisor = advisors.find(a => a.id === topDeal.advisorId);
+      insights.push({ icon: 'dollar', text: `${topDeal.name} has been stalled for ${topDeal.daysInStage} days ($${(topDeal.mrr / 1000).toFixed(1)}K). ${advisor?.name || 'Advisor'} may need a fresh approach or executive sponsor involvement.`, type: 'warning' });
+    }
+
+    // Positive: Climbing advisors
+    const climbingAdvisors = advisors.filter(a => a.trajectory === 'Climbing' || a.trajectory === 'Accelerating');
+    if (climbingAdvisors.length > 0) {
+      const topClimber = climbingAdvisors.sort((a, b) => b.mrr - a.mrr)[0];
+      insights.push({ icon: 'trending', text: `${climbingAdvisors.length} advisors are trending upward. ${topClimber.name} leads with $${(topClimber.mrr / 1000).toFixed(1)}K MRR and ${topClimber.trajectory.toLowerCase()} trajectory\u2014consider expanding their portfolio.`, type: 'positive' });
+    }
+
+    // Info: Engagement gap
+    const fadingCount = advisors.filter(a => a.pulse === 'Fading' || a.pulse === 'Flatline').length;
+    if (fadingCount > 0) {
+      const fadingMRR = advisors.filter(a => a.pulse === 'Fading' || a.pulse === 'Flatline').reduce((sum, a) => sum + a.mrr, 0);
+      insights.push({ icon: 'users', text: `${fadingCount} advisors showing fading or flatline engagement, representing $${(fadingMRR / 1000).toFixed(1)}K in MRR. Prioritize personal outreach this week.`, type: 'warning' });
+    }
+
+    // Positive: Healthy pipeline ratio
+    const healthyRatio = Math.round((deals.filter(d => d.health === 'Healthy').length / deals.length) * 100);
+    insights.push({ icon: 'zap', text: `${healthyRatio}% of your pipeline is healthy. Focus energy on the ${deals.filter(d => d.health !== 'Healthy').length} deals that need attention to protect quarter-end targets.`, type: 'info' });
+
+    return insights.slice(0, 5);
+  }, []);
+
+  // Engagement Heatmap data
+  const engagementHeatmap = useMemo(() => {
+    const now = new Date('2026-03-26');
+    return advisors.map(a => {
+      // Simulate last contact from activity data
+      const lastActivity = a.activity?.[0];
+      let daysSinceContact = 0;
+      if (lastActivity && lastActivity.time) {
+        // time is like "2 days ago", "1 week ago", etc. — parse it
+        const timeStr = lastActivity.time;
+        const match = timeStr.match(/(\d+)\s*(day|week|month|hour)/i);
+        if (match) {
+          const num = parseInt(match[1]);
+          const unit = match[2].toLowerCase();
+          daysSinceContact = unit === 'week' ? num * 7 : unit === 'month' ? num * 30 : unit === 'hour' ? 0 : num;
+        }
+      } else {
+        daysSinceContact = 30;
+      }
+      return { advisor: a, daysSinceContact };
+    }).sort((a, b) => b.daysSinceContact - a.daysSinceContact);
+  }, []);
+
+  // Helper: get advisors by filter for drill-down
+  const getAdvisorsByPulse = (pulse: string) => advisors.filter(a => a.pulse === pulse).map(a => a.id);
+  const getAdvisorsByTrajectory = (trajectory: string) => advisors.filter(a => a.trajectory === trajectory).map(a => a.id);
+  const getAdvisorsByTone = (tone: string) => advisors.filter(a => a.tone === tone).map(a => a.id);
+  const getAdvisorsByIntent = (intent: string) => advisors.filter(a => a.intent === intent).map(a => a.id);
+  const getAdvisorsByFriction = (friction: string) => advisors.filter(a => a.friction === friction).map(a => a.id);
 
   return (
     <div className="flex h-screen bg-tcs-bg">
@@ -374,114 +495,284 @@ export default function ManagerPage() {
 
             {/* ========== INTELLIGENCE HUB VIEW ========== */}
             {activeView === 'intelligence' && (
-              <div className="space-y-8">
+              <div className="space-y-6">
                 <h1 className="text-3xl font-bold text-gray-900">Intelligence Hub</h1>
 
-                {/* Pulse Distribution */}
-                <div className="bg-white rounded-lg border border-tcs-border p-6">
-                  <h2 className="font-bold text-lg text-gray-900 mb-4">Pulse Distribution</h2>
-                  <div className="grid grid-cols-5 gap-4">
-                    {Object.entries(pulseDistribution).map(([pulse, count]) => (
-                      <div key={pulse} className="text-center">
-                        <div className="text-3xl font-bold text-tcs-teal mb-2">{count}</div>
-                        <div className="text-xs uppercase text-gray-600">{pulse}</div>
-                      </div>
-                    ))}
+                {/* ===== AI INSIGHTS FEED ===== */}
+                <div className="bg-gradient-to-r from-tcs-teal to-emerald-600 rounded-lg p-6 text-white">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Brain className="w-5 h-5" />
+                    <h2 className="font-bold text-lg">AI Insights</h2>
                   </div>
-                </div>
-
-                {/* Trajectory Trends */}
-                <div className="bg-white rounded-lg border border-tcs-border p-6">
-                  <h2 className="font-bold text-lg text-gray-900 mb-4">Trajectory Trends</h2>
-                  <div className="grid grid-cols-5 gap-4">
-                    {Object.entries(trajectoryDistribution).map(([trajectory, count]) => (
-                      <div key={trajectory} className="text-center">
-                        <div className="text-3xl font-bold text-tcs-teal mb-2">{count}</div>
-                        <div className="text-xs uppercase text-gray-600">{trajectory}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Sentiment Overview */}
-                <div className="grid grid-cols-3 gap-6">
-                  <div className="bg-white rounded-lg border border-tcs-border p-6">
-                    <h3 className="font-bold text-gray-900 mb-4">Tone Breakdown</h3>
-                    <div className="space-y-2">
-                      {Object.entries(sentimentCounts).map(([tone, count]) => (
-                        <div key={tone} className="flex justify-between text-sm">
-                          <span>{tone}</span>
-                          <strong>{count} advisors</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-lg border border-tcs-border p-6">
-                    <h3 className="font-bold text-gray-900 mb-4">Intent Breakdown</h3>
-                    <div className="space-y-2">
-                      {Object.entries(intentCounts).map(([intent, count]) => (
-                        <div key={intent} className="flex justify-between text-sm">
-                          <span>{intent}</span>
-                          <strong>{count} advisors</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-lg border border-tcs-border p-6">
-                    <h3 className="font-bold text-gray-900 mb-4">Friction Level</h3>
-                    <div className="space-y-2">
-                      {Object.entries(frictionCounts).map(([level, count]) => (
-                        <div key={level} className="flex justify-between text-sm">
-                          <span>{level}</span>
-                          <strong>{count} advisors</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Deal Health Summary */}
-                <div className="bg-white rounded-lg border border-tcs-border p-6">
-                  <h2 className="font-bold text-lg text-gray-900 mb-4">Deal Health Summary</h2>
-                  <div className="grid grid-cols-4 gap-4">
-                    {Object.entries(dealHealthCounts).map(([health, count]) => (
-                      <div key={health} className="text-center">
-                        <div className="text-3xl font-bold text-tcs-teal mb-2">{count}</div>
-                        <div className="text-xs uppercase text-gray-600">{health}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Supplier Friction Insights */}
-                <div className="bg-white rounded-lg border border-tcs-border p-6">
-                  <h2 className="font-bold text-lg text-gray-900 mb-4">Supplier Friction Insights</h2>
                   <div className="space-y-3">
-                    {frictionInsights.map((insight, idx) => (
-                      <div key={idx} className="flex items-start justify-between p-4 bg-tcs-bg rounded-lg">
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900">{insight.issue}</p>
-                          <div className="text-sm text-gray-600 mt-2">
-                            {insight.advisorCount} advisors affected:
-                            <div className="mt-1 space-x-2">
-                              {insight.advisorNames.map((name, nameIdx) => {
-                                const adv = advisors.find(a => a.name === name);
-                                return (
-                                  <span key={nameIdx}>
-                                    <span
-                                      className="text-tcs-teal hover:underline cursor-pointer"
-                                      onClick={() => adv && handleAdvisorClick(adv.id)}
-                                    >
-                                      {name}
-                                    </span>
-                                    {nameIdx < insight.advisorNames.length - 1 && <span>,</span>}
-                                  </span>
-                                );
-                              })}
+                    {aiInsights.map((insight, idx) => (
+                      <div key={idx} className={`flex items-start gap-3 p-3 rounded-lg ${
+                        insight.type === 'critical' ? 'bg-red-500/20' :
+                        insight.type === 'warning' ? 'bg-amber-500/20' :
+                        insight.type === 'positive' ? 'bg-green-500/20' :
+                        'bg-white/10'
+                      }`}>
+                        <div className="mt-0.5 flex-shrink-0">
+                          {insight.icon === 'alert' && <AlertTriangle className="w-4 h-4" />}
+                          {insight.icon === 'dollar' && <DollarSign className="w-4 h-4" />}
+                          {insight.icon === 'trending' && <TrendingUp className="w-4 h-4" />}
+                          {insight.icon === 'users' && <Users className="w-4 h-4" />}
+                          {insight.icon === 'zap' && <Zap className="w-4 h-4" />}
+                        </div>
+                        <p className="text-sm leading-relaxed">{insight.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* ===== REVENUE AT RISK + RISK SUMMARY ROW ===== */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="bg-white rounded-lg border border-red-200 p-5 md:col-span-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <DollarSign className="w-4 h-4 text-red-500" />
+                      <p className="text-xs uppercase tracking-wider text-gray-600">Revenue at Risk</p>
+                    </div>
+                    <p className="font-newsreader text-3xl font-bold text-red-600">${(revenueAtRisk.total / 1000).toFixed(1)}K</p>
+                    <div className="mt-3 space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-red-600 font-medium">At Risk ({revenueAtRisk.atRisk.count})</span>
+                        <span className="font-semibold">${(revenueAtRisk.atRisk.mrr / 1000).toFixed(1)}K</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-red-500 font-medium">Stalled ({revenueAtRisk.stalled.count})</span>
+                        <span className="font-semibold">${(revenueAtRisk.stalled.mrr / 1000).toFixed(1)}K</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-amber-600 font-medium">Monitor ({revenueAtRisk.monitor.count})</span>
+                        <span className="font-semibold">${(revenueAtRisk.monitor.mrr / 1000).toFixed(1)}K</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-lg border border-tcs-border p-5">
+                    <p className="text-xs uppercase tracking-wider text-gray-600 mb-1">Deals</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Object.entries(dealHealthCounts).map(([health, count]) => {
+                        const colors: Record<string, string> = { Healthy: 'text-green-600', Monitor: 'text-amber-600', 'At Risk': 'text-red-500', Stalled: 'text-red-700' };
+                        return (
+                          <button key={health} onClick={() => setDrillDown({ label: `${health} Deals`, advisorIds: deals.filter(d => d.health === health).map(d => d.advisorId).filter((v, i, a) => a.indexOf(v) === i) })} className="text-left hover:bg-tcs-bg rounded p-1 transition-colors">
+                            <span className={`text-xl font-bold ${colors[health] || 'text-tcs-teal'}`}>{count}</span>
+                            <span className="text-xs text-gray-500 ml-1">{health}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-lg border border-tcs-border p-5">
+                    <p className="text-xs uppercase tracking-wider text-gray-600 mb-1">Pulse</p>
+                    <div className="grid grid-cols-2 gap-1">
+                      {Object.entries(pulseDistribution).map(([pulse, count]) => {
+                        const colors: Record<string, string> = { Strong: 'text-green-600', Steady: 'text-blue-600', Rising: 'text-emerald-500', Fading: 'text-amber-600', Flatline: 'text-red-600' };
+                        return (
+                          <button key={pulse} onClick={() => setDrillDown({ label: `${pulse} Pulse`, advisorIds: getAdvisorsByPulse(pulse) })} className="text-left hover:bg-tcs-bg rounded p-1 transition-colors">
+                            <span className={`text-lg font-bold ${colors[pulse] || 'text-tcs-teal'}`}>{count}</span>
+                            <span className="text-xs text-gray-500 ml-1">{pulse}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-lg border border-tcs-border p-5">
+                    <p className="text-xs uppercase tracking-wider text-gray-600 mb-1">Trajectory</p>
+                    <div className="grid grid-cols-2 gap-1">
+                      {Object.entries(trajectoryDistribution).map(([trajectory, count]) => {
+                        const colors: Record<string, string> = { Accelerating: 'text-green-600', Climbing: 'text-emerald-500', Stable: 'text-blue-600', Slipping: 'text-amber-600', Freefall: 'text-red-600' };
+                        return (
+                          <button key={trajectory} onClick={() => setDrillDown({ label: `${trajectory} Trajectory`, advisorIds: getAdvisorsByTrajectory(trajectory) })} className="text-left hover:bg-tcs-bg rounded p-1 transition-colors">
+                            <span className={`text-lg font-bold ${colors[trajectory] || 'text-tcs-teal'}`}>{count}</span>
+                            <span className="text-xs text-gray-500 ml-1">{trajectory}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ===== DRILL-DOWN PANEL ===== */}
+                {drillDown && (
+                  <div className="bg-white rounded-lg border border-tcs-teal p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-bold text-gray-900 text-sm">{drillDown.label} ({drillDown.advisorIds.length} advisors)</h3>
+                      <button onClick={() => setDrillDown(null)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {drillDown.advisorIds.map(id => {
+                        const adv = advisors.find(a => a.id === id);
+                        if (!adv) return null;
+                        return (
+                          <button key={id} onClick={() => handleAdvisorClick(id)} className="flex items-center gap-2 px-3 py-2 bg-tcs-bg rounded-lg hover:bg-tcs-teal/10 transition-colors text-left">
+                            <div className="w-8 h-8 rounded-full bg-tcs-teal text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                              {adv.name.split(' ').map(n => n[0]).join('')}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-tcs-teal">{adv.name}</p>
+                              <p className="text-xs text-gray-500">${(adv.mrr / 1000).toFixed(1)}K MRR</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ===== COMPACT STATS ROW: Tone / Intent / Friction ===== */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white rounded-lg border border-tcs-border p-4">
+                    <p className="text-xs uppercase tracking-wider text-gray-600 mb-2">Tone</p>
+                    <div className="flex gap-3">
+                      {Object.entries(sentimentCounts).map(([tone, count]) => {
+                        const colors: Record<string, string> = { Warm: 'text-green-600', Neutral: 'text-gray-600', Cool: 'text-blue-600' };
+                        return (
+                          <button key={tone} onClick={() => setDrillDown({ label: `${tone} Tone`, advisorIds: getAdvisorsByTone(tone) })} className="flex-1 text-center hover:bg-tcs-bg rounded p-1 transition-colors">
+                            <div className={`text-xl font-bold ${colors[tone]}`}>{count}</div>
+                            <div className="text-xs text-gray-500">{tone}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-lg border border-tcs-border p-4">
+                    <p className="text-xs uppercase tracking-wider text-gray-600 mb-2">Intent</p>
+                    <div className="flex gap-3">
+                      {Object.entries(intentCounts).map(([intent, count]) => {
+                        const colors: Record<string, string> = { Strong: 'text-green-600', Moderate: 'text-amber-600', Low: 'text-red-500' };
+                        return (
+                          <button key={intent} onClick={() => setDrillDown({ label: `${intent} Intent`, advisorIds: getAdvisorsByIntent(intent) })} className="flex-1 text-center hover:bg-tcs-bg rounded p-1 transition-colors">
+                            <div className={`text-xl font-bold ${colors[intent]}`}>{count}</div>
+                            <div className="text-xs text-gray-500">{intent}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-lg border border-tcs-border p-4">
+                    <p className="text-xs uppercase tracking-wider text-gray-600 mb-2">Friction</p>
+                    <div className="flex gap-3">
+                      {Object.entries(frictionCounts).map(([level, count]) => {
+                        const colors: Record<string, string> = { Low: 'text-green-600', Moderate: 'text-amber-600', High: 'text-orange-600', Critical: 'text-red-600' };
+                        return (
+                          <button key={level} onClick={() => setDrillDown({ label: `${level} Friction`, advisorIds: getAdvisorsByFriction(level) })} className="flex-1 text-center hover:bg-tcs-bg rounded p-1 transition-colors">
+                            <div className={`text-xl font-bold ${colors[level]}`}>{count}</div>
+                            <div className="text-xs text-gray-500">{level}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ===== RISK RADAR ===== */}
+                <div className="bg-white rounded-lg border border-tcs-border overflow-hidden">
+                  <div className="p-5 border-b border-tcs-border flex items-center gap-2">
+                    <ShieldAlert className="w-5 h-5 text-red-500" />
+                    <h2 className="font-bold text-lg text-gray-900">Risk Radar</h2>
+                    <span className="text-xs text-gray-500 ml-2">Priority-ranked by combined risk signals</span>
+                  </div>
+                  <div className="divide-y divide-tcs-border">
+                    {riskRadar.slice(0, 10).map((item, idx) => {
+                      const riskLevel = item.score >= 50 ? 'CRITICAL' : item.score >= 30 ? 'HIGH' : item.score >= 15 ? 'MODERATE' : 'LOW';
+                      const riskColor = item.score >= 50 ? 'bg-red-100 text-red-700 border-red-200' : item.score >= 30 ? 'bg-orange-100 text-orange-700 border-orange-200' : item.score >= 15 ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-green-100 text-green-700 border-green-200';
+                      const barWidth = Math.min(100, (item.score / 80) * 100);
+                      const barColor = item.score >= 50 ? 'bg-red-500' : item.score >= 30 ? 'bg-orange-500' : item.score >= 15 ? 'bg-amber-500' : 'bg-green-500';
+
+                      return (
+                        <div key={item.advisor.id} className="flex items-center gap-4 px-5 py-3 hover:bg-tcs-bg transition-colors">
+                          <div className="text-xs text-gray-400 font-mono w-5 text-right">{idx + 1}</div>
+                          <button onClick={() => handleAdvisorClick(item.advisor.id)} className="flex items-center gap-3 min-w-[180px] text-left">
+                            <div className="w-8 h-8 rounded-full bg-tcs-teal text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                              {item.advisor.name.split(' ').map(n => n[0]).join('')}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-tcs-teal hover:underline">{item.advisor.name}</p>
+                              <p className="text-xs text-gray-500">{item.advisor.company}</p>
+                            </div>
+                          </button>
+                          <div className="flex-1">
+                            <div className="bg-gray-100 rounded-full h-2 overflow-hidden">
+                              <div className={`h-2 rounded-full ${barColor} transition-all`} style={{ width: `${barWidth}%` }} />
                             </div>
                           </div>
+                          <div className="flex items-center gap-3 min-w-[200px] justify-end">
+                            {item.atRiskMRR > 0 && (
+                              <span className="text-xs text-red-600 font-medium">${(item.atRiskMRR / 1000).toFixed(1)}K at risk</span>
+                            )}
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded border ${riskColor}`}>{riskLevel}</span>
+                          </div>
+                          <div className="flex gap-1 min-w-[120px]">
+                            <PulseBadge pulse={item.advisor.pulse} size="sm" />
+                            <TrajectoryBadge trajectory={item.advisor.trajectory} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ===== ENGAGEMENT HEATMAP ===== */}
+                <div className="bg-white rounded-lg border border-tcs-border p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Activity className="w-5 h-5 text-tcs-teal" />
+                    <h2 className="font-bold text-lg text-gray-900">Engagement Heatmap</h2>
+                    <span className="text-xs text-gray-500 ml-2">Days since last contact</span>
+                  </div>
+                  <div className="grid grid-cols-6 md:grid-cols-10 gap-2">
+                    {engagementHeatmap.map(item => {
+                      const heatColor = item.daysSinceContact <= 3 ? 'bg-green-500'
+                        : item.daysSinceContact <= 7 ? 'bg-green-300'
+                        : item.daysSinceContact <= 14 ? 'bg-amber-300'
+                        : item.daysSinceContact <= 21 ? 'bg-orange-400'
+                        : 'bg-red-500';
+                      return (
+                        <button
+                          key={item.advisor.id}
+                          onClick={() => handleAdvisorClick(item.advisor.id)}
+                          className="group relative flex flex-col items-center"
+                          title={`${item.advisor.name} - ${item.daysSinceContact}d ago`}
+                        >
+                          <div className={`w-full aspect-square rounded-lg ${heatColor} flex items-center justify-center text-white text-xs font-bold transition-transform group-hover:scale-110`}>
+                            {item.advisor.name.split(' ').map(n => n[0]).join('')}
+                          </div>
+                          <p className="text-[10px] text-gray-500 mt-1 truncate w-full text-center">{item.advisor.name.split(' ')[1]}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-4 mt-4 pt-3 border-t border-tcs-border">
+                    <span className="text-xs text-gray-500">Legend:</span>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-green-500" /><span className="text-xs text-gray-600">0-3d</span></div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-green-300" /><span className="text-xs text-gray-600">4-7d</span></div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-amber-300" /><span className="text-xs text-gray-600">8-14d</span></div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-orange-400" /><span className="text-xs text-gray-600">15-21d</span></div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-red-500" /><span className="text-xs text-gray-600">22d+</span></div>
+                  </div>
+                </div>
+
+                {/* ===== FRICTION INSIGHTS ===== */}
+                <div className="bg-white rounded-lg border border-tcs-border p-5">
+                  <h2 className="font-bold text-lg text-gray-900 mb-4">Supplier Friction Insights</h2>
+                  <div className="space-y-2">
+                    {frictionInsights.map((insight, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-tcs-bg rounded-lg">
+                        <div className="flex-1">
+                          <span className="font-medium text-gray-900 text-sm">{insight.issue}</span>
+                          <span className="text-xs text-gray-500 ml-2">
+                            {insight.advisorNames.map((name, nameIdx) => {
+                              const adv = advisors.find(a => a.name === name);
+                              return (
+                                <span key={nameIdx}>
+                                  <span className="text-tcs-teal hover:underline cursor-pointer" onClick={() => adv && handleAdvisorClick(adv.id)}>{name}</span>
+                                  {nameIdx < insight.advisorNames.length - 1 && ', '}
+                                </span>
+                              );
+                            })}
+                          </span>
                         </div>
                         <FrictionBadge level={insight.severity} />
                       </div>
@@ -489,20 +780,20 @@ export default function ManagerPage() {
                   </div>
                 </div>
 
-                {/* Diagnostic Matrix */}
+                {/* ===== DIAGNOSTIC MATRIX ===== */}
                 <div className="bg-white rounded-lg border border-tcs-border overflow-hidden">
-                  <div className="p-6 border-b border-tcs-border">
+                  <div className="p-5 border-b border-tcs-border">
                     <h2 className="font-bold text-lg text-gray-900">Diagnostic Matrix</h2>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-tcs-bg border-b border-tcs-border">
                         <tr>
-                          <th className="px-6 py-3 text-left font-semibold text-gray-700">Advisor</th>
-                          <th className="px-6 py-3 text-left font-semibold text-gray-700">Pulse</th>
-                          <th className="px-6 py-3 text-left font-semibold text-gray-700">Deal Health</th>
-                          <th className="px-6 py-3 text-left font-semibold text-gray-700">Friction</th>
-                          <th className="px-6 py-3 text-left font-semibold text-gray-700">Diagnosis</th>
+                          <th className="px-5 py-3 text-left font-semibold text-gray-700">Advisor</th>
+                          <th className="px-5 py-3 text-left font-semibold text-gray-700">Pulse</th>
+                          <th className="px-5 py-3 text-left font-semibold text-gray-700">Deal Health</th>
+                          <th className="px-5 py-3 text-left font-semibold text-gray-700">Friction</th>
+                          <th className="px-5 py-3 text-left font-semibold text-gray-700">Diagnosis</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-tcs-border">
@@ -510,18 +801,13 @@ export default function ManagerPage() {
                           const advisor = advisors.find(a => a.name === row.advisor);
                           return (
                           <tr key={idx} className="hover:bg-tcs-bg">
-                            <td className="px-6 py-4 font-medium text-gray-900">
-                              <span
-                                className="text-tcs-teal hover:underline cursor-pointer"
-                                onClick={() => advisor && handleAdvisorClick(advisor.id)}
-                              >
-                                {row.advisor}
-                              </span>
+                            <td className="px-5 py-3 font-medium">
+                              <span className="text-tcs-teal hover:underline cursor-pointer" onClick={() => advisor && handleAdvisorClick(advisor.id)}>{row.advisor}</span>
                             </td>
-                            <td className="px-6 py-4"><PulseBadge pulse={row.pulse} size="sm" /></td>
-                            <td className="px-6 py-4"><DealHealthBadge health={row.dealHealth} /></td>
-                            <td className="px-6 py-4"><FrictionBadge level={row.friction} /></td>
-                            <td className="px-6 py-4 text-xs text-gray-600 max-w-sm">{row.diagnosis.substring(0, 80)}...</td>
+                            <td className="px-5 py-3"><PulseBadge pulse={row.pulse} size="sm" /></td>
+                            <td className="px-5 py-3"><DealHealthBadge health={row.dealHealth} /></td>
+                            <td className="px-5 py-3"><FrictionBadge level={row.friction} /></td>
+                            <td className="px-5 py-3 text-xs text-gray-600 max-w-sm">{row.diagnosis.substring(0, 80)}...</td>
                           </tr>
                         );
                         })}
