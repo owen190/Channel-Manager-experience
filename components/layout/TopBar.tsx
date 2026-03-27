@@ -1,6 +1,7 @@
 'use client';
 
 import { SmartNudges } from '@/components/shared/SmartNudges';
+import { Settings } from 'lucide-react';
 import { Nudge } from '@/lib/types';
 
 interface TopBarProps {
@@ -36,8 +37,8 @@ export function TopBar({
         <SmartNudges nudges={nudges} />
 
         {/* Settings */}
-        <button className="p-2 hover:bg-tcs-bg rounded-lg transition-colors">
-          âï¸
+        <button className="p-2 hover:bg-tcs-bg rounded-lg transition-colors text-gray-600">
+          <Settings className="w-5 h-5" />
         </button>
 
         {/* User Chip */}
