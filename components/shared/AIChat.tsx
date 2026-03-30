@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Sparkles, Send, ChevronLeft } from 'lucide-react';
-import { advisors } from '@/lib/data/advisors';
-import { deals } from '@/lib/data/deals';
+import { advisors as staticAdvisors } from '@/lib/data/advisors';
+import { deals as staticDeals } from '@/lib/data/deals';
 import { Advisor } from '@/lib/types';
 
 interface Message {
@@ -16,17 +16,20 @@ interface AIChatProps {
   role: 'manager' | 'leader';
   context?: string;
   selectedAdvisor?: Advisor | null;
+  live?: boolean; // When true, calls Claude API via /api/live/ai
 }
+
+// ============ STATIC RESPONSE GENERATORS (demo mode) ============
 
 function generateAdvisorResponse(advisor: Advisor, question: string): string {
   const lowerQ = question.toLowerCase();
-  const advDeals = deals.filter(d => d.advisorId === advisor.id);
+  const advDeals = staticDeals.filter(d => d.advisorId === advisor.id);
   const totalMRR = advDeals.reduce((sum, d) => sum + d.mrr, 0);
 
   if (lowerQ.includes('deal') || lowerQ.includes('pipeline') || lowerQ.includes('revenue')) {
     if (advDeals.length === 0) return `${advisor.name} doesn't have any active deals currently. Consider scheduling an exploratory call to identify partnership opportunities.`;
     const dealList = advDeals.map(d => `${d.name} ($${(d.mrr/1000).toFixed(1)}K, ${d.stage}, ${d.health})`).join('; ');
-    return `${advisor.name} has ${advDeals.length} active deal${advDeals.length > 1 ? 's' : ''} totaling $${(totalMRR/1000).toFixed(1)}K MRR:\n\n${dealList}\n\n${advDeals.some(d => d.health === 'Stalled' || d.health === 'At Risk') ? 'Some deals need attention \u2014 consider addressing blockers directly.' : 'Pipeline looks healthy overall.'}`;
+    return `${advisor.name} has ${advDeals.length} active deal${advDeals.length > 1 ? 's' : ''} totaling $${(totalMRR/1000).toFixed(1)}K MRR:\n\n${dealList}\n\n${advDeals.some(d => d.health === 'Stalled' || d.health === 'At Risk') ? 'Some deals need attention — consider addressing blockers directly.' : 'Pipeline looks healthy overall.'}`;
   }
 
   if (lowerQ.includes('hobby') || lowerQ.includes('personal') || lowerQ.includes('interest') || lowerQ.includes('connect')) {
@@ -44,53 +47,52 @@ function generateAdvisorResponse(advisor: Advisor, question: string): string {
     const points = [];
     if (advDeals.length > 0) points.push(`Check in on ${advDeals[0].name} (${advDeals[0].stage} stage, ${advDeals[0].health})`);
     if (advisor.personalIntel) points.push(`Background: ${advisor.personalIntel}`);
-    if (advisor.hobbies) points.push(`Ask about their hobbies \u2014 they enjoy ${advisor.hobbies.toLowerCase()}`);
+    if (advisor.hobbies) points.push(`Ask about their hobbies — they enjoy ${advisor.hobbies.toLowerCase()}`);
     if (advisor.friction !== 'Low') points.push(`Address ${advisor.friction.toLowerCase()} friction to rebuild trust`);
     points.push(`Best day to reach: ${advisor.bestDayToReach} via ${advisor.commPreference}`);
-    return `Call prep for ${advisor.name}:\n\n${points.map(p => '\u2022 ' + p).join('\n')}\n\nTheir current pulse is ${advisor.pulse} with a ${advisor.trajectory} trajectory.`;
+    return `Call prep for ${advisor.name}:\n\n${points.map(p => '• ' + p).join('\n')}\n\nTheir current pulse is ${advisor.pulse} with a ${advisor.trajectory} trajectory.`;
   }
 
   if (lowerQ.includes('risk') || lowerQ.includes('concern') || lowerQ.includes('worry') || lowerQ.includes('issue')) {
     const risks = [];
-    if (advisor.pulse === 'Fading' || advisor.pulse === 'Flatline') risks.push(`Pulse is ${advisor.pulse} \u2014 engagement is dropping`);
-    if (advisor.trajectory === 'Slipping' || advisor.trajectory === 'Freefall') risks.push(`Trajectory is ${advisor.trajectory} \u2014 relationship trending downward`);
-    if (advisor.friction === 'High' || advisor.friction === 'Critical') risks.push(`Friction is ${advisor.friction} \u2014 unresolved operational issues`);
+    if (advisor.pulse === 'Fading' || advisor.pulse === 'Flatline') risks.push(`Pulse is ${advisor.pulse} — engagement is dropping`);
+    if (advisor.trajectory === 'Slipping' || advisor.trajectory === 'Freefall') risks.push(`Trajectory is ${advisor.trajectory} — relationship trending downward`);
+    if (advisor.friction === 'High' || advisor.friction === 'Critical') risks.push(`Friction is ${advisor.friction} — unresolved operational issues`);
     if (advDeals.some(d => d.health === 'Stalled')) risks.push(`Has stalled deals that need unblocking`);
     if (advDeals.some(d => d.health === 'At Risk')) risks.push(`Has at-risk deals requiring immediate attention`);
     return risks.length > 0
-      ? `Risk factors for ${advisor.name}:\n\n${risks.map(r => '\u2022 ' + r).join('\n')}\n\nRecommendation: ${advisor.trajectory === 'Freefall' ? 'Immediate personal outreach needed. Consider executive involvement.' : 'Schedule a focused check-in to address these concerns.'}`
-      : `${advisor.name} looks healthy right now \u2014 ${advisor.pulse} pulse, ${advisor.trajectory} trajectory, ${advisor.friction} friction. No major red flags.`;
+      ? `Risk factors for ${advisor.name}:\n\n${risks.map(r => '• ' + r).join('\n')}\n\nRecommendation: ${advisor.trajectory === 'Freefall' ? 'Immediate personal outreach needed. Consider executive involvement.' : 'Schedule a focused check-in to address these concerns.'}`
+      : `${advisor.name} looks healthy right now — ${advisor.pulse} pulse, ${advisor.trajectory} trajectory, ${advisor.friction} friction. No major red flags.`;
   }
 
   if (lowerQ.includes('history') || lowerQ.includes('relationship') || lowerQ.includes('background') || lowerQ.includes('who')) {
     return `${advisor.name} is a ${advisor.title} at ${advisor.company}.\n\nConnected since ${advisor.connectedSince}. Referred by ${advisor.referredBy}. Preferred communication: ${advisor.commPreference} on ${advisor.bestDayToReach}s.\n\nCurrent status: ${advisor.pulse} pulse, ${advisor.trajectory} trajectory, ${advisor.tone} tone.\n\n${advisor.diagnosis}`;
   }
 
-  // Default contextual response
-  return `${advisor.name} (${advisor.title}, ${advisor.company}) has a ${advisor.pulse} pulse with ${advisor.trajectory} trajectory. MRR: $${(advisor.mrr/1000).toFixed(1)}K across ${advDeals.length} deals.\n\nTry asking me about:\n\u2022 "How should I prep for a call?"\n\u2022 "What are the risks?"\n\u2022 "Tell me about their deals"\n\u2022 "What are their personal interests?"`;
+  return `${advisor.name} (${advisor.title}, ${advisor.company}) has a ${advisor.pulse} pulse with ${advisor.trajectory} trajectory. MRR: $${(advisor.mrr/1000).toFixed(1)}K across ${advDeals.length} deals.\n\nTry asking me about:\n• "How should I prep for a call?"\n• "What are the risks?"\n• "Tell me about their deals"\n• "What are their personal interests?"`;
 }
 
 function generateGeneralResponse(role: string, question: string): string {
   const lowerQ = question.toLowerCase();
 
   if (lowerQ.includes('risk') || lowerQ.includes('concern')) {
-    const atRisk = advisors.filter(a => a.trajectory === 'Freefall' || a.trajectory === 'Slipping');
+    const atRisk = staticAdvisors.filter(a => a.trajectory === 'Freefall' || a.trajectory === 'Slipping');
     if (atRisk.length > 0) {
-      return `${atRisk.length} advisors need attention:\n\n${atRisk.map(a => `\u2022 ${a.name} \u2014 ${a.trajectory} trajectory, ${a.pulse} pulse ($${(a.mrr/1000).toFixed(1)}K MRR)`).join('\n')}\n\nRecommend prioritizing outreach to anyone in Freefall first.`;
+      return `${atRisk.length} advisors need attention:\n\n${atRisk.map(a => `• ${a.name} — ${a.trajectory} trajectory, ${a.pulse} pulse ($${(a.mrr/1000).toFixed(1)}K MRR)`).join('\n')}\n\nRecommend prioritizing outreach to anyone in Freefall first.`;
     }
     return 'No major risk signals across your portfolio right now. Keep monitoring engagement levels.';
   }
 
   if (lowerQ.includes('pipeline') || lowerQ.includes('deal')) {
-    const totalMRR = deals.reduce((sum, d) => sum + d.mrr, 0);
-    const healthy = deals.filter(d => d.health === 'Healthy').length;
-    const stalled = deals.filter(d => d.health === 'Stalled').length;
-    return `Pipeline overview: ${deals.length} active deals, $${(totalMRR/1000).toFixed(1)}K total MRR.\n\n${healthy} healthy, ${stalled} stalled. Focus on unblocking stalled deals to protect quarter-end numbers.`;
+    const totalMRR = staticDeals.reduce((sum, d) => sum + d.mrr, 0);
+    const healthy = staticDeals.filter(d => d.health === 'Healthy').length;
+    const stalled = staticDeals.filter(d => d.health === 'Stalled').length;
+    return `Pipeline overview: ${staticDeals.length} active deals, $${(totalMRR/1000).toFixed(1)}K total MRR.\n\n${healthy} healthy, ${stalled} stalled. Focus on unblocking stalled deals to protect quarter-end numbers.`;
   }
 
   if (lowerQ.includes('top') || lowerQ.includes('best') || lowerQ.includes('performer')) {
-    const top = [...advisors].sort((a, b) => b.mrr - a.mrr).slice(0, 5);
-    return `Top 5 advisors by MRR:\n\n${top.map((a, i) => `${i+1}. ${a.name} \u2014 $${(a.mrr/1000).toFixed(1)}K (${a.pulse} pulse, ${a.trajectory})`).join('\n')}`;
+    const top = [...staticAdvisors].sort((a, b) => b.mrr - a.mrr).slice(0, 5);
+    return `Top 5 advisors by MRR:\n\n${top.map((a, i) => `${i+1}. ${a.name} — $${(a.mrr/1000).toFixed(1)}K (${a.pulse} pulse, ${a.trajectory})`).join('\n')}`;
   }
 
   return role === 'manager'
@@ -100,33 +102,56 @@ function generateGeneralResponse(role: string, question: string): string {
 
 function getProactiveMessage(role: 'manager' | 'leader'): string {
   if (role === 'manager') {
-    return "Good morning, Jordan. Tom Bradley's account is showing friction in quoting \u2014 I'd recommend an executive check-in this week. Sarah Chen has $25.1K in pipeline ready for expansion. Want me to prep a briefing for either?";
+    return "Good morning, Jordan. Tom Bradley's account is showing friction in quoting — I'd recommend an executive check-in this week. Sarah Chen has $25.1K in pipeline ready for expansion. Want me to prep a briefing for either?";
   }
-  return "Hi Priya. Javier is running at 57/30 partner capacity \u2014 we should discuss rebalancing. Marcus's cycle time is trending 8 days above average. Want me to pull the details?";
+  return "Hi Priya. Javier is running at 57/30 partner capacity — we should discuss rebalancing. Marcus's cycle time is trending 8 days above average. Want me to pull the details?";
 }
 
 function getAdvisorInsight(advisor: Advisor): string {
-  const advDeals = deals.filter(d => d.advisorId === advisor.id);
+  const advDeals = staticDeals.filter(d => d.advisorId === advisor.id);
   const totalMRR = advDeals.reduce((sum, d) => sum + d.mrr, 0);
   const activeDealCount = advDeals.filter(d => d.stage !== 'Closed Won').length;
-
   const negotiating = advDeals.find(d => d.stage === 'Negotiating');
   const atRisk = advDeals.find(d => d.health === 'At Risk' || d.health === 'Stalled');
 
   let insight = `${advisor.name} has ${activeDealCount} active deal${activeDealCount !== 1 ? 's' : ''} worth $${(totalMRR/1000).toFixed(1)}K.`;
-
-  if (negotiating) {
-    insight += ` ${negotiating.name} is in Negotiating and looks ${negotiating.health === 'Healthy' ? 'healthy' : 'like it needs attention'}.`;
-  }
-  if (atRisk) {
-    insight += ` ${atRisk.name} is ${atRisk.health.toLowerCase()} \u2014 worth a check-in.`;
-  }
-
+  if (negotiating) insight += ` ${negotiating.name} is in Negotiating and looks ${negotiating.health === 'Healthy' ? 'healthy' : 'like it needs attention'}.`;
+  if (atRisk) insight += ` ${atRisk.name} is ${atRisk.health.toLowerCase()} — worth a check-in.`;
   insight += ` Best time to reach ${advisor.name.split(' ')[0]} is ${advisor.bestDayToReach} via ${advisor.commPreference?.toLowerCase() || 'email'}.`;
   return insight;
 }
 
-export function AIChat({ role, context, selectedAdvisor }: AIChatProps) {
+// ============ LIVE API CALLER ============
+
+async function callLiveAI(
+  message: string,
+  role: string,
+  advisorId?: string,
+  conversationHistory?: Message[]
+): Promise<string> {
+  try {
+    const res = await fetch('/api/live/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        role,
+        advisorId: advisorId || undefined,
+        conversationHistory: conversationHistory?.map(m => ({ type: m.type, text: m.text })),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) return `AI error: ${data?.error || res.status}`;
+    return data.response || 'No response from AI.';
+  } catch (err: any) {
+    console.error('[AIChat] API call failed:', err);
+    return `Could not reach AI service: ${err.message}`;
+  }
+}
+
+// ============ COMPONENT ============
+
+export function AIChat({ role, context, selectedAdvisor, live = false }: AIChatProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -136,60 +161,70 @@ export function AIChat({ role, context, selectedAdvisor }: AIChatProps) {
 
   // Reset messages when advisor changes
   useEffect(() => {
-    if (selectedAdvisor) {
-      setMessages([{
-        id: '1',
-        type: 'assistant',
-        text: getAdvisorInsight(selectedAdvisor),
-      }]);
+    if (live) {
+      // In live mode, show a simpler initial message
+      const name = role === 'manager' ? 'Jordan' : 'Priya';
+      const greeting = selectedAdvisor
+        ? `I have context on ${selectedAdvisor.name}. What would you like to know?`
+        : `Hi ${name}. I have access to your live portfolio data. Ask me anything about your partners, pipeline, or team.`;
+      setMessages([{ id: '1', type: 'assistant', text: greeting }]);
     } else {
-      setMessages([{
-        id: '1',
-        type: 'assistant',
-        text: getProactiveMessage(role),
-      }]);
+      // Demo mode: use proactive messages
+      if (selectedAdvisor) {
+        setMessages([{ id: '1', type: 'assistant', text: getAdvisorInsight(selectedAdvisor) }]);
+      } else {
+        setMessages([{ id: '1', type: 'assistant', text: getProactiveMessage(role) }]);
+      }
     }
-  }, [selectedAdvisor, role]);
+  }, [selectedAdvisor, role, live]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = () => {
-    if (!inputValue.trim()) return;
+  const sendMessage = async (text: string) => {
+    if (!text.trim()) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      type: 'user',
-      text: inputValue,
-    };
-
-    setMessages(prev => [...prev, userMessage]);
+    const userMessage: Message = { id: Date.now().toString(), type: 'user', text };
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInputValue('');
     setIsLoading(true);
 
-    setTimeout(() => {
-      const responseText = selectedAdvisor
-        ? generateAdvisorResponse(selectedAdvisor, inputValue)
-        : generateGeneralResponse(role, inputValue);
+    let responseText: string;
 
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        text: responseText,
-      }]);
-      setIsLoading(false);
-    }, 600);
+    if (live) {
+      // Call the Claude API
+      responseText = await callLiveAI(
+        text,
+        role,
+        selectedAdvisor?.id,
+        updatedMessages
+      );
+    } else {
+      // Static demo responses with slight delay
+      await new Promise(resolve => setTimeout(resolve, 600));
+      responseText = selectedAdvisor
+        ? generateAdvisorResponse(selectedAdvisor, text)
+        : generateGeneralResponse(role, text);
+    }
+
+    setMessages(prev => [...prev, {
+      id: (Date.now() + 1).toString(),
+      type: 'assistant',
+      text: responseText,
+    }]);
+    setIsLoading(false);
   };
 
-  // Suggested prompts based on context
+  const handleSend = () => sendMessage(inputValue);
+
   const suggestions = selectedAdvisor
     ? ['How should I prep for a call?', 'What are the risks?', 'Tell me about their deals', 'Personal interests?']
     : ['Who needs attention?', 'Pipeline overview', 'Top performers', 'At-risk advisors'];
 
   return (
     <>
-      {/* Collapsed state: slim vertical tab on right edge */}
       {!isOpen && (
         <button
           onClick={() => { setIsOpen(true); setTimeout(() => inputRef.current?.focus(), 100); }}
@@ -200,23 +235,22 @@ export function AIChat({ role, context, selectedAdvisor }: AIChatProps) {
         </button>
       )}
 
-      {/* Open state: clean minimal sidebar */}
       {isOpen && (
         <div className="w-[300px] h-full bg-white border-l border-solid border-[#e8e5e1] flex flex-col flex-shrink-0">
           {/* Header */}
           <div className="px-4 py-3.5 border-b border-[#e8e5e1] flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-7 h-7 bg-[#157A6E] rounded-lg flex items-center justify-center flex-shrink-0">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${live ? 'bg-[#157A6E]' : 'bg-[#157A6E]'}`}>
                 <Sparkles className="w-4 h-4 text-white" />
               </div>
-              <h3 className="text-sm font-medium text-gray-900 truncate">
-                {selectedAdvisor ? selectedAdvisor.name : 'AI Assistant'}
-              </h3>
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 truncate">
+                  {selectedAdvisor ? selectedAdvisor.name : 'AI Assistant'}
+                </h3>
+                {live && <span className="text-[9px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">LIVE</span>}
+              </div>
             </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="text-gray-400 hover:text-gray-600 p-1 flex-shrink-0"
-            >
+            <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600 p-1 flex-shrink-0">
               <ChevronLeft className="w-4 h-4" />
             </button>
           </div>
@@ -270,7 +304,7 @@ export function AIChat({ role, context, selectedAdvisor }: AIChatProps) {
               {suggestions.map((s, i) => (
                 <button
                   key={i}
-                  onClick={() => { handleSendDirect(s); }}
+                  onClick={() => sendMessage(s)}
                   className="px-2.5 py-1 bg-[#faf9f7] border border-[#e0ddd9] rounded-full text-10px text-gray-700 hover:border-[#157A6E] hover:text-[#157A6E] transition-colors"
                 >
                   {s}
@@ -304,19 +338,4 @@ export function AIChat({ role, context, selectedAdvisor }: AIChatProps) {
       )}
     </>
   );
-
-  function handleSendDirect(text: string) {
-    if (!text.trim()) return;
-    const userMessage: Message = { id: Date.now().toString(), type: 'user', text };
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue('');
-    setIsLoading(true);
-    setTimeout(() => {
-      const responseText = selectedAdvisor
-        ? generateAdvisorResponse(selectedAdvisor, text)
-        : generateGeneralResponse(role, text);
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), type: 'assistant', text: responseText }]);
-      setIsLoading(false);
-    }, 600);
-  }
 }

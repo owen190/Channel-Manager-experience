@@ -489,7 +489,7 @@ export default function LiveManagerPage() {
           </div>
         </main>
       </div>
-      <AIChat role="manager" selectedAdvisor={selectedAdvisor} />
+      <AIChat role="manager" selectedAdvisor={selectedAdvisor} live={true} />
     </div>
   );
 }

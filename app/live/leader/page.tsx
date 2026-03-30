@@ -605,7 +605,7 @@ export default function LiveLeaderDashboard() {
           </div>
         </main>
       </div>
-      <AIChat role="leader" selectedAdvisor={selectedAdvisor} />
+      <AIChat role="leader" selectedAdvisor={selectedAdvisor} live={true} />
     </div>
   );
 }
