@@ -2,6 +2,7 @@
 
 import { Zap, Brain, Handshake, DollarSign, TrendingUp, BarChart3, Users } from 'lucide-react';
 import { type LucideIcon } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 const ICON_MAP: Record<string, LucideIcon> = {
   Zap,
@@ -36,11 +37,12 @@ export function Sidebar({
   userName,
   userInitials,
 }: SidebarProps) {
+  const router = useRouter();
   return (
     <div className="w-56 h-screen bg-white border-r border-solid border-[#e8e5e1] flex flex-col">
       {/* Brand Section */}
-      <div className="px-5 py-6">
-        <h1 className="font-newsreader text-lg font-bold text-[#157A6E] whitespace-pre-line leading-tight mb-2">
+      <div className="px-5 py-6 cursor-pointer group" onClick={() => router.push('/')}>
+        <h1 className="font-newsreader text-lg font-bold text-[#157A6E] whitespace-pre-line leading-tight mb-2 group-hover:opacity-80 transition-opacity">
           Channel{'\n'}Companion
         </h1>
         <p className="text-[10px] uppercase tracking-[1.5px] text-[#999] font-medium">

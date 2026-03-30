@@ -60,6 +60,7 @@ export default function LeaderDashboard() {
   const [relationshipFilter, setRelationshipFilter] = useState('All');
   const [expandedStage, setExpandedStage] = useState<DealStage | null>(null);
   const [expandedPipelineRep, setExpandedPipelineRep] = useState<string | null>(null);
+  const [overrideActions, setOverrideActions] = useState<Record<string, 'approved' | 'denied'>>({});
 
   const userName = 'Priya M.';
   const userInitials = 'PM';
@@ -281,6 +282,7 @@ export default function LeaderDashboard() {
           userName={userName}
           userInitials={userInitials}
           pageTitle={activeView === 'command-center' ? 'Command Center' : activeView === 'forecast' ? 'Forecast' : activeView === 'team' ? 'Team' : activeView === 'relationships' ? 'Relationships' : activeView === 'pipeline' ? 'Pipeline' : 'Intelligence'}
+          role="leader"
         />
 
         <div className="flex-1 flex overflow-hidden">
@@ -645,19 +647,30 @@ export default function LeaderDashboard() {
                       <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Pending Override Requests</h3>
                     </div>
                     <div className="divide-y divide-[#e8e5e1]">
-                      {overrideRequests.map((req) => (
-                        <div key={req.dealId} className="px-5 py-4 flex items-center justify-between hover:bg-[#F7F5F2]/30 transition-colors">
-                          <div>
-                            <p className="text-13px font-semibold text-gray-900">{req.dealName}</p>
-                            <p className="text-11px text-gray-600 mt-0.5">{req.repName} · {req.advisorName} · {formatCurrency(req.mrr)}/mo</p>
-                            <p className="text-11px text-gray-500 mt-1">{req.reason}</p>
+                      {overrideRequests.map((req) => {
+                        const action = overrideActions[req.dealId];
+                        return (
+                          <div key={req.dealId} className="px-5 py-4 flex items-center justify-between hover:bg-[#F7F5F2]/30 transition-colors">
+                            <div>
+                              <p className="text-13px font-semibold text-gray-900">{req.dealName}</p>
+                              <p className="text-11px text-gray-600 mt-0.5">{req.repName} · {req.advisorName} · {formatCurrency(req.mrr)}/mo</p>
+                              <p className="text-11px text-gray-500 mt-1">{req.reason}</p>
+                            </div>
+                            <div className="flex gap-2 flex-shrink-0">
+                              {action ? (
+                                <span className={`px-3 py-1.5 text-11px font-semibold rounded ${action === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                  {action === 'approved' ? 'Approved — forecast updated' : 'Denied'}
+                                </span>
+                              ) : (
+                                <>
+                                  <button onClick={() => setOverrideActions(prev => ({ ...prev, [req.dealId]: 'approved' }))} className="px-3 py-1.5 text-11px font-semibold bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors">Approve</button>
+                                  <button onClick={() => setOverrideActions(prev => ({ ...prev, [req.dealId]: 'denied' }))} className="px-3 py-1.5 text-11px font-semibold bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors">Deny</button>
+                                </>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex gap-2 flex-shrink-0">
-                            <button onClick={() => alert(`Override approved for ${req.dealName}`)} className="px-3 py-1.5 text-11px font-semibold bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors">Approve</button>
-                            <button onClick={() => alert(`Override denied for ${req.dealName}`)} className="px-3 py-1.5 text-11px font-semibold bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors">Deny</button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -726,12 +739,13 @@ export default function LeaderDashboard() {
                     const winRate = (() => {
                       const wins = repDeals.filter(d => d.stage === 'Closed Won').length;
                       const losses = repDeals.filter(d => d.stage === 'Stalled').length;
-                      const total = wins + losses || 1;
+                      const total = wins + losses;
+                      if (total === 0) return rep.winRate || 0;
                       return Math.round((wins / total) * 100);
                     })();
                     const avgCycleTime = (() => {
                       const completedDeals = repDeals.filter(d => d.stage === 'Closed Won' || d.stage === 'Stalled');
-                      if (completedDeals.length === 0) return 0;
+                      if (completedDeals.length === 0) return rep.avgCycle || 0;
                       return Math.round(completedDeals.reduce((sum, d) => sum + d.daysInStage, 0) / completedDeals.length);
                     })();
                     const capacityUtilization = (() => {

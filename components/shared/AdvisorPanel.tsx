@@ -264,6 +264,7 @@ export function AdvisorPanel({
                     <p className="text-sm text-gray-700">
                       {advisor.personalIntel}
                     </p>
+                    <p className="text-[10px] text-gray-400 mt-2 italic">Compiled from CRM notes, call transcripts, and LinkedIn</p>
                   </div>
                 )}
               </div>
@@ -350,7 +351,7 @@ export function AdvisorPanel({
                   <dl className="space-y-2 text-sm">
                     {advisor.tsds?.length > 0 && (
                       <div className="flex justify-between">
-                        <dt className="text-gray-600">TSDs</dt>
+                        <dt className="text-gray-600" title="Technical Solution Designs">Technical Specializations</dt>
                         <dd className="font-medium text-gray-900">
                           {advisor.tsds.join(', ')}
                         </dd>

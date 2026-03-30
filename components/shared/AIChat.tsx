@@ -98,6 +98,34 @@ function generateGeneralResponse(role: string, question: string): string {
     : 'I can help with team performance, forecast accuracy, coaching needs, and capacity planning. Ask me anything about your team.';
 }
 
+function getProactiveMessage(role: 'manager' | 'leader'): string {
+  if (role === 'manager') {
+    return "Good morning, Jordan. Tom Bradley's account is showing friction in quoting \u2014 I'd recommend an executive check-in this week. Sarah Chen has $25.1K in pipeline ready for expansion. Want me to prep a briefing for either?";
+  }
+  return "Hi Priya. Javier is running at 57/30 partner capacity \u2014 we should discuss rebalancing. Marcus's cycle time is trending 8 days above average. Want me to pull the details?";
+}
+
+function getAdvisorInsight(advisor: Advisor): string {
+  const advDeals = deals.filter(d => d.advisorId === advisor.id);
+  const totalMRR = advDeals.reduce((sum, d) => sum + d.mrr, 0);
+  const activeDealCount = advDeals.filter(d => d.stage !== 'Closed Won').length;
+
+  const negotiating = advDeals.find(d => d.stage === 'Negotiating');
+  const atRisk = advDeals.find(d => d.health === 'At Risk' || d.health === 'Stalled');
+
+  let insight = `${advisor.name} has ${activeDealCount} active deal${activeDealCount !== 1 ? 's' : ''} worth $${(totalMRR/1000).toFixed(1)}K.`;
+
+  if (negotiating) {
+    insight += ` ${negotiating.name} is in Negotiating and looks ${negotiating.health === 'Healthy' ? 'healthy' : 'like it needs attention'}.`;
+  }
+  if (atRisk) {
+    insight += ` ${atRisk.name} is ${atRisk.health.toLowerCase()} \u2014 worth a check-in.`;
+  }
+
+  insight += ` Best time to reach ${advisor.name.split(' ')[0]} is ${advisor.bestDayToReach} via ${advisor.commPreference?.toLowerCase() || 'email'}.`;
+  return insight;
+}
+
 export function AIChat({ role, context, selectedAdvisor }: AIChatProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -112,15 +140,13 @@ export function AIChat({ role, context, selectedAdvisor }: AIChatProps) {
       setMessages([{
         id: '1',
         type: 'assistant',
-        text: `Ask me anything about ${selectedAdvisor.name}. I can help with call prep, deal status, personal interests, risk assessment, and relationship history.`,
+        text: getAdvisorInsight(selectedAdvisor),
       }]);
     } else {
       setMessages([{
         id: '1',
         type: 'assistant',
-        text: role === 'manager'
-          ? 'Ask me about your partners. Select an advisor for contextual insights, or ask general portfolio questions.'
-          : 'Ask me about your team. I can help with forecast, coaching, capacity, and performance.',
+        text: getProactiveMessage(role),
       }]);
     }
   }, [selectedAdvisor, role]);

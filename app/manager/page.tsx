@@ -420,7 +420,7 @@ export default function ManagerPage() {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar nudges={managerNudges} userName="Jordan R." userInitials="JR" pageTitle={activeView === 'command-center' ? 'Command Center' : activeView === 'intelligence-hub' ? 'Intelligence Hub' : activeView === 'relationships' ? 'Relationships' : activeView === 'pipeline' ? 'Pipeline' : 'Strategic'} />
+        <TopBar nudges={managerNudges} userName="Jordan R." userInitials="JR" pageTitle={activeView === 'command-center' ? 'Command Center' : activeView === 'intelligence-hub' ? 'Intelligence Hub' : activeView === 'relationships' ? 'Relationships' : activeView === 'pipeline' ? 'Pipeline' : 'Strategic'} role="manager" />
 
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 overflow-y-auto p-6">
@@ -1606,30 +1606,41 @@ export default function ManagerPage() {
                       <div className="absolute bottom-3 left-3 text-10px font-bold text-gray-400 uppercase tracking-wider">Harvest</div>
                       <div className="absolute bottom-3 right-3 text-10px font-bold text-gray-400 uppercase tracking-wider">Watch</div>
 
-                      {advisors.map(advisor => {
-                        const engagementScore = calculateEngagementScore(advisor);
-                        const engagementX = (engagementScore / 100) * 80 + 10;
-
+                      {(() => {
+                        const top5Ids = new Set([...advisors].sort((a, b) => b.mrr - a.mrr).slice(0, 5).map(a => a.id));
                         const maxMRR = Math.max(...advisors.map(a => a.mrr));
-                        const mrrY = 100 - ((advisor.mrr / maxMRR) * 80 + 10);
+                        return advisors.map(advisor => {
+                          const engagementScore = calculateEngagementScore(advisor);
+                          const engagementX = (engagementScore / 100) * 80 + 10;
+                          const mrrY = 100 - ((advisor.mrr / maxMRR) * 80 + 10);
+                          const tierColor = getTierColor(advisor.tier || 'other');
+                          const showLabel = top5Ids.has(advisor.id);
 
-                        const tierColor = getTierColor(advisor.tier || 'other');
-
-                        return (
-                          <div
-                            key={advisor.id}
-                            onClick={() => handleAdvisorClick(advisor.id)}
-                            className="absolute w-4 h-4 rounded-full border-2 border-white shadow-md cursor-pointer hover:w-5 hover:h-5 hover:shadow-lg transition-all"
-                            style={{
-                              left: `${engagementX}%`,
-                              top: `${mrrY}%`,
-                              transform: 'translate(-50%, -50%)',
-                              backgroundColor: tierColor,
-                            }}
-                            title={`${advisor.name} - $${(advisor.mrr / 1000).toFixed(1)}K`}
-                          />
-                        );
-                      })}
+                          return (
+                            <div
+                              key={advisor.id}
+                              onClick={() => handleAdvisorClick(advisor.id)}
+                              className="absolute cursor-pointer group"
+                              style={{
+                                left: `${engagementX}%`,
+                                top: `${mrrY}%`,
+                                transform: 'translate(-50%, -50%)',
+                              }}
+                              title={`${advisor.name} - $${(advisor.mrr / 1000).toFixed(1)}K`}
+                            >
+                              <div
+                                className="w-4 h-4 rounded-full border-2 border-white shadow-md group-hover:w-5 group-hover:h-5 group-hover:shadow-lg transition-all"
+                                style={{ backgroundColor: tierColor }}
+                              />
+                              {showLabel && (
+                                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[9px] font-semibold text-gray-700 whitespace-nowrap bg-white/80 px-1 rounded pointer-events-none">
+                                  {advisor.name.split(' ')[0]} {advisor.name.split(' ')[1]?.[0]}.
+                                </span>
+                              )}
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
 
