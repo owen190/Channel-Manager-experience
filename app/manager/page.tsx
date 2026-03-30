@@ -240,6 +240,27 @@ export default function ManagerPage() {
 
   const stalledDealsCount = deals.filter(d => d.stage === 'Stalled').length;
 
+  const formatCurrency = (num: number): string => {
+    if (num >= 1000000) return `$${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `$${(num / 1000).toFixed(0)}K`;
+    return `$${num}`;
+  };
+
+  const stageDistribution = useMemo(() => {
+    const stages: Record<DealStage, number> = {
+      'Discovery': 0,
+      'Qualifying': 0,
+      'Proposal': 0,
+      'Negotiating': 0,
+      'Closed Won': 0,
+      'Stalled': 0
+    };
+    deals.forEach(deal => {
+      stages[deal.stage]++;
+    });
+    return stages;
+  }, []);
+
   const riskRadar = useMemo(() => {
     return advisors.map(a => {
       let score = 0;
@@ -351,6 +372,8 @@ export default function ManagerPage() {
         return advisors.filter(a => ['Slipping', 'Freefall'].includes(a.trajectory) || ['Fading', 'Flatline'].includes(a.pulse));
       case 'Top 10':
         return advisors.filter(a => a.tier === 'top10');
+      case 'Rising Stars':
+        return advisors.filter(a => a.tier === 'next20' && ['Climbing', 'Accelerating'].includes(a.trajectory) && ['Strong', 'Rising'].includes(a.pulse));
       case 'New':
         return advisors.filter(a => {
           const connected = new Date(a.connectedSince);
@@ -643,19 +666,83 @@ export default function ManagerPage() {
             )}
 
             {showBriefing && (
-              <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-10">
-                <div className="bg-white rounded-xl border border-[#e8e5e1] w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-                  <div className="sticky top-0 bg-white px-6 py-4 border-b border-[#f0ede9] flex items-center justify-between">
-                    <h2 className="text-18px font-bold text-gray-900">Morning Briefing</h2>
-                    <button
-                      onClick={() => setShowBriefing(false)}
-                      className="p-1 hover:bg-gray-100 rounded"
-                    >
-                      <X className="w-5 h-5" />
+              <div className="fixed inset-0 bg-black/30 z-50 flex items-start justify-center pt-8" onClick={() => setShowBriefing(false)}>
+                <div className="bg-[#F7F5F2] rounded-2xl border border-[#e8e5e1] w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+                  <div className="sticky top-0 bg-[#157A6E] px-6 py-5 rounded-t-2xl flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-bold text-white">Morning Briefing</h2>
+                      <p className="text-12px text-white/70 mt-0.5">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {morningBriefingItems.length} action items</p>
+                    </div>
+                    <button onClick={() => setShowBriefing(false)} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
+                      <X className="w-5 h-5 text-white" />
                     </button>
                   </div>
-                  <div className="p-6">
-                    <MorningBriefing actNow={managerBriefing.actNow} capitalize={managerBriefing.capitalize} nurture={managerBriefing.nurture} />
+
+                  <div className="p-6 space-y-5">
+                    {/* Act Now */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-2 h-2 rounded-full bg-red-500" />
+                        <h3 className="text-11px uppercase font-bold tracking-widest text-[#888]">Act Now</h3>
+                        <span className="ml-auto text-10px font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">{managerBriefing.actNow.length} items</span>
+                      </div>
+                      <div className="space-y-2">
+                        {managerBriefing.actNow.map((item, idx) => (
+                          <div key={idx} className="bg-white rounded-xl border border-[#e8e5e1] p-4 border-l-4 border-l-red-500">
+                            <div className="flex items-start justify-between mb-1">
+                              <p className="text-13px font-bold text-gray-900">{item.advisorName}</p>
+                              {item.mrrAtRisk && <span className="text-12px font-bold text-red-600">${(item.mrrAtRisk / 1000).toFixed(1)}K at risk</span>}
+                            </div>
+                            {item.dealName && <p className="text-12px font-medium text-[#157A6E] mb-1">{item.dealName}</p>}
+                            <p className="text-12px text-gray-600">{item.action}</p>
+                            {item.personalHook && <p className="text-11px text-gray-400 mt-1 italic">{item.personalHook}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Capitalize */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-2 h-2 rounded-full bg-amber-500" />
+                        <h3 className="text-11px uppercase font-bold tracking-widest text-[#888]">Capitalize</h3>
+                        <span className="ml-auto text-10px font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">{managerBriefing.capitalize.length} items</span>
+                      </div>
+                      <div className="space-y-2">
+                        {managerBriefing.capitalize.map((item, idx) => (
+                          <div key={idx} className="bg-white rounded-xl border border-[#e8e5e1] p-4 border-l-4 border-l-amber-500">
+                            <div className="flex items-start justify-between mb-1">
+                              <p className="text-13px font-bold text-gray-900">{item.advisorName}</p>
+                              {item.mrrAtRisk && <span className="text-12px font-bold text-green-600">+${(item.mrrAtRisk / 1000).toFixed(1)}K potential</span>}
+                            </div>
+                            {item.dealName && <p className="text-12px font-medium text-[#157A6E] mb-1">{item.dealName}</p>}
+                            <p className="text-12px text-gray-600">{item.action}</p>
+                            {item.personalHook && <p className="text-11px text-gray-400 mt-1 italic">{item.personalHook}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Nurture */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-2 h-2 rounded-full bg-[#157A6E]" />
+                        <h3 className="text-11px uppercase font-bold tracking-widest text-[#888]">Nurture</h3>
+                        <span className="ml-auto text-10px font-bold text-[#157A6E] bg-[#157A6E]/10 px-2 py-0.5 rounded-full">{managerBriefing.nurture.length} items</span>
+                      </div>
+                      <div className="space-y-2">
+                        {managerBriefing.nurture.map((item, idx) => (
+                          <div key={idx} className="bg-white rounded-xl border border-[#e8e5e1] p-4 border-l-4 border-l-[#157A6E]">
+                            <div className="flex items-start justify-between mb-1">
+                              <p className="text-13px font-bold text-gray-900">{item.advisorName}</p>
+                            </div>
+                            {item.dealName && <p className="text-12px font-medium text-[#157A6E] mb-1">{item.dealName}</p>}
+                            <p className="text-12px text-gray-600">{item.action}</p>
+                            {item.personalHook && <p className="text-11px text-gray-400 mt-1 italic">{item.personalHook}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -862,7 +949,7 @@ export default function ManagerPage() {
                 {relationshipsView === 'list' && (
                   <div className="flex flex-col bg-white rounded-xl border border-[#e8e5e1] h-full">
                     <div className="px-6 py-4 border-b border-[#f0ede9] flex gap-2 flex-wrap">
-                      {['All', 'At Risk', 'Top 10', 'New'].map(filter => (
+                      {['All', 'At Risk', 'Top 10', 'Rising Stars', 'New'].map(filter => (
                         <button
                           key={filter}
                           onClick={() => setRelationshipFilter(filter)}
@@ -1369,13 +1456,13 @@ export default function ManagerPage() {
                 )}
 
                 <div className="bg-white rounded-xl border border-[#e8e5e1]">
-                  <div className="px-6 py-4 border-b border-[#f0ede9]">
+                  <div className="px-5 py-3.5 border-b border-[#f0ede9]">
                     <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Pipeline by Stage</h3>
                   </div>
-                  <div className="p-6">
-                    <div className="flex gap-4 overflow-x-auto pb-4 flex-wrap">
+                  <div className="p-5">
+                    <div className="flex gap-1 h-12 mb-4">
                       {(['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Stalled'] as const).map(stage => {
-                        const stageBorderColors: Record<string, string> = {
+                        const stageColors: Record<string, string> = {
                           'Discovery': '#2563eb',
                           'Qualifying': '#4f46e5',
                           'Proposal': '#f59e0b',
@@ -1383,110 +1470,100 @@ export default function ManagerPage() {
                           'Closed Won': '#16a34a',
                           'Stalled': '#ef4444',
                         };
-
-                        const stageDeals = deals.filter(d => d.stage === stage);
-                        const stageMRR = stageDeals.reduce((sum, d) => sum + d.mrr, 0);
-                        const isExpanded = expandedStage === stage;
-
+                        const count = stageDistribution[stage];
+                        const totalDeals = Object.values(stageDistribution).reduce((a, b) => a + b, 0);
+                        const percentage = totalDeals > 0 ? (count / totalDeals) * 100 : 0;
                         return (
-                          <div key={stage} className="flex-1 min-w-[200px]">
-                            <button
-                              onClick={() => setExpandedStage(isExpanded ? null : stage)}
-                              className="w-full bg-white border border-[#e8e5e1] rounded-xl p-4 mb-3 border-t-4 hover:shadow-md transition-shadow text-left"
-                              style={{ borderTopColor: stageBorderColors[stage] }}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <h3 className="text-13px font-bold text-gray-900">{stage}</h3>
-                                  <p className="text-13px font-semibold mt-1" style={{ color: '#157A6E' }}>
-                                    ${(stageMRR / 1000).toFixed(1)}K MRR
-                                  </p>
-                                </div>
-                                <div className="flex flex-col items-end">
-                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-11px font-semibold bg-gray-100 text-gray-700">
-                                    {stageDeals.length}
-                                  </span>
-                                  {isExpanded ? <ChevronUp className="w-4 h-4 mt-2" /> : <ChevronDown className="w-4 h-4 mt-2" />}
-                                </div>
-                              </div>
-                            </button>
-
-                            {isExpanded && (
-                              <div className="space-y-2">
-                                {stageDeals.length === 0 ? (
-                                  <div className="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg text-center">
-                                    <p className="text-11px text-gray-500">No deals in this stage</p>
-                                  </div>
-                                ) : (
-                                  stageDeals.map(deal => {
-                                    const advisor = advisors.find(a => a.id === deal.advisorId);
-                                    return (
-                                      <div
-                                        key={deal.id}
-                                        className="bg-white border border-[#e8e5e1] rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow"
-                                      >
-                                        <h4 className="text-13px font-bold text-gray-900 mb-2">{deal.name}</h4>
-                                        <p className="text-11px text-gray-600 mb-2">
-                                          <span
-                                            className="font-medium cursor-pointer hover:underline"
-                                            onClick={() => advisor && handleAdvisorClick(advisor.id)}
-                                            style={{ color: '#157A6E' }}
-                                          >
-                                            {advisor?.name || 'Unknown'}
-                                          </span>
-                                        </p>
-
-                                        <div className="mb-2">
-                                          <p className="text-11px text-gray-600">MRR</p>
-                                          <p className="text-13px font-bold text-gray-900">${(deal.mrr / 1000).toFixed(1)}K</p>
-                                        </div>
-
-                                        <div className="mb-2">
-                                          <DealHealthBadge health={deal.health} />
-                                        </div>
-
-                                        <div className={`px-2 py-1 rounded text-11px font-medium mb-2 inline-block ${getDaysInStageColor(deal.daysInStage)}`}>
-                                          {deal.daysInStage}d in stage
-                                        </div>
-
-                                        <div className="mb-2">
-                                          <div className="flex items-center justify-between mb-1">
-                                            <p className="text-11px text-gray-600">Probability</p>
-                                            <p className="text-11px font-semibold text-gray-700">{deal.probability}%</p>
-                                          </div>
-                                          <div className="bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                                            <div
-                                              className="h-1.5 rounded-full transition-all"
-                                              style={{ width: `${deal.probability}%`, backgroundColor: '#157A6E' }}
-                                            />
-                                          </div>
-                                        </div>
-
-                                        {deal.confidenceScore && (
-                                          <div className="flex items-center gap-1">
-                                            <p className="text-11px text-gray-600">Confidence:</p>
-                                            <div
-                                              className="px-2 py-0.5 rounded text-11px font-semibold text-white"
-                                              style={{
-                                                backgroundColor: deal.confidenceScore === 'High' ? '#16a34a' : deal.confidenceScore === 'Medium' ? '#f59e0b' : '#ef4444',
-                                              }}
-                                            >
-                                              {deal.confidenceScore}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })
-                                )}
-                              </div>
-                            )}
+                          <div
+                            key={stage}
+                            className="flex-1 rounded cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-center text-white text-10px font-bold"
+                            style={{ backgroundColor: stageColors[stage], width: `${percentage}%` }}
+                            onClick={() => setExpandedStage(expandedStage === stage ? null : stage)}
+                            title={`${stage}: ${count} deals`}
+                          >
+                            {count > 0 && <span>{count}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-2 flex-wrap text-11px">
+                      {(['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Stalled'] as const).map(stage => {
+                        const stageColors: Record<string, string> = {
+                          'Discovery': '#2563eb',
+                          'Qualifying': '#4f46e5',
+                          'Proposal': '#f59e0b',
+                          'Negotiating': '#fb923c',
+                          'Closed Won': '#16a34a',
+                          'Stalled': '#ef4444',
+                        };
+                        const stageMRR = deals.filter(d => d.stage === stage).reduce((sum, d) => sum + d.mrr, 0);
+                        return (
+                          <div key={stage} className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stageColors[stage] }} />
+                            <span className="text-gray-600">{stage} ({stageDistribution[stage]}) · {formatCurrency(stageMRR)}</span>
                           </div>
                         );
                       })}
                     </div>
                   </div>
                 </div>
+
+                {expandedStage && (
+                  <div className="bg-white border border-[#e8e5e1] rounded-xl">
+                    <div className="px-5 py-3.5 border-b border-[#f0ede9]">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-12px uppercase font-bold tracking-widest text-[#888]">Deals in {expandedStage}</h3>
+                        <button onClick={() => setExpandedStage(null)} className="text-gray-400 hover:text-gray-600">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="p-5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {deals
+                          .filter(d => d.stage === expandedStage)
+                          .map(deal => {
+                            const advisor = advisors.find(a => a.id === deal.advisorId);
+                            return (
+                              <div key={deal.id} className="p-4 bg-[#F7F5F2] rounded-lg border border-[#e8e5e1]">
+                                <div className="flex items-start justify-between mb-2">
+                                  <h4 className="text-13px font-semibold text-gray-900">{deal.name}</h4>
+                                  <DealHealthBadge health={deal.health} />
+                                </div>
+                                <p className="text-11px text-gray-600 mb-2">
+                                  <span
+                                    className="font-medium cursor-pointer hover:underline"
+                                    onClick={() => advisor && handleAdvisorClick(advisor.id)}
+                                    style={{ color: '#157A6E' }}
+                                  >
+                                    {advisor?.name || 'Unknown'}
+                                  </span>
+                                </p>
+                                <div className="space-y-1 text-11px mb-3">
+                                  <p className="text-gray-600">MRR: <span className="font-bold text-gray-900">{formatCurrency(deal.mrr)}</span></p>
+                                  <p className="text-gray-600">Days in stage: <span className={`font-bold px-1.5 py-0.5 rounded ${getDaysInStageColor(deal.daysInStage)}`}>{deal.daysInStage}</span></p>
+                                  <p className="text-gray-600">Probability: <span className="font-bold text-gray-900">{deal.probability}%</span></p>
+                                </div>
+                                {deal.confidenceScore && (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-11px text-gray-500">Confidence:</span>
+                                    <span
+                                      className="px-2 py-0.5 rounded text-10px font-semibold text-white"
+                                      style={{
+                                        backgroundColor: deal.confidenceScore === 'High' ? '#16a34a' : deal.confidenceScore === 'Medium' ? '#f59e0b' : '#ef4444',
+                                      }}
+                                    >
+                                      {deal.confidenceScore}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

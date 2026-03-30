@@ -66,10 +66,10 @@ export function AdvisorPanel({
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Invisible click-away backdrop (no darkening) */}
       {isOpen && (
         <div
-          className="fixed inset-0 left-64 bg-black bg-opacity-50 z-60"
+          className="fixed inset-0 left-64 z-60"
           onClick={onClose}
         />
       )}
