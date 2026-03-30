@@ -137,6 +137,43 @@ export interface LiveActivity {
   createdAt?: string;
 }
 
+// ============ ENGAGEMENT SIGNALS ============
+
+export type SignalType =
+  | 'quote_request'
+  | 'product_inquiry'
+  | 'pricing_request'
+  | 'demo_request'
+  | 'technical_eval'
+  | 'training_completed'
+  | 'portal_login'
+  | 'spec_download';
+
+export interface EngagementSignal {
+  id: string;
+  advisorId: string;
+  signalType: SignalType;
+  product?: string;       // e.g. "SD-WAN", "UCaaS", "Managed Security"
+  value?: number;          // estimated deal value if known
+  notes?: string;
+  source?: string;         // "CRM", "Portal", "Email", "Manual"
+  occurredAt: string;      // when the signal happened (not when logged)
+  createdAt?: string;
+}
+
+export interface RevenueIntent {
+  advisorId: string;
+  advisorName: string;
+  score: number;            // 0-100
+  label: 'Hot' | 'Warm' | 'Interested' | 'Cold';
+  signals30d: number;       // count in last 30 days
+  signals90d: number;       // count in last 90 days
+  lastSignalDate: string;
+  topProducts: string[];
+  quoteCount30d: number;
+  totalEstimatedValue: number;
+}
+
 // ============ JSON FILE STORE (DEV MODE) ============
 
 // Use /tmp on Railway (writable) or data/live locally
@@ -407,17 +444,139 @@ export const db = {
     return record;
   },
 
+  // --- Engagement Signals ---
+  async getSignals(filters?: { advisorId?: string; signalType?: SignalType; since?: string }): Promise<EngagementSignal[]> {
+    let signals = await readCollection<EngagementSignal>('signals');
+    if (filters?.advisorId) signals = signals.filter(s => s.advisorId === filters.advisorId);
+    if (filters?.signalType) signals = signals.filter(s => s.signalType === filters.signalType);
+    if (filters?.since) {
+      const sinceDate = new Date(filters.since).getTime();
+      signals = signals.filter(s => new Date(s.occurredAt).getTime() >= sinceDate);
+    }
+    signals.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+    return signals;
+  },
+
+  async createSignal(signal: Omit<EngagementSignal, 'id' | 'createdAt'>): Promise<EngagementSignal> {
+    const signals = await readCollection<EngagementSignal>('signals');
+    const record: EngagementSignal = {
+      ...signal,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    signals.push(record);
+    await writeCollection('signals', signals);
+    return record;
+  },
+
+  async bulkCreateSignals(newSignals: Omit<EngagementSignal, 'id' | 'createdAt'>[]): Promise<number> {
+    const signals = await readCollection<EngagementSignal>('signals');
+    const now = new Date().toISOString();
+    const records = newSignals.map(s => ({
+      ...s,
+      id: generateId(),
+      createdAt: now,
+    }));
+    signals.push(...records);
+    await writeCollection('signals', signals);
+    return records.length;
+  },
+
+  async deleteSignal(id: string): Promise<boolean> {
+    const signals = await readCollection<EngagementSignal>('signals');
+    const filtered = signals.filter(s => s.id !== id);
+    if (filtered.length === signals.length) return false;
+    await writeCollection('signals', filtered);
+    return true;
+  },
+
+  // --- Revenue Intent Computation ---
+  async computeRevenueIntent(advisorId?: string): Promise<RevenueIntent[]> {
+    const advisors = advisorId
+      ? [await this.getAdvisor(advisorId)].filter(Boolean) as LiveAdvisor[]
+      : await this.getAdvisors();
+    const allSignals = await this.getSignals();
+    const now = Date.now();
+    const d30 = 30 * 24 * 60 * 60 * 1000;
+    const d90 = 90 * 24 * 60 * 60 * 1000;
+
+    // Signal weights: quotes and pricing are strongest buying signals
+    const WEIGHTS: Record<SignalType, number> = {
+      quote_request: 25,
+      pricing_request: 20,
+      demo_request: 15,
+      technical_eval: 15,
+      product_inquiry: 10,
+      spec_download: 8,
+      training_completed: 5,
+      portal_login: 3,
+    };
+
+    return advisors.map(advisor => {
+      const advisorSignals = allSignals.filter(s => s.advisorId === advisor.id);
+      const signals30d = advisorSignals.filter(s => now - new Date(s.occurredAt).getTime() < d30);
+      const signals90d = advisorSignals.filter(s => now - new Date(s.occurredAt).getTime() < d90);
+      const quoteCount30d = signals30d.filter(s => s.signalType === 'quote_request').length;
+
+      // Weighted score: recent signals count more
+      let rawScore = 0;
+      for (const s of signals30d) {
+        rawScore += (WEIGHTS[s.signalType] || 5) * 1.5; // 1.5x recency boost for 30d
+      }
+      for (const s of signals90d.filter(s => now - new Date(s.occurredAt).getTime() >= d30)) {
+        rawScore += WEIGHTS[s.signalType] || 5;
+      }
+      // Normalize to 0-100
+      const score = Math.min(100, Math.round(rawScore));
+
+      // Label
+      const label: RevenueIntent['label'] =
+        score >= 70 ? 'Hot' : score >= 40 ? 'Warm' : score >= 15 ? 'Interested' : 'Cold';
+
+      // Top products by frequency
+      const productCounts: Record<string, number> = {};
+      for (const s of advisorSignals) {
+        if (s.product) productCounts[s.product] = (productCounts[s.product] || 0) + 1;
+      }
+      const topProducts = Object.entries(productCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([p]) => p);
+
+      const totalEstimatedValue = advisorSignals
+        .filter(s => s.value && s.value > 0)
+        .reduce((sum, s) => sum + (s.value || 0), 0);
+
+      const lastSignalDate = advisorSignals[0]?.occurredAt || '';
+
+      return {
+        advisorId: advisor.id,
+        advisorName: advisor.name,
+        score,
+        label,
+        signals30d: signals30d.length,
+        signals90d: signals90d.length,
+        lastSignalDate,
+        topProducts,
+        quoteCount30d,
+        totalEstimatedValue,
+      };
+    });
+  },
+
   // --- Aggregate helpers for signal computation ---
   async getAdvisorContext(advisorId: string) {
-    const [advisor, deals, notes, transcripts, activity] = await Promise.all([
+    const [advisor, deals, notes, transcripts, activity, signals, revenueIntent] = await Promise.all([
       this.getAdvisor(advisorId),
       this.getDeals().then(d => d.filter(deal => deal.advisorId === advisorId)),
       this.getNotes({ advisorId }),
       this.getTranscripts({ advisorId }),
       this.getActivity({ advisorId, limit: 20 }),
+      this.getSignals({ advisorId }),
+      this.computeRevenueIntent(advisorId).then(r => r[0] || null),
     ]);
 
-    return { advisor, deals, notes, transcripts, activity };
+    return { advisor, deals, notes, transcripts, activity, signals, revenueIntent };
   },
 
   // Build full context string for Claude AI
@@ -435,6 +594,11 @@ export const db = {
         ctx.advisor.hobbies ? `HOBBIES: ${ctx.advisor.hobbies}` : '',
         ctx.advisor.family ? `FAMILY: ${ctx.advisor.family}` : '',
         '',
+        ctx.revenueIntent ? `REVENUE INTENT: ${ctx.revenueIntent.label} (${ctx.revenueIntent.score}/100) | ${ctx.revenueIntent.signals30d} signals in 30d | ${ctx.revenueIntent.quoteCount30d} quotes | Top products: ${ctx.revenueIntent.topProducts.join(', ') || 'None'}` : '',
+        '',
+        `ENGAGEMENT SIGNALS (${ctx.signals.length} total, recent first):`,
+        ...ctx.signals.slice(0, 10).map(s => `- [${s.signalType}] ${s.product || ''} ${s.value ? '$' + (s.value/1000).toFixed(1) + 'K' : ''} — ${new Date(s.occurredAt).toLocaleDateString()} ${s.notes ? '(' + s.notes + ')' : ''}`),
+        '',
         `DEALS (${ctx.deals.length}):`,
         ...ctx.deals.map(d => `- ${d.name}: $${(d.mrr/1000).toFixed(1)}K, ${d.stage}, ${d.health}, ${d.probability}% prob, ${d.daysInStage}d in stage`),
         '',
@@ -448,21 +612,26 @@ export const db = {
     }
 
     // General portfolio context
-    const [advisors, deals, reps] = await Promise.all([
+    const [advisors, deals, reps, intentScores] = await Promise.all([
       this.getAdvisors(),
       this.getDeals(),
       this.getReps(),
+      this.computeRevenueIntent(),
     ]);
 
     const totalMRR = advisors.reduce((sum, a) => sum + a.mrr, 0);
     const atRisk = advisors.filter(a => a.trajectory === 'Freefall' || a.trajectory === 'Slipping');
     const stalledDeals = deals.filter(d => d.stage === 'Stalled');
+    const hotAdvisors = intentScores.filter(i => i.label === 'Hot');
+    const warmAdvisors = intentScores.filter(i => i.label === 'Warm');
 
     return [
       `PORTFOLIO: ${advisors.length} advisors, $${(totalMRR/1000).toFixed(0)}K total MRR`,
       `AT RISK: ${atRisk.map(a => `${a.name} (${a.trajectory})`).join(', ') || 'None'}`,
       `PIPELINE: ${deals.length} deals, ${stalledDeals.length} stalled`,
+      `REVENUE INTENT: ${hotAdvisors.length} Hot, ${warmAdvisors.length} Warm`,
+      hotAdvisors.length > 0 ? `HOT ADVISORS: ${hotAdvisors.map(i => `${i.advisorName} (${i.score}/100, ${i.quoteCount30d} quotes 30d)`).join(', ')}` : '',
       `REPS: ${reps.map(r => `${r.name} (${r.partnerCount}/${r.partnerCapacity} capacity, ${r.winRate}% win rate)`).join(', ')}`,
-    ].join('\n');
+    ].filter(Boolean).join('\n');
   },
 };

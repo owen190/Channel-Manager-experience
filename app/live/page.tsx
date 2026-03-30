@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation';
 import {
   Users, DollarSign, UserCheck, FileText, Mic, Activity,
   Plus, Edit, Trash2, Save, X, ChevronDown, ChevronRight,
-  ArrowLeft, RefreshCw,
+  ArrowLeft, RefreshCw, Zap, Upload, TrendingUp,
 } from 'lucide-react';
 
-type Tab = 'advisors' | 'deals' | 'reps' | 'notes' | 'transcripts' | 'activity';
+type Tab = 'advisors' | 'deals' | 'reps' | 'notes' | 'transcripts' | 'signals' | 'activity';
 
 // ============ HELPERS ============
 
@@ -45,6 +45,7 @@ export default function LiveAdmin() {
     { id: 'reps', label: 'Reps', icon: UserCheck },
     { id: 'notes', label: 'Notes', icon: FileText },
     { id: 'transcripts', label: 'Transcripts', icon: Mic },
+    { id: 'signals', label: 'Signals', icon: Zap },
     { id: 'activity', label: 'Activity', icon: Activity },
   ];
 
@@ -105,6 +106,7 @@ export default function LiveAdmin() {
         {activeTab === 'reps' && <RepsPanel key={refreshKey} />}
         {activeTab === 'notes' && <NotesPanel key={refreshKey} />}
         {activeTab === 'transcripts' && <TranscriptsPanel key={refreshKey} />}
+        {activeTab === 'signals' && <SignalsPanel key={refreshKey} />}
         {activeTab === 'activity' && <ActivityPanel key={refreshKey} />}
       </div>
     </div>
@@ -559,6 +561,266 @@ function TranscriptsPanel() {
           );
         })}
         {transcripts.length === 0 && <EmptyState icon={Mic} text="No transcripts yet. Paste call transcripts from Gong or Fireflies." />}
+      </div>
+    </div>
+  );
+}
+
+// ============ SIGNALS PANEL ============
+
+const SIGNAL_TYPES = [
+  { value: 'quote_request', label: 'Quote Request' },
+  { value: 'product_inquiry', label: 'Product Inquiry' },
+  { value: 'pricing_request', label: 'Pricing Request' },
+  { value: 'demo_request', label: 'Demo Request' },
+  { value: 'technical_eval', label: 'Technical Evaluation' },
+  { value: 'training_completed', label: 'Training Completed' },
+  { value: 'portal_login', label: 'Portal Login' },
+  { value: 'spec_download', label: 'Spec/Doc Download' },
+];
+
+function SignalsPanel() {
+  const [signals, setSignals] = useState<any[]>([]);
+  const [advisors, setAdvisors] = useState<any[]>([]);
+  const [intents, setIntents] = useState<any[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkCSV, setBulkCSV] = useState('');
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [newSignal, setNewSignal] = useState({
+    advisorId: '', signalType: 'quote_request', product: '', value: 0, notes: '', source: 'Manual',
+    occurredAt: new Date().toISOString().split('T')[0],
+  });
+
+  const load = useCallback(async () => {
+    try {
+      const [s, a, i] = await Promise.all([api('signals'), api('advisors'), api('intent')]);
+      setSignals(Array.isArray(s) ? s : []);
+      setAdvisors(Array.isArray(a) ? a : []);
+      setIntents(Array.isArray(i) ? i : []);
+    } catch (err: any) { setError(err.message); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    if (!newSignal.advisorId) { setError('Select an advisor'); return; }
+    setError(null);
+    try {
+      await api('signals', { method: 'POST', body: JSON.stringify({
+        ...newSignal,
+        value: newSignal.value || undefined,
+        occurredAt: new Date(newSignal.occurredAt).toISOString(),
+      })});
+      setNewSignal({ advisorId: '', signalType: 'quote_request', product: '', value: 0, notes: '', source: 'Manual', occurredAt: new Date().toISOString().split('T')[0] });
+      setShowForm(false);
+      await load();
+    } catch (err: any) { setError(`Save failed: ${err.message}`); }
+  };
+
+  const bulkImport = async () => {
+    setError(null); setBulkResult(null);
+    try {
+      const lines = bulkCSV.trim().split('\n').filter(l => l.trim());
+      if (lines.length < 2) { setError('Need a header row + at least 1 data row'); return; }
+      const headers = lines[0].split(/[,\t]/).map(h => h.trim().toLowerCase());
+      const signals = lines.slice(1).map(line => {
+        const cols = line.split(/[,\t]/).map(c => c.trim());
+        const row: any = {};
+        headers.forEach((h, i) => {
+          if (h === 'advisor' || h === 'advisor_name' || h === 'advisorname') {
+            const adv = advisors.find((a: any) => a.name.toLowerCase().includes(cols[i]?.toLowerCase()));
+            if (adv) row.advisorId = adv.id;
+          } else if (h === 'advisorid' || h === 'advisor_id') {
+            row.advisorId = cols[i];
+          } else if (h === 'type' || h === 'signal' || h === 'signaltype' || h === 'signal_type') {
+            // Map friendly names to signal types
+            const val = cols[i]?.toLowerCase().replace(/\s+/g, '_');
+            const match = SIGNAL_TYPES.find(st => st.value === val || st.label.toLowerCase().replace(/\s+/g, '_') === val);
+            row.signalType = match?.value || val || 'product_inquiry';
+          } else if (h === 'product') {
+            row.product = cols[i];
+          } else if (h === 'value' || h === 'amount' || h === 'mrr') {
+            row.value = parseFloat(cols[i]?.replace(/[$,K]/gi, '')) || 0;
+            if (cols[i]?.toLowerCase().includes('k')) row.value *= 1000;
+          } else if (h === 'date' || h === 'occurred' || h === 'occurredat' || h === 'occurred_at') {
+            row.occurredAt = new Date(cols[i]).toISOString();
+          } else if (h === 'notes' || h === 'note') {
+            row.notes = cols[i];
+          } else if (h === 'source') {
+            row.source = cols[i];
+          }
+        });
+        if (!row.occurredAt) row.occurredAt = new Date().toISOString();
+        if (!row.signalType) row.signalType = 'product_inquiry';
+        return row;
+      }).filter(r => r.advisorId);
+
+      if (signals.length === 0) {
+        setError('No valid rows found. Make sure there\'s an "advisor" or "advisor_name" column matching your advisors.');
+        return;
+      }
+
+      const result = await api('signals', { method: 'POST', body: JSON.stringify(signals) });
+      setBulkResult(`Imported ${result.imported} signals`);
+      setBulkCSV('');
+      setShowBulk(false);
+      await load();
+    } catch (err: any) { setError(`Import failed: ${err.message}`); }
+  };
+
+  const remove = async (id: string) => {
+    try { await api(`signals?id=${id}`, { method: 'DELETE' }); await load(); }
+    catch (err: any) { setError(`Delete failed: ${err.message}`); }
+  };
+
+  const intentColors: Record<string, string> = {
+    Hot: 'bg-red-100 text-red-700',
+    Warm: 'bg-amber-100 text-amber-700',
+    Interested: 'bg-blue-100 text-blue-700',
+    Cold: 'bg-gray-100 text-gray-500',
+  };
+
+  const signalTypeColors: Record<string, string> = {
+    quote_request: 'bg-red-100 text-red-700',
+    pricing_request: 'bg-orange-100 text-orange-700',
+    demo_request: 'bg-violet-100 text-violet-700',
+    technical_eval: 'bg-indigo-100 text-indigo-700',
+    product_inquiry: 'bg-blue-100 text-blue-700',
+    spec_download: 'bg-cyan-100 text-cyan-700',
+    training_completed: 'bg-green-100 text-green-700',
+    portal_login: 'bg-gray-100 text-gray-600',
+  };
+
+  return (
+    <div>
+      {/* Revenue Intent Scoreboard */}
+      {intents.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-[#157A6E]" /> Revenue Intent
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {intents.filter((i: any) => i.signals90d > 0).sort((a: any, b: any) => b.score - a.score).map((intent: any) => (
+              <div key={intent.advisorId} className="bg-white rounded-lg border border-[#e8e5e1] p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-13px font-semibold text-gray-900">{intent.advisorName}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-10px font-bold ${intentColors[intent.label] || 'bg-gray-100'}`}>{intent.label}</span>
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${intent.score >= 70 ? 'bg-red-400' : intent.score >= 40 ? 'bg-amber-400' : intent.score >= 15 ? 'bg-blue-400' : 'bg-gray-300'}`}
+                         style={{ width: `${intent.score}%` }} />
+                  </div>
+                  <span className="text-11px font-semibold text-gray-600">{intent.score}</span>
+                </div>
+                <div className="text-10px text-gray-500 space-y-0.5">
+                  <div>{intent.signals30d} signals (30d) · {intent.quoteCount30d} quotes</div>
+                  {intent.topProducts.length > 0 && <div>Products: {intent.topProducts.join(', ')}</div>}
+                  {intent.totalEstimatedValue > 0 && <div>Est. value: ${(intent.totalEstimatedValue / 1000).toFixed(1)}K</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+          {intents.filter((i: any) => i.signals90d > 0).length === 0 && (
+            <p className="text-12px text-gray-400 italic">Log engagement signals below to see Revenue Intent scores.</p>
+          )}
+        </div>
+      )}
+
+      {/* Signals List Header */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-bold text-gray-900">{signals.length} Engagement Signals</h2>
+        <div className="flex gap-2">
+          <button onClick={() => { setShowBulk(true); setShowForm(false); }} className="px-3 py-1.5 text-12px font-medium text-gray-600 border border-[#e0ddd9] rounded-lg hover:bg-gray-50 flex items-center gap-1.5">
+            <Upload className="w-3.5 h-3.5" /> Bulk Import
+          </button>
+          <button onClick={() => { setShowForm(true); setShowBulk(false); }} className="px-3 py-1.5 text-12px font-semibold bg-[#157A6E] text-white rounded-lg hover:bg-[#126a5f] flex items-center gap-1.5">
+            <Plus className="w-3.5 h-3.5" /> Log Signal
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+          <span className="text-12px text-red-700">{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
+        </div>
+      )}
+
+      {bulkResult && (
+        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
+          <span className="text-12px text-green-700">{bulkResult}</span>
+          <button onClick={() => setBulkResult(null)} className="text-green-400 hover:text-green-600"><X className="w-3.5 h-3.5" /></button>
+        </div>
+      )}
+
+      {/* Bulk Import Form */}
+      {showBulk && (
+        <div className="bg-white rounded-lg border border-[#e8e5e1] p-5 mb-4">
+          <h3 className="text-13px font-bold text-gray-900 mb-2">Bulk Import from CSV/TSV</h3>
+          <p className="text-11px text-gray-500 mb-3">
+            Paste CSV or tab-separated data. Required columns: <strong>advisor</strong> (or advisor_name) + <strong>type</strong> (signal type).
+            Optional: product, value, date, notes, source.
+          </p>
+          <p className="text-10px text-gray-400 mb-2 font-mono">
+            Example: advisor, type, product, value, date, notes<br />
+            Sarah Chen, quote_request, SD-WAN, 5000, 2026-03-15, Urgent deployment
+          </p>
+          <TextArea label="" value={bulkCSV} onChange={setBulkCSV} rows={8} placeholder="Paste your CSV/TSV data here..." />
+          <div className="flex gap-2 mt-3">
+            <button onClick={bulkImport} className="px-4 py-1.5 text-12px font-semibold bg-[#157A6E] text-white rounded-lg flex items-center gap-1.5"><Upload className="w-3.5 h-3.5" /> Import</button>
+            <button onClick={() => setShowBulk(false)} className="px-4 py-1.5 text-12px font-medium text-gray-600 border border-[#e0ddd9] rounded-lg"><X className="w-3.5 h-3.5" /></button>
+          </div>
+        </div>
+      )}
+
+      {/* Single Signal Form */}
+      {showForm && (
+        <div className="bg-white rounded-lg border border-[#e8e5e1] p-5 mb-4">
+          <h3 className="text-13px font-bold text-gray-900 mb-4">Log Engagement Signal</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <Select label="Advisor *" value={newSignal.advisorId} options={['', ...advisors.map((a: any) => a.id)]} optionLabels={['(Select)', ...advisors.map((a: any) => a.name)]} onChange={v => setNewSignal(s => ({ ...s, advisorId: v }))} />
+            <Select label="Signal Type" value={newSignal.signalType} options={SIGNAL_TYPES.map(st => st.value)} optionLabels={SIGNAL_TYPES.map(st => st.label)} onChange={v => setNewSignal(s => ({ ...s, signalType: v }))} />
+            <Input label="Product" value={newSignal.product} onChange={v => setNewSignal(s => ({ ...s, product: v }))} placeholder="SD-WAN, UCaaS, etc." />
+            <Input label="Est. Value ($)" value={newSignal.value || ''} type="number" onChange={v => setNewSignal(s => ({ ...s, value: Number(v) }))} placeholder="5000" />
+            <Input label="Date" value={newSignal.occurredAt} onChange={v => setNewSignal(s => ({ ...s, occurredAt: v }))} placeholder="2026-03-15" />
+            <Select label="Source" value={newSignal.source} options={['Manual', 'CRM', 'Portal', 'Email', 'Gong']} onChange={v => setNewSignal(s => ({ ...s, source: v }))} />
+          </div>
+          <div className="mt-3">
+            <Input label="Notes" value={newSignal.notes} onChange={v => setNewSignal(s => ({ ...s, notes: v }))} placeholder="Optional context..." />
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button onClick={save} className="px-4 py-1.5 text-12px font-semibold bg-[#157A6E] text-white rounded-lg flex items-center gap-1.5"><Save className="w-3.5 h-3.5" /> Log Signal</button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-1.5 text-12px font-medium text-gray-600 border border-[#e0ddd9] rounded-lg"><X className="w-3.5 h-3.5" /></button>
+          </div>
+        </div>
+      )}
+
+      {/* Signals List */}
+      <div className="space-y-2">
+        {signals.map((s: any) => {
+          const adv = advisors.find((a: any) => a.id === s.advisorId);
+          const typeLabel = SIGNAL_TYPES.find(st => st.value === s.signalType)?.label || s.signalType;
+          return (
+            <div key={s.id} className="bg-white rounded-lg border border-[#e8e5e1] px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className={`px-2 py-0.5 rounded text-10px font-semibold whitespace-nowrap ${signalTypeColors[s.signalType] || 'bg-gray-100 text-gray-600'}`}>{typeLabel}</span>
+                <div>
+                  <p className="text-13px font-medium text-gray-900">{adv?.name || 'Unknown'} {s.product ? `— ${s.product}` : ''}</p>
+                  <p className="text-11px text-gray-500">
+                    {new Date(s.occurredAt).toLocaleDateString()}
+                    {s.value ? ` · $${(s.value/1000).toFixed(1)}K` : ''}
+                    {s.source ? ` · ${s.source}` : ''}
+                    {s.notes ? ` · ${s.notes}` : ''}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => remove(s.id)} className="p-1 text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+            </div>
+          );
+        })}
+        {signals.length === 0 && <EmptyState icon={Zap} text="No engagement signals yet. Log quoting activity, product inquiries, demo requests, and more." />}
       </div>
     </div>
   );

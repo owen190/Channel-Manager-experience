@@ -28,6 +28,7 @@ type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Clos
 export default function LiveManagerPage() {
   const [advisors, setAdvisors] = useState<Advisor[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [intents, setIntents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [activeView, setActiveViewRaw] = useState('command-center');
@@ -59,14 +60,17 @@ export default function LiveManagerPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [advisorsRes, dealsRes] = await Promise.all([
+      const [advisorsRes, dealsRes, intentsRes] = await Promise.all([
         fetch('/api/live/advisors'),
         fetch('/api/live/deals'),
+        fetch('/api/live/intent'),
       ]);
       const rawAdvisors = await advisorsRes.json();
       const rawDeals = await dealsRes.json();
+      const rawIntents = await intentsRes.json();
       setAdvisors(rawAdvisors.map(adaptAdvisor));
       setDeals(rawDeals.map(adaptDeal));
+      setIntents(Array.isArray(rawIntents) ? rawIntents : []);
     } catch (err) {
       console.error('Failed to fetch live data:', err);
     }
@@ -236,6 +240,36 @@ export default function LiveManagerPage() {
           </div>
         </div>
       </div>
+
+      {/* Revenue Intent */}
+      {intents.filter((i: any) => i.signals90d > 0).length > 0 && (
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Revenue Intent</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {intents.filter((i: any) => i.signals90d > 0).sort((a: any, b: any) => b.score - a.score).slice(0, 8).map((intent: any) => {
+              const colors: Record<string, string> = { Hot: 'border-red-300 bg-red-50', Warm: 'border-amber-300 bg-amber-50', Interested: 'border-blue-300 bg-blue-50', Cold: 'border-gray-200 bg-gray-50' };
+              const badgeColors: Record<string, string> = { Hot: 'bg-red-100 text-red-700', Warm: 'bg-amber-100 text-amber-700', Interested: 'bg-blue-100 text-blue-700', Cold: 'bg-gray-100 text-gray-500' };
+              return (
+                <div key={intent.advisorId} className={`rounded-lg border p-3 ${colors[intent.label] || 'border-gray-200'} cursor-pointer hover:shadow-sm`}
+                     onClick={() => { const a = advisorsWithDeals.find(x => x.id === intent.advisorId); if (a) { setSelectedAdvisor(a); setPanelOpen(true); } }}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-12px font-semibold text-gray-800 truncate">{intent.advisorName}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${badgeColors[intent.label]}`}>{intent.label}</span>
+                  </div>
+                  <div className="h-1.5 bg-white/60 rounded-full overflow-hidden mb-1.5">
+                    <div className={`h-full rounded-full ${intent.score >= 70 ? 'bg-red-400' : intent.score >= 40 ? 'bg-amber-400' : 'bg-blue-400'}`} style={{ width: `${intent.score}%` }} />
+                  </div>
+                  <div className="text-10px text-gray-500">
+                    {intent.quoteCount30d > 0 && <span className="font-medium text-gray-700">{intent.quoteCount30d} quotes · </span>}
+                    {intent.signals30d} signals (30d)
+                    {intent.topProducts.length > 0 && <span className="block mt-0.5">{intent.topProducts.join(', ')}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Engagement Quadrant */}
       <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">

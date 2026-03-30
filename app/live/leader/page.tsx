@@ -34,6 +34,7 @@ export default function LiveLeaderDashboard() {
   const [advisors, setAdvisors] = useState<Advisor[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [reps, setReps] = useState<Rep[]>([]);
+  const [intents, setIntents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [activeView, setActiveViewRaw] = useState('command-center');
@@ -66,17 +67,20 @@ export default function LiveLeaderDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [advisorsRes, dealsRes, repsRes] = await Promise.all([
+      const [advisorsRes, dealsRes, repsRes, intentsRes] = await Promise.all([
         fetch('/api/live/advisors'),
         fetch('/api/live/deals'),
         fetch('/api/live/reps'),
+        fetch('/api/live/intent'),
       ]);
       const rawAdvisors = await advisorsRes.json();
       const rawDeals = await dealsRes.json();
       const rawReps = await repsRes.json();
+      const rawIntents = await intentsRes.json();
       setAdvisors(rawAdvisors.map(adaptAdvisor));
       setDeals(rawDeals.map(adaptDeal));
       setReps(rawReps.map(adaptRep));
+      setIntents(Array.isArray(rawIntents) ? rawIntents : []);
     } catch (err) {
       console.error('Failed to fetch live data:', err);
     }
@@ -288,6 +292,39 @@ export default function LiveLeaderDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Revenue Intent Summary */}
+      {intents.filter((i: any) => i.signals90d > 0).length > 0 && (
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Revenue Intent — Top Partners</h3>
+          <div className="space-y-2">
+            {intents.filter((i: any) => i.signals90d > 0).sort((a: any, b: any) => b.score - a.score).slice(0, 6).map((intent: any) => {
+              const badgeColors: Record<string, string> = { Hot: 'bg-red-100 text-red-700', Warm: 'bg-amber-100 text-amber-700', Interested: 'bg-blue-100 text-blue-700', Cold: 'bg-gray-100 text-gray-500' };
+              return (
+                <div key={intent.advisorId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer"
+                     onClick={() => handleAdvisorClick(intent.advisorId)}>
+                  <div className="flex items-center gap-3">
+                    <span className={`px-2 py-0.5 rounded text-10px font-bold ${badgeColors[intent.label]}`}>{intent.label}</span>
+                    <div>
+                      <p className="text-13px font-medium text-gray-800">{intent.advisorName}</p>
+                      <p className="text-10px text-gray-500">
+                        {intent.quoteCount30d} quotes · {intent.signals30d} signals (30d)
+                        {intent.topProducts.length > 0 ? ` · ${intent.topProducts.join(', ')}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${intent.score >= 70 ? 'bg-red-400' : intent.score >= 40 ? 'bg-amber-400' : 'bg-blue-400'}`} style={{ width: `${intent.score}%` }} />
+                    </div>
+                    <span className="text-11px font-semibold text-gray-600 w-6 text-right">{intent.score}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 
