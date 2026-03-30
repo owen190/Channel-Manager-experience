@@ -83,15 +83,27 @@ export default function ManagerPage() {
     setInlineTab('overview');
   };
 
-  const calculateEngagementScore = (pulse: string): number => {
-    const scoreMap: Record<string, number> = {
-      'Strong': 90,
-      'Steady': 60,
-      'Rising': 75,
+  const calculateEngagementScore = (advisor: Advisor): number => {
+    const pulseBase: Record<string, number> = {
+      'Strong': 80,
+      'Steady': 55,
+      'Rising': 68,
       'Fading': 30,
-      'Flatline': 10,
+      'Flatline': 12,
     };
-    return scoreMap[pulse] || 0;
+    const trajectoryBoost: Record<string, number> = {
+      'Accelerating': 12,
+      'Climbing': 8,
+      'Stable': 0,
+      'Slipping': -8,
+      'Freefall': -12,
+    };
+    const base = pulseBase[advisor.pulse] || 50;
+    const boost = trajectoryBoost[advisor.trajectory] || 0;
+    // Use advisor name hash for consistent jitter so dots spread out
+    const hash = advisor.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+    const jitter = ((hash % 17) - 8) * 1.2;
+    return Math.max(5, Math.min(95, base + boost + jitter));
   };
 
   const getTierColor = (tier: string): string => {
@@ -1481,26 +1493,21 @@ export default function ManagerPage() {
             {/* ========== STRATEGIC VIEW ========== */}
             {activeView === 'strategic' && (
               <div className="space-y-6 max-w-7xl mx-auto">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
-                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">Total Advisors</p>
-                    <p className="text-28px font-bold text-gray-900">{advisors.length}</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-5">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-1">Advisors</p>
+                    <p className="text-2xl font-bold text-gray-900">{advisors.length}</p>
+                    <p className="text-11px text-[#157A6E] mt-1">{advisors.filter(a => a.tier === 'top10').length} Top 10</p>
                   </div>
-                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
-                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">Portfolio MRR</p>
-                    <p className="text-28px font-bold text-gray-900">${(totalMRR / 1000).toFixed(0)}K</p>
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-5">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-1">Portfolio MRR</p>
+                    <p className="text-2xl font-bold text-gray-900">${(totalMRR / 1000).toFixed(0)}K</p>
+                    <p className="text-11px text-[#157A6E] mt-1">${((totalMRR / advisors.length) / 1000).toFixed(1)}K avg</p>
                   </div>
-                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
-                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">Retention Rate</p>
-                    <p className="text-28px font-bold text-gray-900">94%</p>
-                  </div>
-                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
-                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">Avg MRR/Advisor</p>
-                    <p className="text-28px font-bold text-gray-900">${((totalMRR / advisors.length) / 1000).toFixed(1)}K</p>
-                  </div>
-                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
-                    <p className="text-10px uppercase font-semibold text-[#888] mb-2">% Climbing/Strong</p>
-                    <p className="text-28px font-bold text-gray-900">{Math.round(((pulseSignals.Climbing + pulseSignals.Strong) / advisors.length) * 100)}%</p>
+                  <div className="bg-white rounded-xl border border-[#e8e5e1] p-5">
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-1">Retention</p>
+                    <p className="text-2xl font-bold text-gray-900">94%</p>
+                    <p className="text-11px text-[#157A6E] mt-1">{Math.round(((pulseSignals.Climbing + pulseSignals.Strong) / advisors.length) * 100)}% climbing+strong</p>
                   </div>
                 </div>
 
@@ -1508,23 +1515,23 @@ export default function ManagerPage() {
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
                     <p className="text-10px uppercase font-semibold text-[#888] mb-4">Advisor Quadrant</p>
                     <div className="relative h-96 bg-gray-50 rounded-lg border border-gray-200 p-4">
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-2 text-10px font-semibold text-gray-600">Low</div>
-                      <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full pl-2 text-10px font-semibold text-gray-600">High</div>
-                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full pt-2 text-10px font-semibold text-gray-600">Low MRR</div>
-                      <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full pb-2 text-10px font-semibold text-gray-600">High MRR</div>
+                      {/* Axis labels */}
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full pt-2 text-10px font-semibold text-gray-500">Engagement Score →</div>
+                      <div className="absolute top-0 left-0 -translate-x-full pr-2 text-10px font-semibold text-gray-500 whitespace-nowrap" style={{ transform: 'rotate(-90deg) translateX(-50%)', transformOrigin: 'right center' }}>MRR →</div>
 
-                      <div className="absolute inset-4 border-l border-b border-gray-300" />
-                      <div className="absolute top-1/2 left-0 right-0 border-t border-gray-300 -translate-y-1/2" />
+                      {/* Grid lines */}
+                      <div className="absolute top-1/2 left-0 right-0 border-t border-dashed border-gray-300" />
+                      <div className="absolute left-1/2 top-0 bottom-0 border-l border-dashed border-gray-300" />
 
-                      <div className="absolute top-2 left-1/2 -translate-x-1/2 text-9px font-semibold text-gray-500">Stars</div>
-                      <div className="absolute top-2 right-2 text-9px font-semibold text-gray-500">Growth</div>
-                      <div className="absolute bottom-2 left-2 text-9px font-semibold text-gray-500">Harvest</div>
-                      <div className="absolute bottom-2 right-2 text-9px font-semibold text-gray-500">Watch</div>
+                      {/* Quadrant labels */}
+                      <div className="absolute top-3 left-3 text-10px font-bold text-gray-400 uppercase tracking-wider">Stars</div>
+                      <div className="absolute top-3 right-3 text-10px font-bold text-gray-400 uppercase tracking-wider">Growth</div>
+                      <div className="absolute bottom-3 left-3 text-10px font-bold text-gray-400 uppercase tracking-wider">Harvest</div>
+                      <div className="absolute bottom-3 right-3 text-10px font-bold text-gray-400 uppercase tracking-wider">Watch</div>
 
                       {advisors.map(advisor => {
-                        const engagementScore = calculateEngagementScore(advisor.pulse);
-                        const maxEngagement = 100;
-                        const engagementX = (engagementScore / maxEngagement) * 80 + 10;
+                        const engagementScore = calculateEngagementScore(advisor);
+                        const engagementX = (engagementScore / 100) * 80 + 10;
 
                         const maxMRR = Math.max(...advisors.map(a => a.mrr));
                         const mrrY = 100 - ((advisor.mrr / maxMRR) * 80 + 10);
@@ -1575,10 +1582,8 @@ export default function ManagerPage() {
                               'other': 'Other',
                             };
 
-                            const strongCount = tierAdvisors.filter(a => a.pulse === 'Strong').length;
-                            const steadyCount = tierAdvisors.filter(a => a.pulse === 'Steady').length;
                             const avgEngagementTier = tierAdvisors.length > 0
-                              ? (strongCount * 90 + steadyCount * 60 + (tierAdvisors.length - strongCount - steadyCount) * 30) / tierAdvisors.length
+                              ? tierAdvisors.reduce((sum, a) => sum + calculateEngagementScore(a), 0) / tierAdvisors.length
                               : 0;
 
                             return (
@@ -1599,19 +1604,19 @@ export default function ManagerPage() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-6">
-                    <p className="text-10px uppercase font-semibold text-[#888] mb-4">Supplier Activity</p>
+                    <p className="text-10px uppercase font-semibold text-[#888] mb-4">Quoting vs Selling Activity</p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-13px">
                         <thead>
                           <tr className="border-b border-[#f0ede9]">
                             <th className="px-3 py-2 text-left text-11px uppercase font-bold text-[#888]">Advisor</th>
-                            <th className="px-3 py-2 text-center text-11px uppercase font-bold text-[#888]">Quotes</th>
-                            <th className="px-3 py-2 text-center text-11px uppercase font-bold text-[#888]">Won</th>
-                            <th className="px-3 py-2 text-center text-11px uppercase font-bold text-[#888]">Rate</th>
+                            <th className="px-3 py-2 text-center text-11px uppercase font-bold text-[#888]">Quoted</th>
+                            <th className="px-3 py-2 text-center text-11px uppercase font-bold text-[#888]">Sold</th>
+                            <th className="px-3 py-2 text-left text-11px uppercase font-bold text-[#888]">Win Rate</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {advisors.slice(0, 8).map((advisor, idx) => {
+                          {advisors.slice(0, 10).map((advisor, idx) => {
                             const quotesData = calculateQuotesData(advisor);
                             const rate = quotesData.submitted > 0 ? Math.round((quotesData.won / quotesData.submitted) * 100) : 0;
                             return (
@@ -1626,7 +1631,14 @@ export default function ManagerPage() {
                                 </td>
                                 <td className="px-3 py-2 text-center font-medium text-gray-900">{quotesData.submitted}</td>
                                 <td className="px-3 py-2 text-center font-medium text-gray-900">{quotesData.won}</td>
-                                <td className="px-3 py-2 text-center font-medium text-gray-900">{rate}%</td>
+                                <td className="px-3 py-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                      <div className="h-full rounded-full" style={{ width: `${rate}%`, backgroundColor: rate >= 50 ? '#157A6E' : rate >= 35 ? '#f59e0b' : '#ef4444' }} />
+                                    </div>
+                                    <span className="text-11px font-semibold text-gray-700 w-8 text-right">{rate}%</span>
+                                  </div>
+                                </td>
                               </tr>
                             );
                           })}

@@ -180,15 +180,26 @@ export default function LeaderDashboard() {
     return 'bg-green-100 text-green-700';
   };
 
-  const getEngagementScore = (pulse: string): number => {
-    const scoreMap: Record<string, number> = {
-      'Strong': 90,
-      'Steady': 60,
-      'Rising': 75,
+  const getEngagementScore = (advisor: Advisor): number => {
+    const pulseBase: Record<string, number> = {
+      'Strong': 80,
+      'Steady': 55,
+      'Rising': 68,
       'Fading': 30,
-      'Flatline': 10,
+      'Flatline': 12,
     };
-    return scoreMap[pulse] || 50;
+    const trajectoryBoost: Record<string, number> = {
+      'Accelerating': 12,
+      'Climbing': 8,
+      'Stable': 0,
+      'Slipping': -8,
+      'Freefall': -12,
+    };
+    const base = pulseBase[advisor.pulse] || 50;
+    const boost = trajectoryBoost[advisor.trajectory] || 0;
+    const hash = advisor.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+    const jitter = ((hash % 17) - 8) * 1.2;
+    return Math.max(5, Math.min(95, base + boost + jitter));
   };
 
   const filteredAdvisors = useMemo(() => {
@@ -786,9 +797,9 @@ export default function LeaderDashboard() {
                                   <div className="absolute bottom-1 right-2 text-10px text-gray-500 font-semibold">Harvest</div>
 
                                   {repAdvisors.map(advisor => {
-                                    const engagementScore = getEngagementScore(advisor.pulse);
+                                    const engagementScore = getEngagementScore(advisor);
                                     const mrrMax = Math.max(...repAdvisors.map(a => a.mrr), 500000);
-                                    const xPercent = (engagementScore / 100) * 100;
+                                    const xPercent = (engagementScore / 100) * 80 + 10;
                                     const yPercent = (advisor.mrr / mrrMax) * 100;
                                     const colorMap: Record<string, string> = {
                                       'Strategic': '#157A6E',
