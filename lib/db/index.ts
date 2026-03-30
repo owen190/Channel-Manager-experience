@@ -139,13 +139,30 @@ export interface LiveActivity {
 
 // ============ JSON FILE STORE (DEV MODE) ============
 
-const DATA_DIR = path.join(process.cwd(), 'data', 'live');
+// Use /tmp on Railway (writable) or data/live locally
+function getDataDir(): string {
+  // If LIVE_DATA_DIR is set, use it
+  if (process.env.LIVE_DATA_DIR) return process.env.LIVE_DATA_DIR;
+  // On Railway or production, use /tmp (guaranteed writable)
+  if (process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production') {
+    return '/tmp/channel-companion-live';
+  }
+  // Local dev: use project directory
+  return path.join(process.cwd(), 'data', 'live');
+}
+
+const DATA_DIR = getDataDir();
+let dataDirReady = false;
 
 async function ensureDataDir() {
+  if (dataDirReady) return;
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
-  } catch {
-    // already exists
+    dataDirReady = true;
+    console.log(`[DB] Data directory ready: ${DATA_DIR}`);
+  } catch (err) {
+    console.error(`[DB] Failed to create data directory ${DATA_DIR}:`, err);
+    throw new Error(`Cannot create data directory: ${DATA_DIR}`);
   }
 }
 
@@ -164,6 +181,7 @@ async function writeCollection<T>(name: string, data: T[]): Promise<void> {
   await ensureDataDir();
   const filePath = path.join(DATA_DIR, `${name}.json`);
   await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  console.log(`[DB] Wrote ${data.length} items to ${name}.json`);
 }
 
 function generateId(): string {

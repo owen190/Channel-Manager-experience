@@ -21,7 +21,13 @@ async function api(path: string, opts?: RequestInit) {
     headers: { 'Content-Type': 'application/json' },
     ...opts,
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = data?.error || `API error: ${res.status}`;
+    console.error(`[LiveAdmin] ${opts?.method || 'GET'} /api/live/${path} failed:`, msg);
+    throw new Error(msg);
+  }
+  return data;
 }
 
 // ============ MAIN PAGE ============
@@ -111,23 +117,42 @@ function AdvisorsPanel() {
   const [advisors, setAdvisors] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const data = await api('advisors');
-    setAdvisors(data);
+    try {
+      const data = await api('advisors');
+      setAdvisors(Array.isArray(data) ? data : []);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   const save = async (advisor: any) => {
-    await api('advisors', { method: 'POST', body: JSON.stringify(advisor) });
-    setEditing(null);
-    load();
+    setSaving(true);
+    setError(null);
+    try {
+      await api('advisors', { method: 'POST', body: JSON.stringify(advisor) });
+      setEditing(null);
+      await load();
+    } catch (err: any) {
+      setError(`Save failed: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const remove = async (id: string) => {
-    await api(`advisors?id=${id}`, { method: 'DELETE' });
-    load();
+    try {
+      await api(`advisors?id=${id}`, { method: 'DELETE' });
+      await load();
+    } catch (err: any) {
+      setError(`Delete failed: ${err.message}`);
+    }
   };
 
   return (
@@ -139,11 +164,19 @@ function AdvisorsPanel() {
         </button>
       </div>
 
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+          <span className="text-12px text-red-700">{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
+        </div>
+      )}
+
       {editing && (
         <AdvisorForm
           advisor={editing}
           onSave={save}
           onCancel={() => setEditing(null)}
+          saving={saving}
         />
       )}
 
@@ -200,7 +233,7 @@ function AdvisorsPanel() {
 
 // ============ ADVISOR FORM ============
 
-function AdvisorForm({ advisor, onSave, onCancel }: { advisor: any; onSave: (a: any) => void; onCancel: () => void }) {
+function AdvisorForm({ advisor, onSave, onCancel, saving }: { advisor: any; onSave: (a: any) => void; onCancel: () => void; saving?: boolean }) {
   const [form, setForm] = useState(advisor);
   const set = (key: string, value: any) => setForm((f: any) => ({ ...f, [key]: value }));
 
@@ -231,8 +264,8 @@ function AdvisorForm({ advisor, onSave, onCancel }: { advisor: any; onSave: (a: 
         <Input label="Family" value={form.family || ''} onChange={v => set('family', v)} />
       </div>
       <div className="flex gap-2 mt-4">
-        <button onClick={() => onSave(form)} className="px-4 py-1.5 text-12px font-semibold bg-[#157A6E] text-white rounded-lg flex items-center gap-1.5"><Save className="w-3.5 h-3.5" /> Save</button>
-        <button onClick={onCancel} className="px-4 py-1.5 text-12px font-medium text-gray-600 border border-[#e0ddd9] rounded-lg flex items-center gap-1.5"><X className="w-3.5 h-3.5" /> Cancel</button>
+        <button onClick={() => onSave(form)} disabled={saving} className="px-4 py-1.5 text-12px font-semibold bg-[#157A6E] text-white rounded-lg flex items-center gap-1.5 disabled:opacity-50"><Save className="w-3.5 h-3.5" /> {saving ? 'Saving...' : 'Save'}</button>
+        <button onClick={onCancel} disabled={saving} className="px-4 py-1.5 text-12px font-medium text-gray-600 border border-[#e0ddd9] rounded-lg flex items-center gap-1.5 disabled:opacity-50"><X className="w-3.5 h-3.5" /> Cancel</button>
       </div>
     </div>
   );
@@ -245,17 +278,23 @@ function DealsPanel() {
   const [advisors, setAdvisors] = useState<any[]>([]);
   const [reps, setReps] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [d, a, r] = await Promise.all([api('deals'), api('advisors'), api('reps')]);
-    setDeals(d); setAdvisors(a); setReps(r);
+    try {
+      const [d, a, r] = await Promise.all([api('deals'), api('advisors'), api('reps')]);
+      setDeals(Array.isArray(d) ? d : []); setAdvisors(Array.isArray(a) ? a : []); setReps(Array.isArray(r) ? r : []);
+    } catch (err: any) { setError(err.message); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   const save = async (deal: any) => {
-    await api('deals', { method: 'POST', body: JSON.stringify(deal) });
-    setEditing(null); load();
+    setError(null);
+    try {
+      await api('deals', { method: 'POST', body: JSON.stringify(deal) });
+      setEditing(null); await load();
+    } catch (err: any) { setError(`Save failed: ${err.message}`); }
   };
 
   const emptyDeal = { id: '', name: '', advisorId: '', repId: '', mrr: 0, health: 'Healthy', stage: 'Discovery', probability: 50, daysInStage: 0, committed: false, forecastHistory: 0 };
@@ -320,13 +359,20 @@ function DealsPanel() {
 function RepsPanel() {
   const [reps, setReps] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => { setReps(await api('reps')); }, []);
+  const load = useCallback(async () => {
+    try { const data = await api('reps'); setReps(Array.isArray(data) ? data : []); }
+    catch (err: any) { setError(err.message); }
+  }, []);
   useEffect(() => { load(); }, [load]);
 
   const save = async (rep: any) => {
-    await api('reps', { method: 'POST', body: JSON.stringify(rep) });
-    setEditing(null); load();
+    setError(null);
+    try {
+      await api('reps', { method: 'POST', body: JSON.stringify(rep) });
+      setEditing(null); await load();
+    } catch (err: any) { setError(`Save failed: ${err.message}`); }
   };
 
   const emptyRep = { id: '', name: '', title: '', managedMRR: 0, activeDeals: 0, quotaTarget: 0, closedWon: 0, commitTarget: 0, currentCommit: 0, partnerCount: 0, partnerCapacity: 30, top10: 0, next20: 0, other: 0, winRate: 0, avgCycle: 0, engagementScore: 'Steady', dealsWonQTD: 0 };
@@ -387,16 +433,20 @@ function NotesPanel() {
   const [showForm, setShowForm] = useState(false);
 
   const load = useCallback(async () => {
-    const [n, a] = await Promise.all([api('notes'), api('advisors')]);
-    setNotes(n); setAdvisors(a);
+    try {
+      const [n, a] = await Promise.all([api('notes'), api('advisors')]);
+      setNotes(Array.isArray(n) ? n : []); setAdvisors(Array.isArray(a) ? a : []);
+    } catch {}
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     if (!newNote.content.trim()) return;
-    await api('notes', { method: 'POST', body: JSON.stringify(newNote) });
-    setNewNote({ advisorId: '', content: '', noteType: 'general', author: 'Owen', source: 'Manual' });
-    setShowForm(false); load();
+    try {
+      await api('notes', { method: 'POST', body: JSON.stringify(newNote) });
+      setNewNote({ advisorId: '', content: '', noteType: 'general', author: 'Owen', source: 'Manual' });
+      setShowForm(false); await load();
+    } catch (err: any) { alert(`Save failed: ${err.message}`); }
   };
 
   return (
@@ -451,16 +501,20 @@ function TranscriptsPanel() {
   const [newTranscript, setNewTranscript] = useState({ advisorId: '', title: '', source: 'manual', content: '', summary: '', durationMinutes: 0 });
 
   const load = useCallback(async () => {
-    const [t, a] = await Promise.all([api('transcripts'), api('advisors')]);
-    setTranscripts(t); setAdvisors(a);
+    try {
+      const [t, a] = await Promise.all([api('transcripts'), api('advisors')]);
+      setTranscripts(Array.isArray(t) ? t : []); setAdvisors(Array.isArray(a) ? a : []);
+    } catch {}
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const save = async () => {
     if (!newTranscript.content.trim()) return;
-    await api('transcripts', { method: 'POST', body: JSON.stringify(newTranscript) });
-    setNewTranscript({ advisorId: '', title: '', source: 'manual', content: '', summary: '', durationMinutes: 0 });
-    setShowForm(false); load();
+    try {
+      await api('transcripts', { method: 'POST', body: JSON.stringify(newTranscript) });
+      setNewTranscript({ advisorId: '', title: '', source: 'manual', content: '', summary: '', durationMinutes: 0 });
+      setShowForm(false); await load();
+    } catch (err: any) { alert(`Save failed: ${err.message}`); }
   };
 
   return (
