@@ -736,18 +736,8 @@ export default function LeaderDashboard() {
                     const isExpanded = expandedReps.includes(rep.id);
                     const quotaPercentage = Math.round((rep.currentCommit / rep.quotaTarget) * 100);
                     const repAdvisors = advisors.filter(a => repDeals.some(d => d.advisorId === a.id));
-                    const winRate = (() => {
-                      const wins = repDeals.filter(d => d.stage === 'Closed Won').length;
-                      const losses = repDeals.filter(d => d.stage === 'Stalled').length;
-                      const total = wins + losses;
-                      if (total === 0) return rep.winRate || 0;
-                      return Math.round((wins / total) * 100);
-                    })();
-                    const avgCycleTime = (() => {
-                      const completedDeals = repDeals.filter(d => d.stage === 'Closed Won' || d.stage === 'Stalled');
-                      if (completedDeals.length === 0) return rep.avgCycle || 0;
-                      return Math.round(completedDeals.reduce((sum, d) => sum + d.daysInStage, 0) / completedDeals.length);
-                    })();
+                    const winRate = rep.winRate || 0;
+                    const avgCycleTime = rep.avgCycle || 0;
                     const capacityUtilization = (() => {
                       if (rep.partnerCapacity === 0) return 0;
                       return Math.round((rep.partnerCount / rep.partnerCapacity) * 100);
