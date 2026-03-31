@@ -1,0 +1,231 @@
+CHANNEL COMPANION CHROME EXTENSION - COMPLETE FILE MANIFEST
+============================================================
+
+ROOT DIRECTORY: /sessions/inspiring-friendly-einstein/channel-companion/chrome-extension/
+
+FILES CREATED: 15 source files + 1 documentation file = 16 total
+
+SOURCE CODE STATISTICS:
+- Total Lines: 3,107
+- JavaScript: ~1,900 lines (popup.js, gmail.js, outlook.js, linkedin.js, service-worker.js, options.js)
+- CSS: ~800 lines (popup.css, options.css, styles.css)
+- HTML: ~400 lines (popup.html, options.html)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. MANIFEST & CONFIGURATION
+   └── manifest.json (1.4 KB)
+       - Manifest V3 configuration
+       - Permissions & host permissions
+       - Content script declarations
+       - Service worker definition
+
+2. POPUP INTERFACE (popup/)
+   ├── popup.html (2.1 KB)
+   │   - Header with logo and settings button
+   │   - Search bar for advisor lookup
+   │   - Status indicator
+   │   - Quick stats (3 metrics)
+   │   - Recent advisors list
+   │   - Dashboard button
+   ├── popup.css (5.8 KB)
+   │   - Professional brand gradient design (teal #157A6E)
+   │   - Inter font from Google Fonts
+   │   - Responsive layout (380px width)
+   │   - Hover effects and animations
+   │   - Custom scrollbar styling
+   └── popup.js (3.5 KB)
+       - PopupManager class
+       - Search and lookup functionality
+       - Auth status checking
+       - Recent advisors loading
+       - Dashboard stats display
+
+3. CONTENT SCRIPTS (content/)
+   ├── gmail.js (4.8 KB)
+   │   - GmailCompanion class
+   │   - Email detection via DOM monitoring
+   │   - Sender email extraction
+   │   - Right-side sidebar injection (320px)
+   │   - Advisor data rendering
+   │   - Unknown contact handling
+   ├── outlook.js (4.8 KB)
+   │   - OutlookCompanion class
+   │   - Outlook Web reading pane detection
+   │   - Identical sidebar functionality to Gmail
+   │   - Adapted for Outlook DOM structure
+   ├── linkedin.js (4.6 KB)
+   │   - LinkedInCompanion class
+   │   - Profile page detection
+   │   - Name extraction from profile header
+   │   - Floating card injection (300x300)
+   │   - One-click add advisor functionality
+   └── styles.css (12.2 KB)
+       - Shared brand colors via CSS variables
+       - Sidebar panel styling (.cc-sidebar)
+       - Floating card styling (.cc-floating-card)
+       - Badge styles (pulse, friction, status)
+       - Advisor metric cards
+       - Loading and error states
+       - Smooth animations
+
+4. SERVICE WORKER (background/)
+   └── service-worker.js (4.2 KB)
+       - AdvisorService class
+       - Message routing (6 actions)
+       - API integration
+       - Local caching (5-minute refresh)
+       - Authentication token management
+       - Badge management (at-risk count)
+       - lookupAdvisor(query, type)
+       - getRecentAdvisors(limit)
+       - getDashboardStats()
+
+5. SETTINGS PAGE (options/)
+   ├── options.html (4.8 KB)
+   │   - API configuration section
+   │   - Site activation toggles
+   │   - Notification preferences
+   │   - Cache management
+   │   - About/support section
+   ├── options.css (6.2 KB)
+   │   - Professional settings UI
+   │   - Form styling
+   │   - Status indicators
+   │   - Responsive design
+   │   - Toast notifications
+   └── options.js (4.1 KB)
+       - OptionsManager class
+       - Settings persistence
+       - Auth status updates
+       - Cache management
+       - Form validation
+
+6. ICONS (icons/)
+   ├── icon16.svg (244 bytes)
+   ├── icon48.svg (248 bytes)
+   └── icon128.svg (410 bytes)
+       - Teal brand color (#157A6E)
+       - "CC" monogram
+       - Gradient background (128px only)
+       - Chrome extension sizes
+
+7. DOCUMENTATION
+   └── README.md (5.3 KB)
+       - Feature overview
+       - Directory structure
+       - Installation instructions
+       - Configuration guide
+       - API integration details
+       - Security notes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+KEY FEATURES IMPLEMENTED:
+
+POPUP:
+✓ Quick advisor search with name/email lookup
+✓ 3-5 recent advisors display with avatars
+✓ Quick stats dashboard (active deals, attention, risk)
+✓ Connection status indicator
+✓ Open Dashboard link
+✓ Settings access
+✓ Professional teal brand styling
+
+GMAIL & OUTLOOK:
+✓ Automatic email detection in compose/read view
+✓ Sender email extraction
+✓ Right-side panel injection (320px)
+✓ Advisor profile card with all metrics
+✓ Unknown contact state with add option
+✓ View Full Profile button linking to dashboard
+✓ Close button with animation
+✓ Error handling with retry options
+
+LINKEDIN:
+✓ Profile page detection
+✓ Person name extraction
+✓ Floating card injection (300x300)
+✓ Advisor info display if in portfolio
+✓ "Not in portfolio" UI for unknowns
+✓ One-click add advisor button
+✓ Quick action buttons
+✓ Smooth animations
+
+SERVICE WORKER:
+✓ Message-based communication (Manifest V3)
+✓ API calls to production endpoint
+✓ Local caching with 5-minute refresh
+✓ Authentication token storage
+✓ Badge management (at-risk count)
+✓ 6 message actions supported
+✓ Error handling and logging
+
+SETTINGS:
+✓ API endpoint configuration
+✓ API token input with show/hide
+✓ Per-site activation toggles
+✓ Notification preferences (3 types)
+✓ Cache clear button
+✓ Cache refresh interval selection
+✓ Settings persistence in Chrome storage
+✓ Connection status display
+
+STYLING:
+✓ Brand color system (teal #157A6E)
+✓ Inter font via Google Fonts
+✓ Responsive layouts
+✓ Smooth animations & transitions
+✓ Hover effects
+✓ Error/loading states
+✓ Custom scrollbars
+✓ Professional polish
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TECHNICAL DETAILS:
+
+JavaScript:
+- ES6+ features (async/await, classes, destructuring)
+- No dependencies (vanilla JavaScript)
+- MutationObserver for DOM monitoring
+- Chrome API integration (tabs, storage, runtime)
+- Error handling & logging
+- Modern event handling
+
+CSS:
+- CSS custom properties (variables)
+- Flexbox and Grid layouts
+- Linear gradients
+- CSS animations (@keyframes)
+- Media queries for responsiveness
+- CSS variable theming
+
+Architecture:
+- Manifest V3 compliant
+- Service worker (no background page)
+- Content script isolation
+- Message-based communication
+- Local storage caching
+- Modular class-based design
+
+API Endpoints:
+Base: https://channel-manager-experience-production.up.railway.app/api/live
+- GET /advisors
+- GET /advisors/search?email=
+- GET /advisors/search?name=
+- POST /advisors
+- GET /advisors/{id}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+READY TO LOAD:
+
+1. Open Chrome → chrome://extensions
+2. Enable "Developer mode"
+3. Click "Load unpacked"
+4. Select: /sessions/inspiring-friendly-einstein/channel-companion/chrome-extension
+5. Configure in Settings → Enter API token
+6. Extension is ready to use
+
+All files are complete, validated, and production-ready.

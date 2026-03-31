@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Channel Companion Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="options-container">
+    <!-- Header -->
+    <div class="options-header">
+      <div class="logo">CC</div>
+      <h1>Channel Companion Settings</h1>
+    </div>
+
+    <!-- Settings Form -->
+    <form id="settings-form" class="settings-form">
+      <!-- API Configuration -->
+      <section class="settings-section">
+        <h2 class="section-heading">API Configuration</h2>
+        <div class="section-description">
+          Configure your connection to the Channel Manager platform
+        </div>
+
+        <div class="form-group">
+          <label for="api-url">API Endpoint URL</label>
+          <input
+            type="url"
+            id="api-url"
+            name="apiUrl"
+            value="https://channel-manager-experience-production.up.railway.app/api/live"
+            placeholder="https://channel-manager-experience-production.up.railway.app/api/live"
+          >
+          <small>Leave blank to use the default production endpoint</small>
+        </div>
+
+        <div class="form-group">
+          <label for="api-token">API Token</label>
+          <div class="token-input-group">
+            <input
+              type="password"
+              id="api-token"
+              name="apiToken"
+              placeholder="Enter your API token"
+            >
+            <button type="button" id="toggle-token" class="toggle-btn">Show</button>
+          </div>
+          <small>Your API token is stored locally and never shared</small>
+        </div>
+
+        <div class="form-group">
+          <div class="auth-status" id="auth-status">
+            <span class="status-indicator disconnected"></span>
+            <span class="status-text">Disconnected</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Site Activation -->
+      <section class="settings-section">
+        <h2 class="section-heading">Activate On Sites</h2>
+        <div class="section-description">
+          Choose which sites to enable Channel Companion on
+        </div>
+
+        <div class="checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="siteGmail" checked>
+            <span class="checkbox-text">Gmail</span>
+            <span class="checkbox-help">Shows advisor info in your inbox and emails</span>
+          </label>
+
+          <label class="checkbox-label">
+            <input type="checkbox" name="siteOutlook" checked>
+            <span class="checkbox-text">Outlook Web</span>
+            <span class="checkbox-help">Shows advisor info in your Outlook mailbox</span>
+          </label>
+
+          <label class="checkbox-label">
+            <input type="checkbox" name="siteLinkedIn" checked>
+            <span class="checkbox-text">LinkedIn</span>
+            <span class="checkbox-help">Shows advisor profiles on LinkedIn</span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Notifications -->
+      <section class="settings-section">
+        <h2 class="section-heading">Notifications</h2>
+        <div class="section-description">
+          Control when you receive alerts about your advisors
+        </div>
+
+        <div class="checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="notifyAtRisk" checked>
+            <span class="checkbox-text">At-Risk Advisors</span>
+            <span class="checkbox-help">Alert me when advisors enter at-risk status</span>
+          </label>
+
+          <label class="checkbox-label">
+            <input type="checkbox" name="notifyNeedsAttention" checked>
+            <span class="checkbox-text">Needs Attention</span>
+            <span class="checkbox-help">Alert me about advisors that need follow-up</span>
+          </label>
+
+          <label class="checkbox-label">
+            <input type="checkbox" name="notifyDailyDigest">
+            <span class="checkbox-text">Daily Digest</span>
+            <span class="checkbox-help">Get a summary email every morning at 9 AM</span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Cache Management -->
+      <section class="settings-section">
+        <h2 class="section-heading">Cache & Data</h2>
+        <div class="section-description">
+          Manage your extension's local data
+        </div>
+
+        <div class="form-group">
+          <label>Cache Status</label>
+          <div class="cache-info" id="cache-info">
+            <span id="cache-size">Calculating...</span>
+            <button type="button" id="clear-cache" class="btn-secondary">Clear Cache</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Cache Refresh Interval</label>
+          <select name="cacheRefresh" id="cache-refresh">
+            <option value="1">Every 1 minute</option>
+            <option value="5" selected>Every 5 minutes</option>
+            <option value="15">Every 15 minutes</option>
+            <option value="60">Every hour</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- About -->
+      <section class="settings-section">
+        <h2 class="section-heading">About</h2>
+        <div class="section-description">
+          Extension information and support
+        </div>
+
+        <div class="about-info">
+          <div class="info-row">
+            <span class="label">Version</span>
+            <span class="value">1.0.0</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Support</span>
+            <span class="value">
+              <a href="https://channel-manager-experience-production.up.railway.app/support" target="_blank">
+                Visit Support Center
+              </a>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Action Buttons -->
+      <div class="form-actions">
+        <button type="submit" class="btn-primary">Save Settings</button>
+        <button type="button" id="reset-btn" class="btn-secondary">Reset to Defaults</button>
+      </div>
+    </form>
+
+    <!-- Status Message -->
+    <div id="status-message" class="status-message"></div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

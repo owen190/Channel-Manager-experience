@@ -4,6 +4,8 @@ import { Bell, Settings, Search, X, Home } from 'lucide-react';
 import { Nudge } from '@/lib/types';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { GlobalSearch } from '@/components/shared/GlobalSearch';
+import { NotificationCenter } from '@/components/shared/NotificationCenter';
 
 interface TopBarProps {
   nudges: Nudge[];
@@ -38,36 +40,50 @@ export function TopBar({
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const userId = 'user-1'; // In a real app, get from session/auth
 
   const notifications = role === 'manager' ? MANAGER_NOTIFICATIONS : LEADER_NOTIFICATIONS;
 
-  // Close dropdowns on outside click
+  // Close dropdowns on outside click and handle keyboard shortcuts
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotifications(false);
       if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) setShowSettings(false);
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowGlobalSearch(true);
+      }
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   return (
-    <div className="h-[52px] bg-white border-b border-[#e8e5e1] flex items-center px-6 justify-between">
-      {/* Left Section - Home + Page Title */}
-      <div className="flex-1 flex items-center gap-3">
+    <>
+      <GlobalSearch isOpen={showGlobalSearch} onClose={() => setShowGlobalSearch(false)} />
+      <div className="h-[52px] bg-white border-b border-[#e8e5e1] flex items-center px-4 md:px-6 justify-between">
+        {/* Left Section - Home + Page Title */}
+      <div className="flex-1 flex items-center gap-2 md:gap-3 min-w-0">
         <button
           onClick={() => router.push('/')}
-          className="w-[30px] h-[30px] flex items-center justify-center border border-[#e0ddd9] rounded-[8px] hover:bg-gray-50 hover:border-[#157A6E] transition-colors text-gray-500 hover:text-[#157A6E]"
+          className="w-[30px] h-[30px] flex-shrink-0 flex items-center justify-center border border-[#e0ddd9] rounded-[8px] hover:bg-gray-50 hover:border-[#157A6E] transition-colors text-gray-500 hover:text-[#157A6E]"
           aria-label="Home"
           title="Switch persona"
         >
           <Home className="w-3.5 h-3.5" />
         </button>
         <h1
-          className="text-[18px] font-[600] text-gray-900"
+          className="text-[16px] md:text-[18px] font-[600] text-gray-900 truncate"
           style={{ fontFamily: 'Newsreader, serif' }}
         >
           {pageTitle}
@@ -75,15 +91,16 @@ export function TopBar({
       </div>
 
       {/* Right Section */}
-      <div className="flex items-center gap-3">
-        {/* Search Input */}
-        <div className="relative">
+      <div className="flex items-center gap-2 md:gap-3 ml-2 md:ml-0">
+        {/* Search Input - Hidden on mobile */}
+        <div className="relative hidden md:block">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search advisors, deals..."
+            onFocus={() => setShowGlobalSearch(true)}
+            placeholder="Search (Cmd+K)..."
             className="w-[220px] pl-9 pr-3 py-1.5 border border-[#e0ddd9] rounded-[8px] text-[12px] bg-[#faf9f7] focus:outline-none focus:border-gray-400 transition-colors"
           />
         </div>
@@ -102,31 +119,12 @@ export function TopBar({
               {notifications.length > 9 ? '9+' : notifications.length}
             </div>
           )}
-
-          {showNotifications && (
-            <div className="absolute right-0 top-full mt-2 w-[340px] bg-white border border-[#e8e5e1] rounded-xl shadow-xl z-50">
-              <div className="px-4 py-3 border-b border-[#f0ede9] flex items-center justify-between">
-                <h3 className="text-13px font-semibold text-gray-900">Notifications</h3>
-                <button onClick={() => setShowNotifications(false)} className="text-gray-400 hover:text-gray-600">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <div className="max-h-[300px] overflow-y-auto">
-                {notifications.map(n => (
-                  <div key={n.id} className="px-4 py-3 border-b border-[#f5f3f0] last:border-0 hover:bg-[#F7F5F2] transition-colors cursor-pointer">
-                    <div className="flex items-start gap-2.5">
-                      <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${n.type === 'warning' ? 'bg-amber-400' : n.type === 'success' ? 'bg-green-400' : 'bg-blue-400'}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-12px text-gray-800 leading-snug">{n.text}</p>
-                        <p className="text-10px text-gray-400 mt-1">{n.time}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
+        <NotificationCenter
+          userId={userId}
+          isOpen={showNotifications}
+          onClose={() => setShowNotifications(false)}
+        />
 
         {/* Settings */}
         <div className="relative" ref={settingsRef}>
@@ -161,5 +159,6 @@ export function TopBar({
         </div>
       </div>
     </div>
+    </>
   );
 }

@@ -39,7 +39,7 @@ export function Sidebar({
 }: SidebarProps) {
   const router = useRouter();
   return (
-    <div className="w-56 h-screen bg-white border-r border-solid border-[#e8e5e1] flex flex-col">
+    <div className="hidden md:flex w-56 h-screen bg-white border-r border-solid border-[#e8e5e1] flex-col">
       {/* Brand Section */}
       <div className="px-5 py-6 cursor-pointer group" onClick={() => router.push('/')}>
         <h1 className="font-newsreader text-lg font-bold text-[#157A6E] whitespace-pre-line leading-tight mb-2 group-hover:opacity-80 transition-opacity">

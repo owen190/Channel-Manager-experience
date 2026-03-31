@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 import {
   Users, DollarSign, UserCheck, FileText, Mic, Activity,
   Plus, Edit, Trash2, Save, X, ChevronDown, ChevronRight,
-  ArrowLeft, RefreshCw, Zap, Upload, TrendingUp,
+  ArrowLeft, RefreshCw, Zap, Upload, TrendingUp, Share2,
 } from 'lucide-react';
+import { ImportExport } from '@/components/shared/ImportExport';
 
-type Tab = 'advisors' | 'deals' | 'reps' | 'notes' | 'transcripts' | 'signals' | 'activity';
+type Tab = 'advisors' | 'deals' | 'reps' | 'notes' | 'transcripts' | 'signals' | 'activity' | 'import-export';
 
 // ============ HELPERS ============
 
@@ -47,6 +48,7 @@ export default function LiveAdmin() {
     { id: 'transcripts', label: 'Transcripts', icon: Mic },
     { id: 'signals', label: 'Signals', icon: Zap },
     { id: 'activity', label: 'Activity', icon: Activity },
+    { id: 'import-export', label: 'Import/Export', icon: Share2 },
   ];
 
   return (
@@ -108,6 +110,7 @@ export default function LiveAdmin() {
         {activeTab === 'transcripts' && <TranscriptsPanel key={refreshKey} />}
         {activeTab === 'signals' && <SignalsPanel key={refreshKey} />}
         {activeTab === 'activity' && <ActivityPanel key={refreshKey} />}
+        {activeTab === 'import-export' && <ImportExportPanel />}
       </div>
     </div>
   );
@@ -890,6 +893,18 @@ function EmptyState({ icon: Icon, text }: { icon: typeof Users; text: string }) 
     <div className="text-center py-12 text-gray-400">
       <Icon className="w-8 h-8 mx-auto mb-2 opacity-50" />
       <p className="text-13px">{text}</p>
+    </div>
+  );
+}
+
+// ============ IMPORT/EXPORT PANEL ============
+
+function ImportExportPanel() {
+  return (
+    <div className="max-w-3xl">
+      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+        <ImportExport />
+      </div>
     </div>
   );
 }

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Channel Companion</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <div class="popup-header">
+      <div class="logo-section">
+        <div class="logo">CC</div>
+        <div class="title">Channel Companion</div>
+      </div>
+      <button id="settings-btn" class="settings-btn" title="Settings">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="3" r="1.5" fill="currentColor"/>
+          <circle cx="10" cy="10" r="1.5" fill="currentColor"/>
+          <circle cx="10" cy="17" r="1.5" fill="currentColor"/>
+          <circle cx="3" cy="10" r="1.5" fill="currentColor"/>
+          <circle cx="17" cy="10" r="1.5" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="search-section">
+      <input
+        type="text"
+        id="advisor-search"
+        class="search-input"
+        placeholder="Search advisors..."
+      >
+      <button id="search-btn" class="search-btn">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          <path d="M12 12L16 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Status Indicator -->
+    <div class="status-bar">
+      <div class="status-indicator connected"></div>
+      <span class="status-text">Connected to platform</span>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="stats-section">
+      <div class="stat">
+        <div class="stat-value">12</div>
+        <div class="stat-label">Active Deals</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">3</div>
+        <div class="stat-label">Need Attention</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">2</div>
+        <div class="stat-label">At Risk</div>
+      </div>
+    </div>
+
+    <!-- Recent Advisors -->
+    <div class="recent-section">
+      <h3 class="section-title">Recent Advisors</h3>
+      <ul id="recent-advisors" class="advisor-list">
+        <li class="advisor-item">
+          <div class="advisor-avatar">AR</div>
+          <div class="advisor-info">
+            <div class="advisor-name">Alice Richardson</div>
+            <div class="advisor-company">Acme Corp</div>
+          </div>
+          <div class="advisor-mrr">$2.5K/mo</div>
+        </li>
+        <li class="advisor-item">
+          <div class="advisor-avatar">JM</div>
+          <div class="advisor-info">
+            <div class="advisor-name">James Mitchell</div>
+            <div class="advisor-company">Tech Solutions</div>
+          </div>
+          <div class="advisor-mrr">$1.8K/mo</div>
+        </li>
+        <li class="advisor-item">
+          <div class="advisor-avatar">SN</div>
+          <div class="advisor-info">
+            <div class="advisor-name">Sarah Nelson</div>
+            <div class="advisor-company">Global Partners</div>
+          </div>
+          <div class="advisor-mrr">$4.2K/mo</div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Action Button -->
+    <div class="action-section">
+      <button id="open-dashboard" class="primary-btn">
+        Open Dashboard
+      </button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -137,7 +137,76 @@ CREATE TABLE IF NOT EXISTS signals (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- User & Organization Tables
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT,
+  image TEXT,
+  role TEXT NOT NULL DEFAULT 'channel_manager',
+  org_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS organizations (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  logo TEXT,
+  plan TEXT NOT NULL DEFAULT 'trial',
+  settings JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS invites (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+  email TEXT NOT NULL,
+  org_id TEXT NOT NULL REFERENCES organizations(id),
+  role TEXT NOT NULL DEFAULT 'channel_manager',
+  invited_by TEXT REFERENCES users(id),
+  accepted BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token TEXT UNIQUE NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+  user_id TEXT REFERENCES users(id),
+  org_id TEXT REFERENCES organizations(id),
+  action TEXT NOT NULL,
+  entity_type TEXT,
+  entity_id TEXT,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS onboarding_state (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+  user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT,
+  connected_tools JSONB DEFAULT '[]',
+  notifications_config JSONB DEFAULT '{}',
+  completed BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Indexes
+CREATE INDEX IF NOT EXISTS idx_users_org ON users(org_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_invites_email ON invites(email);
+CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
+CREATE INDEX IF NOT EXISTS idx_audit_log_org ON audit_log(org_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user ON audit_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_deals_advisor ON deals(advisor_id);
 CREATE INDEX IF NOT EXISTS idx_deals_rep ON deals(rep_id);
 CREATE INDEX IF NOT EXISTS idx_deals_stage ON deals(stage);

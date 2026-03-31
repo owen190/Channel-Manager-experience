@@ -169,6 +169,19 @@ export interface RevenueIntent {
   totalEstimatedValue: number;
 }
 
+export interface LiveNotification {
+  id: string;
+  userId?: string;
+  orgId?: string;
+  type: string;
+  title: string;
+  message: string;
+  entityType?: string;
+  entityId?: string;
+  read: boolean;
+  createdAt?: string;
+}
+
 // ============ POSTGRES CONNECTION ============
 
 const connectionString = process.env.DATABASE_URL;
@@ -913,5 +926,108 @@ export const db = {
       hotAdvisors.length > 0 ? `HOT ADVISORS: ${hotAdvisors.map(i => `${i.advisorName} (${i.score}/100, ${i.quoteCount30d} quotes 30d)`).join(', ')}` : '',
       `REPS: ${reps.map(r => `${r.name} (${r.partnerCount}/${r.partnerCapacity} capacity, ${r.winRate}% win rate)`).join(', ')}`,
     ].filter(Boolean).join('\n');
+  },
+
+  // --- Notifications ---
+  async getNotifications(filters?: { userId?: string; read?: boolean; limit?: number }): Promise<LiveNotification[]> {
+    const limit = filters?.limit || 50;
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    if (filters?.userId) {
+      conditions.push(`user_id = $${params.length + 1}`);
+      params.push(filters.userId);
+    }
+    if (filters?.read !== undefined) {
+      conditions.push(`read = $${params.length + 1}`);
+      params.push(filters.read);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const query = `SELECT * FROM notifications ${where} ORDER BY created_at DESC LIMIT ${limit}`;
+
+    try {
+      const rows = await sql.unsafe(query, params);
+      return rows.map((r: any) => ({
+        id: r.id,
+        userId: r.user_id || undefined,
+        orgId: r.org_id || undefined,
+        type: r.type,
+        title: r.title,
+        message: r.message,
+        entityType: r.entity_type || undefined,
+        entityId: r.entity_id || undefined,
+        read: Boolean(r.read),
+        createdAt: r.created_at?.toISOString?.() || r.created_at,
+      }));
+    } catch (err) {
+      // Table might not exist yet
+      return [];
+    }
+  },
+
+  async createNotification(notification: Omit<LiveNotification, 'id' | 'createdAt'>): Promise<LiveNotification> {
+    try {
+      const rows = await sql`
+        INSERT INTO notifications (user_id, org_id, type, title, message, entity_type, entity_id, read)
+        VALUES (
+          ${notification.userId || null},
+          ${notification.orgId || null},
+          ${notification.type},
+          ${notification.title},
+          ${notification.message},
+          ${notification.entityType || null},
+          ${notification.entityId || null},
+          ${notification.read || false}
+        )
+        RETURNING *
+      `;
+      const r = rows[0];
+      return {
+        id: r.id,
+        userId: r.user_id || undefined,
+        orgId: r.org_id || undefined,
+        type: r.type,
+        title: r.title,
+        message: r.message,
+        entityType: r.entity_type || undefined,
+        entityId: r.entity_id || undefined,
+        read: Boolean(r.read),
+        createdAt: r.created_at?.toISOString?.() || r.created_at,
+      };
+    } catch (err: any) {
+      // If table doesn't exist, return a mock notification
+      console.warn('Notifications table not created yet:', err.message);
+      return {
+        id: `${Date.now()}-${Math.random()}`,
+        ...notification,
+        createdAt: new Date().toISOString(),
+      };
+    }
+  },
+
+  async markNotificationsAsRead(ids: string[]): Promise<boolean> {
+    try {
+      if (ids.length === 0) return false;
+      const result = await sql`
+        UPDATE notifications SET read = true WHERE id = ANY(${sql.array(ids)})
+      `;
+      return result.count > 0;
+    } catch (err) {
+      console.warn('Failed to mark notifications as read:', err);
+      return false;
+    }
+  },
+
+  async markAllNotificationsAsRead(userId: string): Promise<boolean> {
+    try {
+      const result = await sql`
+        UPDATE notifications SET read = true WHERE user_id = ${userId} AND read = false
+      `;
+      return result.count > 0;
+    } catch (err) {
+      console.warn('Failed to mark all notifications as read:', err);
+      return false;
+    }
   },
 };

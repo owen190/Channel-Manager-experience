@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "Channel Companion",
+  "version": "1.0.0",
+  "description": "AI-powered channel intelligence — right where you work",
+  "icons": {
+    "16": "icons/icon16.svg",
+    "48": "icons/icon48.svg",
+    "128": "icons/icon128.svg"
+  },
+  "permissions": [
+    "activeTab",
+    "storage",
+    "identity",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://mail.google.com/*",
+    "https://outlook.live.com/*",
+    "https://outlook.office.com/*",
+    "https://www.linkedin.com/*",
+    "https://channel-manager-experience-production.up.railway.app/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Channel Companion"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["content/gmail.js"],
+      "css": ["content/styles.css"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["https://outlook.live.com/*", "https://outlook.office.com/*"],
+      "js": ["content/outlook.js"],
+      "css": ["content/styles.css"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["https://www.linkedin.com/*"],
+      "js": ["content/linkedin.js"],
+      "css": ["content/styles.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "options_page": "options/options.html"
+}

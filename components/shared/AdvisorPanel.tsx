@@ -10,6 +10,7 @@ import { SentimentBadge } from './SentimentBadge';
 import { FrictionBadge } from './FrictionBadge';
 import { DealHealthBadge } from './DealHealthBadge';
 import { TierBadge } from './TierBadge';
+import { ActivityTimeline } from './ActivityTimeline';
 
 interface AdvisorPanelProps {
   advisor: Advisor | null;
@@ -512,24 +513,7 @@ export function AdvisorPanel({
             )}
 
             {activeTab === 'activity' && (
-              <div className="space-y-3">
-                {advisor.activity.length === 0 ? (
-                  <p className="text-sm text-gray-600">No activity</p>
-                ) : (
-                  advisor.activity.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="border-l-2 border-gray-300 pl-4 py-2"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <SentimentBadge tone={item.sentiment} />
-                        <span className="text-xs text-gray-500">{item.time}</span>
-                      </div>
-                      <p className="text-sm text-gray-700">{item.text}</p>
-                    </div>
-                  ))
-                )}
-              </div>
+              <ActivityTimeline advisorId={advisor.id} />
             )}
 
           </div>
