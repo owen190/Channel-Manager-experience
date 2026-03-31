@@ -20,7 +20,7 @@ import { SentimentBadge } from '@/components/shared/SentimentBadge';
 import { TrajectoryBadge } from '@/components/shared/TrajectoryBadge';
 import { TierBadge } from '@/components/shared/TierBadge';
 import { NAV_ITEMS_MANAGER, STAGE_WEIGHTS, QUARTER_END, DAYS_REMAINING } from '@/lib/constants';
-import { Advisor, Deal, DealHealth, FrictionLevel, DiagnosticRow, EngagementScore } from '@/lib/types';
+import { Advisor, Deal, DealHealth, FrictionLevel, DiagnosticRow, EngagementScore, PartnerTier } from '@/lib/types';
 import { adaptAdvisor, adaptDeal } from '@/lib/db/adapter';
 
 type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Stalled';
@@ -549,7 +549,7 @@ export default function LiveManagerPage() {
           {tierGroups.map(group => (
             <div key={group.tier} className="mb-5 last:mb-0">
               <div className="flex items-center gap-2 mb-2">
-                <TierBadge tier={group.tier} />
+                <TierBadge tier={group.tier as PartnerTier} />
                 <span className="text-11px text-gray-400">{group.advisors.length} partners · {formatCurrency(group.advisors.reduce((s, a) => s + a.mrr, 0))} MRR</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
