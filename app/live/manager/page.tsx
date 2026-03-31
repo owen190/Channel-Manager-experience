@@ -370,100 +370,99 @@ export default function LiveManagerPage() {
       { label: 'Needs Attention', count: needsAttentionCount, key: 'Needs Attention' },
     ];
 
-    if (panelOpen && selectedAdvisor) {
-      return (
-        <div className="space-y-4">
-          <button onClick={() => { setPanelOpen(false); setSelectedAdvisor(null); }}
-                  className="flex items-center gap-1 text-12px text-[#157A6E] hover:underline">
-            <ArrowLeft className="w-3 h-3" /> Back to list
-          </button>
-          <AdvisorPanel advisor={selectedAdvisor} deals={deals.filter(d => d.advisorId === selectedAdvisor.id)} isOpen={true} onClose={() => { setPanelOpen(false); setSelectedAdvisor(null); }} />
-        </div>
-      );
-    }
-
     return (
-      <div className="space-y-4">
-        {/* Segmentation Filter Bar */}
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
-          <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Partner Segments</p>
-          <div className="flex flex-wrap gap-2">
-            {segments.map(seg => (
-              <button
-                key={seg.key}
-                onClick={() => setRelationshipFilter(seg.key)}
-                className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
-                  relationshipFilter === seg.key
-                    ? 'bg-[#157A6E] text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {seg.label}
-                <span className={`ml-1.5 ${relationshipFilter === seg.key ? 'text-white/80' : 'text-gray-600'}`}>
-                  ({seg.count})
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Sort Controls */}
-        <div className="flex items-center justify-between">
-          <div className="text-12px text-gray-600 font-medium">
-            Showing {sortedAdvisors.length} partners
-          </div>
-          <div className="flex gap-2">
-            <select
-              value={relationshipSort}
-              onChange={(e) => setRelationshipSort(e.target.value as 'name' | 'mrr' | 'lastContact')}
-              className="text-12px border border-gray-200 rounded px-2 py-1 text-gray-700 hover:border-gray-300"
-            >
-              <option value="mrr">Sort by MRR</option>
-              <option value="lastContact">Sort by Last Contacted</option>
-              <option value="name">Sort by Name</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Advisors List */}
-        <div className="space-y-2">
-          {sortedAdvisors.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">
-              <p className="text-12px">No partners match this segment</p>
-            </div>
-          ) : (
-            sortedAdvisors.map(a => {
-              const daysSince = getDaysSinceContact(a.lastContact);
-              return (
-                <div
-                  key={a.id}
-                  className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 hover:shadow-md cursor-pointer transition-all"
-                  onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}
+      <>
+        <div className="space-y-4">
+          {/* Segmentation Filter Bar */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+            <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Partner Segments</p>
+            <div className="flex flex-wrap gap-2">
+              {segments.map(seg => (
+                <button
+                  key={seg.key}
+                  onClick={() => setRelationshipFilter(seg.key)}
+                  className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
+                    relationshipFilter === seg.key
+                      ? 'bg-[#157A6E] text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <p className="text-13px font-semibold text-gray-900">{a.name}</p>
-                      <p className="text-11px text-gray-500">{a.company} · {a.title}</p>
+                  {seg.label}
+                  <span className={`ml-1.5 ${relationshipFilter === seg.key ? 'text-white/80' : 'text-gray-600'}`}>
+                    ({seg.count})
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Sort Controls */}
+          <div className="flex items-center justify-between">
+            <div className="text-12px text-gray-600 font-medium">
+              Showing {sortedAdvisors.length} partners
+            </div>
+            <div className="flex gap-2">
+              <select
+                value={relationshipSort}
+                onChange={(e) => setRelationshipSort(e.target.value as 'name' | 'mrr' | 'lastContact')}
+                className="text-12px border border-gray-200 rounded px-2 py-1 text-gray-700 hover:border-gray-300"
+              >
+                <option value="mrr">Sort by MRR</option>
+                <option value="lastContact">Sort by Last Contacted</option>
+                <option value="name">Sort by Name</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Advisors List */}
+          <div className="space-y-2">
+            {sortedAdvisors.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <p className="text-12px">No partners match this segment</p>
+              </div>
+            ) : (
+              sortedAdvisors.map(a => {
+                const daysSince = getDaysSinceContact(a.lastContact);
+                return (
+                  <div
+                    key={a.id}
+                    className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 hover:shadow-md cursor-pointer transition-all"
+                    onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <p className="text-13px font-semibold text-gray-900">{a.name}</p>
+                        <p className="text-11px text-gray-500">{a.company} · {a.title}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-13px font-semibold text-gray-800">{formatCurrency(a.mrr)}</p>
+                        <TierBadge tier={a.tier} />
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-13px font-semibold text-gray-800">{formatCurrency(a.mrr)}</p>
-                      <TierBadge tier={a.tier} />
+                    <div className="flex items-center gap-3 mt-3">
+                      <PulseBadge pulse={a.pulse} />
+                      <TrajectoryBadge trajectory={a.trajectory} />
+                      <FrictionBadge level={a.friction} />
+                      <span className="text-11px text-gray-500 ml-auto">
+                        Last contacted: {daysSince}d ago
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 mt-3">
-                    <PulseBadge pulse={a.pulse} />
-                    <TrajectoryBadge trajectory={a.trajectory} />
-                    <FrictionBadge level={a.friction} />
-                    <span className="text-11px text-gray-500 ml-auto">
-                      Last contacted: {daysSince}d ago
-                    </span>
-                  </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
-      </div>
+        {/* AdvisorPanel as overlay */}
+        {selectedAdvisor && (
+          <AdvisorPanel
+            advisor={selectedAdvisor}
+            deals={deals.filter(d => d.advisorId === selectedAdvisor.id)}
+            isOpen={panelOpen}
+            onClose={() => { setPanelOpen(false); setSelectedAdvisor(null); }}
+          />
+        )}
+      </>
     );
   };
 
@@ -540,15 +539,27 @@ export default function LiveManagerPage() {
               </tr>
             </thead>
             <tbody>
-              {diagnosticRows.map((row, i) => (
-                <tr key={i} className="border-b border-gray-50">
-                  <td className="py-2 font-medium text-gray-800">{row.advisor}</td>
-                  <td className="py-2"><PulseBadge pulse={row.pulse} /></td>
-                  <td className="py-2"><DealHealthBadge health={row.dealHealth} /></td>
-                  <td className="py-2"><FrictionBadge level={row.friction} /></td>
-                  <td className="py-2 text-gray-600 max-w-[300px] truncate">{row.diagnosis}</td>
-                </tr>
-              ))}
+              {diagnosticRows.map((row, i) => {
+                const advisor = advisors.find(a => a.name === row.advisor);
+                return (
+                  <tr
+                    key={i}
+                    className="border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => {
+                      if (advisor) {
+                        setSelectedAdvisor(advisor);
+                        setPanelOpen(true);
+                      }
+                    }}
+                  >
+                    <td className="py-2 font-medium text-gray-800">{row.advisor}</td>
+                    <td className="py-2"><PulseBadge pulse={row.pulse} /></td>
+                    <td className="py-2"><DealHealthBadge health={row.dealHealth} /></td>
+                    <td className="py-2"><FrictionBadge level={row.friction} /></td>
+                    <td className="py-2 text-gray-600 max-w-[300px] truncate">{row.diagnosis}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

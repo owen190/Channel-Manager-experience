@@ -215,9 +215,9 @@ export function AdvisorTable({ advisors, onAdvisorClick }: AdvisorTableProps) {
                   onClick={() => handleSort('mrr')}>
                   MRR {sortField === 'mrr' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider cursor-pointer hover:bg-gray-100 whitespace-nowrap"
                   onClick={() => handleSort('lastContact')}>
-                  Last Contact {sortField === 'lastContact' && (sortDir === 'asc' ? '↑' : '↓')}
+                  Last C... {sortField === 'lastContact' && (sortDir === 'asc' ? '↑' : '↓')}
                 </th>
               </tr>
             </thead>

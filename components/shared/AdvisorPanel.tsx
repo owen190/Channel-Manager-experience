@@ -49,6 +49,15 @@ export function AdvisorPanel({
   const [sharedMeetings, setSharedMeetings] = useState<Record<string, boolean>>({});
   const [expandedDeal, setExpandedDeal] = useState<string | null>(null);
   const [ratings, setRatings] = useState<any>(null);
+  const [logCallOpen, setLogCallOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [callDate, setCallDate] = useState('');
+  const [callDuration, setCallDuration] = useState('');
+  const [callSummary, setCallSummary] = useState('');
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [scheduleDescription, setScheduleDescription] = useState('');
+  const [scheduleConfirmation, setScheduleConfirmation] = useState(false);
 
   // Fetch ratings data
   useEffect(() => {
@@ -83,6 +92,32 @@ export function AdvisorPanel({
       setNotes([...notes, newNote]);
       setNewNote('');
       setIsAddingNote(false);
+    }
+  };
+
+  const handleSaveCall = () => {
+    if (callDate && callDuration && callSummary.trim()) {
+      const callNote = `Call on ${callDate} (${callDuration}m): ${callSummary}`;
+      setNotes([...notes, callNote]);
+      setCallDate('');
+      setCallDuration('');
+      setCallSummary('');
+      setLogCallOpen(false);
+    }
+  };
+
+  const handleSaveSchedule = () => {
+    if (scheduleDate && scheduleTime && scheduleDescription.trim()) {
+      setScheduleConfirmation(true);
+      setTimeout(() => {
+        const scheduleNote = `Scheduled: ${scheduleDate} at ${scheduleTime} - ${scheduleDescription}`;
+        setNotes([...notes, scheduleNote]);
+        setScheduleDate('');
+        setScheduleTime('');
+        setScheduleDescription('');
+        setScheduleOpen(false);
+        setScheduleConfirmation(false);
+      }, 1500);
     }
   };
 
@@ -621,13 +656,121 @@ export function AdvisorPanel({
                     </div>
                   </div>
                 )}
-                <div className="border-t border-tcs-border pt-4 flex gap-2">
-                  <button className="flex-1 py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center justify-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5" /> Log Call
-                  </button>
-                  <button className="flex-1 py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center justify-center gap-1.5">
-                    <CalendarDays className="w-3.5 h-3.5" /> Schedule
-                  </button>
+                <div className="border-t border-tcs-border pt-4 space-y-3">
+                  {!logCallOpen ? (
+                    <button
+                      onClick={() => setLogCallOpen(true)}
+                      className="w-full py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <Phone className="w-3.5 h-3.5" /> Log Call
+                    </button>
+                  ) : (
+                    <div className="space-y-2 bg-tcs-bg p-3 rounded-lg">
+                      <input
+                        type="date"
+                        value={callDate}
+                        onChange={(e) => setCallDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-tcs-border rounded-lg text-sm focus:outline-none focus:border-tcs-teal"
+                        placeholder="Date"
+                      />
+                      <input
+                        type="number"
+                        value={callDuration}
+                        onChange={(e) => setCallDuration(e.target.value)}
+                        className="w-full px-3 py-2 border border-tcs-border rounded-lg text-sm focus:outline-none focus:border-tcs-teal"
+                        placeholder="Duration (minutes)"
+                      />
+                      <textarea
+                        value={callSummary}
+                        onChange={(e) => setCallSummary(e.target.value)}
+                        className="w-full px-3 py-2 border border-tcs-border rounded-lg text-sm focus:outline-none focus:border-tcs-teal"
+                        placeholder="Summary..."
+                        rows={3}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleSaveCall}
+                          className="flex-1 py-2 px-4 bg-tcs-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setLogCallOpen(false);
+                            setCallDate('');
+                            setCallDuration('');
+                            setCallSummary('');
+                          }}
+                          className="flex-1 py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {!scheduleOpen ? (
+                    <button
+                      onClick={() => setScheduleOpen(true)}
+                      className="w-full py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <CalendarDays className="w-3.5 h-3.5" /> Schedule
+                    </button>
+                  ) : (
+                    <div className="space-y-2 bg-tcs-bg p-3 rounded-lg">
+                      {scheduleConfirmation ? (
+                        <div className="flex items-center justify-center py-6">
+                          <div className="text-center">
+                            <p className="text-sm font-medium text-tcs-teal mb-1">Meeting scheduled!</p>
+                            <p className="text-xs text-gray-600">{scheduleDate} at {scheduleTime}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <input
+                            type="date"
+                            value={scheduleDate}
+                            onChange={(e) => setScheduleDate(e.target.value)}
+                            className="w-full px-3 py-2 border border-tcs-border rounded-lg text-sm focus:outline-none focus:border-tcs-teal"
+                            placeholder="Date"
+                          />
+                          <input
+                            type="time"
+                            value={scheduleTime}
+                            onChange={(e) => setScheduleTime(e.target.value)}
+                            className="w-full px-3 py-2 border border-tcs-border rounded-lg text-sm focus:outline-none focus:border-tcs-teal"
+                            placeholder="Time"
+                          />
+                          <textarea
+                            value={scheduleDescription}
+                            onChange={(e) => setScheduleDescription(e.target.value)}
+                            className="w-full px-3 py-2 border border-tcs-border rounded-lg text-sm focus:outline-none focus:border-tcs-teal"
+                            placeholder="Description..."
+                            rows={2}
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={handleSaveSchedule}
+                              className="flex-1 py-2 px-4 bg-tcs-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => {
+                                setScheduleOpen(false);
+                                setScheduleDate('');
+                                setScheduleTime('');
+                                setScheduleDescription('');
+                              }}
+                              className="flex-1 py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

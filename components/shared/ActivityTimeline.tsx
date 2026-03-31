@@ -188,7 +188,9 @@ export function ActivityTimeline({ advisorId }: ActivityTimelineProps) {
         {(['all', 'notes', 'calls', 'signals', 'deals'] as FilterType[]).map((filter) => (
           <button
             key={filter}
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
               setActiveFilter(filter);
               setOffset(0);
             }}
