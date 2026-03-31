@@ -6,6 +6,7 @@ import {
   TrendingDown, TrendingUp, Zap, Users, ChevronDown, ChevronUp, X,
   ArrowLeft, MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays,
   Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle, RefreshCw,
+  Megaphone, Star, TrendingUp as TrendingUpIcon, CheckCircle, AlertCircle as AlertCircleIcon,
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -17,9 +18,10 @@ import { DealHealthBadge } from '@/components/shared/DealHealthBadge';
 import { PulseBadge } from '@/components/shared/PulseBadge';
 import { FrictionBadge } from '@/components/shared/FrictionBadge';
 import { SentimentBadge } from '@/components/shared/SentimentBadge';
+import { SupplierAccountabilityCard, AdvisorSentimentFeed } from '@/components/shared/RatingsDisplay';
 import { TrajectoryBadge } from '@/components/shared/TrajectoryBadge';
 import { TierBadge } from '@/components/shared/TierBadge';
-import { NAV_ITEMS_MANAGER, STAGE_WEIGHTS, QUARTER_END, DAYS_REMAINING } from '@/lib/constants';
+import { NAV_ITEMS_MANAGER, STAGE_WEIGHTS, QUARTER_END, DAYS_REMAINING, SERVICE_CATALOG } from '@/lib/constants';
 import { Advisor, Deal, DealHealth, FrictionLevel, DiagnosticRow, EngagementScore, PartnerTier } from '@/lib/types';
 import { adaptAdvisor, adaptDeal } from '@/lib/db/adapter';
 
@@ -29,6 +31,8 @@ export default function LiveManagerPage() {
   const [advisors, setAdvisors] = useState<Advisor[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [intents, setIntents] = useState<any[]>([]);
+  const [ratings, setRatings] = useState<any>(null);
+  const [ratingsLoading, setRatingsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [activeView, setActiveViewRaw] = useState('command-center');
@@ -44,6 +48,7 @@ export default function LiveManagerPage() {
   const [relationshipFilter, setRelationshipFilter] = useState('All');
   const [pipelineKPIExpanded, setPipelineKPIExpanded] = useState<string | null>(null);
   const [expandedStage, setExpandedStage] = useState<DealStage | null>(null);
+  const [relationshipSort, setRelationshipSort] = useState<'name' | 'mrr' | 'lastContact'>('mrr');
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -60,17 +65,20 @@ export default function LiveManagerPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [advisorsRes, dealsRes, intentsRes] = await Promise.all([
+      const [advisorsRes, dealsRes, intentsRes, ratingsRes] = await Promise.all([
         fetch('/api/live/advisors'),
         fetch('/api/live/deals'),
         fetch('/api/live/intent'),
+        fetch('/api/live/ratings'),
       ]);
       const rawAdvisors = await advisorsRes.json();
       const rawDeals = await dealsRes.json();
       const rawIntents = await intentsRes.json();
+      const rawRatings = await ratingsRes.json();
       setAdvisors(rawAdvisors.map(adaptAdvisor));
       setDeals(rawDeals.map(adaptDeal));
       setIntents(Array.isArray(rawIntents) ? rawIntents : []);
+      setRatings(rawRatings);
     } catch (err) {
       console.error('Failed to fetch live data:', err);
     }
@@ -309,8 +317,55 @@ export default function LiveManagerPage() {
   );
 
   const renderRelationships = () => {
-    const filteredAdvisors = relationshipFilter === 'All' ? advisorsWithDeals
-      : advisorsWithDeals.filter(a => a.tier === (relationshipFilter === 'Top 10' ? 'top10' : relationshipFilter === 'Next 20' ? 'next20' : 'other'));
+    // Calculate segment counts
+    const allAdvisorsCount = advisorsWithDeals.length;
+    const activatedCount = advisorsWithDeals.filter(a => a.pulse !== 'Flatline').length;
+    const activeCount = advisorsWithDeals.filter(a => ['Strong', 'Rising', 'Steady'].includes(a.pulse)).length;
+    const top20Count = [...advisorsWithDeals].sort((a, b) => b.mrr - a.mrr).slice(0, 20).length;
+    const needsAttentionCount = advisorsWithDeals.filter(a =>
+      a.friction === 'High' || a.friction === 'Critical' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall'
+    ).length;
+
+    // Calculate filtered advisors based on segment
+    let filteredAdvisors = advisorsWithDeals;
+    if (relationshipFilter === 'Activated') {
+      filteredAdvisors = advisorsWithDeals.filter(a => a.pulse !== 'Flatline');
+    } else if (relationshipFilter === 'Active') {
+      filteredAdvisors = advisorsWithDeals.filter(a => ['Strong', 'Rising', 'Steady'].includes(a.pulse));
+    } else if (relationshipFilter === 'Strategic Top 20') {
+      const top20Ids = new Set([...advisorsWithDeals].sort((a, b) => b.mrr - a.mrr).slice(0, 20).map(a => a.id));
+      filteredAdvisors = advisorsWithDeals.filter(a => top20Ids.has(a.id));
+    } else if (relationshipFilter === 'Needs Attention') {
+      filteredAdvisors = advisorsWithDeals.filter(a =>
+        a.friction === 'High' || a.friction === 'Critical' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall'
+      );
+    }
+
+    // Apply sorting
+    const sortedAdvisors = [...filteredAdvisors].sort((a, b) => {
+      if (relationshipSort === 'mrr') return b.mrr - a.mrr;
+      if (relationshipSort === 'lastContact') {
+        const dateA = new Date(a.lastContact).getTime();
+        const dateB = new Date(b.lastContact).getTime();
+        return dateB - dateA;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    // Calculate days since last contact
+    const getDaysSinceContact = (lastContactDate: string): number => {
+      const last = new Date(lastContactDate);
+      const now = new Date();
+      return Math.floor((now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
+    };
+
+    const segments = [
+      { label: 'All Partners', count: allAdvisorsCount, key: 'All' },
+      { label: 'Activated', count: activatedCount, key: 'Activated' },
+      { label: 'Active', count: activeCount, key: 'Active' },
+      { label: 'Strategic Top 20', count: top20Count, key: 'Strategic Top 20' },
+      { label: 'Needs Attention', count: needsAttentionCount, key: 'Needs Attention' },
+    ];
 
     if (panelOpen && selectedAdvisor) {
       return (
@@ -326,18 +381,85 @@ export default function LiveManagerPage() {
 
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          {['All', 'Top 10', 'Next 20', 'Other'].map(f => (
-            <button key={f} onClick={() => setRelationshipFilter(f)}
-                    className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${relationshipFilter === f ? 'bg-[#157A6E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {f}
-            </button>
-          ))}
+        {/* Segmentation Filter Bar */}
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+          <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Partner Segments</p>
+          <div className="flex flex-wrap gap-2">
+            {segments.map(seg => (
+              <button
+                key={seg.key}
+                onClick={() => setRelationshipFilter(seg.key)}
+                className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
+                  relationshipFilter === seg.key
+                    ? 'bg-[#157A6E] text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {seg.label}
+                <span className={`ml-1.5 ${relationshipFilter === seg.key ? 'text-white/80' : 'text-gray-600'}`}>
+                  ({seg.count})
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
-        <AdvisorTable
-          advisors={filteredAdvisors}
-          onAdvisorClick={(id) => { const a = advisorsWithDeals.find(x => x.id === id); if (a) { setSelectedAdvisor(a); setPanelOpen(true); } }}
-        />
+
+        {/* Sort Controls */}
+        <div className="flex items-center justify-between">
+          <div className="text-12px text-gray-600 font-medium">
+            Showing {sortedAdvisors.length} partners
+          </div>
+          <div className="flex gap-2">
+            <select
+              value={relationshipSort}
+              onChange={(e) => setRelationshipSort(e.target.value as 'name' | 'mrr' | 'lastContact')}
+              className="text-12px border border-gray-200 rounded px-2 py-1 text-gray-700 hover:border-gray-300"
+            >
+              <option value="mrr">Sort by MRR</option>
+              <option value="lastContact">Sort by Last Contacted</option>
+              <option value="name">Sort by Name</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Advisors List */}
+        <div className="space-y-2">
+          {sortedAdvisors.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              <p className="text-12px">No partners match this segment</p>
+            </div>
+          ) : (
+            sortedAdvisors.map(a => {
+              const daysSince = getDaysSinceContact(a.lastContact);
+              return (
+                <div
+                  key={a.id}
+                  className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 hover:shadow-md cursor-pointer transition-all"
+                  onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <p className="text-13px font-semibold text-gray-900">{a.name}</p>
+                      <p className="text-11px text-gray-500">{a.company} · {a.title}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-13px font-semibold text-gray-800">{formatCurrency(a.mrr)}</p>
+                      <TierBadge tier={a.tier} />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 mt-3">
+                    <PulseBadge pulse={a.pulse} />
+                    <TrajectoryBadge trajectory={a.trajectory} />
+                    <FrictionBadge level={a.friction} />
+                    <span className="text-11px text-gray-500 ml-auto">
+                      Last contacted: {daysSince}d ago
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
     );
   };
@@ -628,6 +750,471 @@ export default function LiveManagerPage() {
             </div>
           )}
         </div>
+
+        {/* Supplier Accountability Section */}
+        {ratings && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Supplier Accountability</h3>
+                  <p className="text-11px text-gray-400 mt-0.5">Data from The Channel Standard Ratings Platform</p>
+                </div>
+                <a
+                  href="https://www.the-channel-standard.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#157A6E] text-11px font-semibold hover:underline flex items-center gap-1"
+                >
+                  View Full Ratings
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6v12h12v-6m0-6l4-4m0 0l-4 4m4-4v4" />
+                  </svg>
+                </a>
+              </div>
+              <SupplierAccountabilityCard data={ratings} loading={ratingsLoading} />
+            </div>
+
+            {/* Advisor Sentiment Feed */}
+            {ratings?.supplier?.recentFeedback && ratings.supplier.recentFeedback.length > 0 && (
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                <AdvisorSentimentFeed data={ratings} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Seeded random for deterministic mock data
+  const seededRandom = (seed: string): number => {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      const char = seed.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return Math.abs(hash) % 1000 / 1000;
+  };
+
+  const renderWhiteSpace = () => {
+    const advisorsWithDealsFiltered = advisorsWithDeals.filter(a => deals.some(d => d.advisorId === a.id));
+
+    const whiteSpaceData = advisorsWithDealsFiltered.map(advisor => {
+      const advisorDeals = deals.filter(d => d.advisorId === advisor.id);
+      const soldProducts = new Set(advisorDeals.map(d => d.name.split(' ')[0]).filter(p => SERVICE_CATALOG.includes(p)));
+      const opportunityProducts = SERVICE_CATALOG.filter(p => !soldProducts.has(p));
+      const crossSellScore = (soldProducts.size / SERVICE_CATALOG.length) * 100;
+
+      return {
+        ...advisor,
+        soldProducts: Array.from(soldProducts),
+        opportunityProducts,
+        crossSellScore,
+        opportunityMRR: opportunityProducts.reduce((sum, p) => {
+          const seed = `${advisor.id}-${p}`;
+          return sum + (2000 + seededRandom(seed) * 6000);
+        }, 0),
+      };
+    });
+
+    const totalWhiteSpaceMRR = whiteSpaceData.reduce((s, a) => s + a.opportunityMRR, 0);
+    const avgCrossSellScore = whiteSpaceData.reduce((s, a) => s + a.crossSellScore, 0) / whiteSpaceData.length;
+
+    const allOpportunities = whiteSpaceData.flatMap(a => a.opportunityProducts.map(p => ({
+      product: p,
+      advisor: a.name,
+      mrr: 2000 + seededRandom(`${a.id}-${p}`) * 6000,
+    }))).sort((a, b) => b.mrr - a.mrr).slice(0, 5);
+
+    const sorted = [...whiteSpaceData].sort((a, b) => a.crossSellScore - b.crossSellScore);
+
+    return (
+      <div className="space-y-6">
+        {/* Summary Stats */}
+        <div className="grid grid-cols-4 gap-4">
+          <KPICard label="Total White Space MRR" value={formatCurrency(totalWhiteSpaceMRR)} change={`${whiteSpaceData.length} advisors`} changeType="positive" />
+          <KPICard label="Avg Cross-Sell Score" value={`${avgCrossSellScore.toFixed(0)}%`} change="of catalog covered" changeType="neutral" />
+          <KPICard label="Top Opportunity" value={allOpportunities.length > 0 ? allOpportunities[0].product : 'N/A'} change={allOpportunities.length > 0 ? formatCurrency(allOpportunities[0].mrr) : ''} changeType="positive" />
+          <KPICard label="Advisors Assessed" value={`${whiteSpaceData.length}`} change="with active deals" changeType="positive" />
+        </div>
+
+        {/* Account Grid */}
+        <div className="space-y-4">
+          <h2 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Account Analysis</h2>
+          <div className="grid grid-cols-1 gap-4">
+            {sorted.map(advisor => {
+              const colorClass = advisor.crossSellScore < 30 ? 'border-red-200 bg-red-50' : advisor.crossSellScore < 60 ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50';
+              const scoreColor = advisor.crossSellScore < 30 ? 'text-red-700' : advisor.crossSellScore < 60 ? 'text-amber-700' : 'text-emerald-700';
+              const statusBadgeClass = advisor.crossSellScore < 30 ? 'bg-red-100 text-red-700' : advisor.crossSellScore < 60 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+
+              return (
+                <div key={advisor.id} className={`border rounded-[10px] p-5 ${colorClass}`}>
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <p className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">{advisor.name}</p>
+                      <p className="text-12px text-gray-600">{advisor.company} · {formatCurrency(advisor.mrr)} MRR</p>
+                    </div>
+                    <span className={`px-3 py-1.5 rounded-full text-13px font-bold ${statusBadgeClass}`}>
+                      {advisor.crossSellScore.toFixed(0)}%
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    {/* Products Sold */}
+                    <div>
+                      <p className="text-12px font-semibold text-gray-700 mb-2">Products Sold ({advisor.soldProducts.length})</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {advisor.soldProducts.length > 0 ? advisor.soldProducts.map(p => (
+                          <span key={p} className="px-2 py-1 bg-white/70 rounded text-11px font-medium text-gray-700">
+                            {p}
+                          </span>
+                        )) : (
+                          <span className="text-11px text-gray-500 italic">None</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* White Space Opportunities */}
+                    <div>
+                      <p className="text-12px font-semibold text-gray-700 mb-2">White Space Opportunities ({advisor.opportunityProducts.length})</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {advisor.opportunityProducts.slice(0, 3).map(p => {
+                          const oppMrr = 2000 + seededRandom(`${advisor.id}-${p}`) * 6000;
+                          return (
+                            <div key={p} className="px-2 py-1 bg-white/70 rounded text-10px text-gray-700 flex items-center gap-1">
+                              <span className="font-medium">{p}</span>
+                              <span className="text-gray-500">({formatCurrency(oppMrr)})</span>
+                            </div>
+                          );
+                        })}
+                        {advisor.opportunityProducts.length > 3 && (
+                          <span className="text-10px text-gray-600 italic">+{advisor.opportunityProducts.length - 3} more</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2 bg-white/50 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-[#157A6E] to-[#0f5550]" style={{ width: `${advisor.crossSellScore}%` }} />
+                    </div>
+                    <span className={`text-11px font-bold ${scoreColor}`}>{advisor.crossSellScore.toFixed(1)}% of catalog</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Top Opportunities */}
+        {allOpportunities.length > 0 && (
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Top 5 Opportunities</h3>
+            <div className="space-y-2">
+              {allOpportunities.map((opp, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="text-13px font-medium text-gray-800">{opp.product}</p>
+                    <p className="text-11px text-gray-500">{opp.advisor}</p>
+                  </div>
+                  <span className="text-13px font-semibold text-[#157A6E]">{formatCurrency(opp.mrr)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderTerritory = () => {
+    const regionMapping = (location: string): string => {
+      const locationLower = location.toLowerCase();
+      const neastates = ['me', 'nh', 'vt', 'ma', 'ri', 'ct', 'ny', 'nj', 'pa', 'de', 'md', 'dc'];
+      const southeast = ['va', 'wv', 'nc', 'sc', 'ga', 'fl', 'al', 'ms', 'la', 'ar', 'ky', 'tn'];
+      const midwest = ['oh', 'in', 'il', 'mi', 'wi', 'mn', 'ia', 'mo', 'nd', 'sd', 'ne', 'ks'];
+      const southwest = ['tx', 'ok', 'nm', 'az'];
+      const west = ['wa', 'or', 'ca', 'nv', 'id', 'mt', 'wy', 'co', 'ut'];
+
+      for (const state of neastates) if (locationLower.includes(state)) return 'Northeast';
+      for (const state of southeast) if (locationLower.includes(state)) return 'Southeast';
+      for (const state of midwest) if (locationLower.includes(state)) return 'Midwest';
+      for (const state of southwest) if (locationLower.includes(state)) return 'Southwest';
+      for (const state of west) if (locationLower.includes(state)) return 'West';
+
+      return locationLower.includes('international') || locationLower.includes('uk') || locationLower.includes('canada') ? 'International' : 'Unknown';
+    };
+
+    const [searchCity, setSearchCity] = useState('');
+    const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+
+    const advisorsByRegion: Record<string, typeof advisorsWithDeals> = {};
+    advisorsWithDeals.forEach(a => {
+      const region = a.location ? regionMapping(a.location) : 'Unknown';
+      if (!advisorsByRegion[region]) advisorsByRegion[region] = [];
+      advisorsByRegion[region].push(a);
+    });
+
+    const filteredAdvisors = searchCity ? advisorsWithDeals.filter(a => a.location?.toLowerCase().includes(searchCity.toLowerCase())) : [];
+    const currentRegion = selectedRegion ? advisorsByRegion[selectedRegion] || [] : [];
+    const displayAdvisors = selectedRegion ? currentRegion : (searchCity ? filteredAdvisors : []);
+    const displayAdvisorsSorted = [...displayAdvisors].sort((a, b) => b.mrr - a.mrr);
+
+    return (
+      <div className="space-y-6">
+        {/* Trip Planner Header */}
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <h2 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-3">Trip Planner</h2>
+          <input
+            type="text"
+            placeholder="Search by city or region..."
+            value={searchCity}
+            onChange={(e) => setSearchCity(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-200 rounded-lg text-13px focus:outline-none focus:ring-2 focus:ring-[#157A6E]"
+          />
+        </div>
+
+        {/* Regions Grid */}
+        {!searchCity && !selectedRegion && (
+          <div className="grid grid-cols-2 gap-4">
+            {Object.entries(advisorsByRegion).map(([region, advs]) => {
+              const regionMRR = advs.reduce((s, a) => s + a.mrr, 0);
+              return (
+                <div
+                  key={region}
+                  onClick={() => setSelectedRegion(region)}
+                  className="bg-white rounded-[10px] border border-[#e8e5e1] p-5 cursor-pointer hover:border-[#157A6E] hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">{region}</h3>
+                      <p className="text-12px text-gray-500 mt-1">{advs.length} partners · {formatCurrency(regionMRR)} MRR</p>
+                    </div>
+                    <MapPin className="w-5 h-5 text-[#157A6E]" />
+                  </div>
+                  <div className="space-y-1.5 max-h-[120px] overflow-y-auto">
+                    {advs.slice(0, 3).map(a => (
+                      <div key={a.id} className="text-11px text-gray-600">
+                        <span className="font-medium">{a.name}</span> · {formatCurrency(a.mrr)}
+                      </div>
+                    ))}
+                    {advs.length > 3 && <p className="text-10px text-gray-400 italic">+{advs.length - 3} more</p>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Trip Summary - Region Selected */}
+        {selectedRegion && displayAdvisorsSorted.length > 0 && (
+          <>
+            <button
+              onClick={() => setSelectedRegion(null)}
+              className="flex items-center gap-1 text-12px text-[#157A6E] hover:underline"
+            >
+              <ArrowLeft className="w-3 h-3" /> Back to regions
+            </button>
+
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+              <h2 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Trip Summary: {selectedRegion}</h2>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <p className="text-11px text-gray-500 mb-1">Total Partners</p>
+                  <p className="text-xl font-bold text-gray-800">{displayAdvisorsSorted.length}</p>
+                </div>
+                <div>
+                  <p className="text-11px text-gray-500 mb-1">Total MRR</p>
+                  <p className="text-xl font-bold text-[#157A6E]">{formatCurrency(displayAdvisorsSorted.reduce((s, a) => s + a.mrr, 0))}</p>
+                </div>
+              </div>
+
+              {displayAdvisorsSorted.length >= 1 && (
+                <div className="bg-[#F7F5F2] rounded-lg p-4 mb-4">
+                  <p className="text-12px font-semibold text-gray-800 mb-2">Suggested Agenda</p>
+                  <ul className="space-y-1 text-11px text-gray-600">
+                    <li>Lunch with <span className="font-medium">{displayAdvisorsSorted[0].name}</span> ({formatCurrency(displayAdvisorsSorted[0].mrr)})</li>
+                    {displayAdvisorsSorted.length >= 2 && <li>Office visit with <span className="font-medium">{displayAdvisorsSorted[1].name}</span> ({formatCurrency(displayAdvisorsSorted[1].mrr)})</li>}
+                    {displayAdvisorsSorted.length >= 3 && <li>Coffee with <span className="font-medium">{displayAdvisorsSorted[2].name}</span> ({formatCurrency(displayAdvisorsSorted[2].mrr)})</li>}
+                  </ul>
+                </div>
+              )}
+
+              <h3 className="text-13px font-semibold text-gray-800 mb-3">Partners to Visit</h3>
+              <div className="space-y-2">
+                {displayAdvisorsSorted.map((a, idx) => (
+                  <div key={a.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex-1">
+                      <p className="text-13px font-medium text-gray-800">#{idx + 1} {a.name}</p>
+                      <p className="text-11px text-gray-500">{a.company} · Last contact: {a.lastContact}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-13px font-bold text-gray-800">{formatCurrency(a.mrr)}</p>
+                      <PulseBadge pulse={a.pulse} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Search Results */}
+        {searchCity && filteredAdvisors.length > 0 && (
+          <>
+            <button
+              onClick={() => setSearchCity('')}
+              className="flex items-center gap-1 text-12px text-[#157A6E] hover:underline"
+            >
+              <ArrowLeft className="w-3 h-3" /> Clear search
+            </button>
+
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+              <h2 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Results: {searchCity}</h2>
+              <div className="space-y-2">
+                {displayAdvisorsSorted.map(a => (
+                  <div key={a.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="text-13px font-medium text-gray-800">{a.name}</p>
+                      <p className="text-11px text-gray-500">{a.location} · {a.company}</p>
+                    </div>
+                    <span className="text-13px font-semibold text-gray-800">{formatCurrency(a.mrr)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {searchCity && filteredAdvisors.length === 0 && (
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
+            <MapPin className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+            <p className="text-13px text-gray-500">No partners found in "{searchCity}"</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderCoMarketing = () => {
+    const [cmTab, setCmTab] = useState<'campaigns' | 'assets' | 'results'>('campaigns');
+
+    const campaigns = [
+      { id: 'cm1', name: 'Cloud Migration Assessment', status: 'active' as const, partners: 8, leadsGenerated: 23, type: 'Email Nurture', startDate: '2026-02-15', endDate: '2026-04-15' },
+      { id: 'cm2', name: 'Security Posture Review', status: 'active' as const, partners: 5, leadsGenerated: 14, type: 'LinkedIn Campaign', startDate: '2026-03-01', endDate: '2026-05-01' },
+      { id: 'cm3', name: 'SD-WAN ROI Calculator', status: 'draft' as const, partners: 0, leadsGenerated: 0, type: 'Landing Page + Email', startDate: '', endDate: '' },
+      { id: 'cm4', name: 'Hybrid Cloud Webinar Series', status: 'completed' as const, partners: 12, leadsGenerated: 47, type: 'Webinar', startDate: '2026-01-10', endDate: '2026-02-28' },
+      { id: 'cm5', name: 'Managed Security Q1 Push', status: 'completed' as const, partners: 6, leadsGenerated: 31, type: 'Multi-Channel', startDate: '2026-01-01', endDate: '2026-03-15' },
+    ];
+
+    const assets = [
+      { name: 'Cloud Migration Email Sequence (3-part)', type: 'Email', format: 'HTML', rebrandable: true },
+      { name: 'Security Assessment LinkedIn Posts (5x)', type: 'Social', format: 'Copy + Graphics', rebrandable: true },
+      { name: 'SD-WAN ROI Calculator', type: 'Tool', format: 'Interactive PDF', rebrandable: true },
+      { name: 'Hybrid Cloud Customer Story — Healthcare', type: 'Case Study', format: 'PDF + Landing Page', rebrandable: true },
+      { name: 'Network Transformation Infographic', type: 'Visual', format: 'PNG + AI Source', rebrandable: true },
+      { name: 'Managed Security Webinar Deck', type: 'Presentation', format: 'PPTX', rebrandable: true },
+    ];
+
+    const statusColor = (s: string) => s === 'active' ? 'bg-green-100 text-green-700' : s === 'draft' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700';
+
+    return (
+      <div className="space-y-6">
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-4">
+          <KPICard label="Active Campaigns" value={`${campaigns.filter(c => c.status === 'active').length}`} change="running now" changeType="positive" />
+          <KPICard label="Partners Engaged" value={`${campaigns.reduce((s, c) => s + c.partners, 0)}`} change="across campaigns" changeType="positive" />
+          <KPICard label="Leads Generated" value={`${campaigns.reduce((s, c) => s + c.leadsGenerated, 0)}`} change="all time" changeType="positive" />
+          <KPICard label="Asset Library" value={`${assets.length}`} change="rebrandable assets" changeType="neutral" />
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-[#e8e5e1] pb-2">
+          {(['campaigns', 'assets', 'results'] as const).map(t => (
+            <button key={t} onClick={() => setCmTab(t)}
+              className={`px-4 py-2 text-13px font-medium rounded-t-lg transition-colors ${cmTab === t ? 'bg-[#157A6E] text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+              {t === 'campaigns' ? 'Campaigns' : t === 'assets' ? 'Asset Library' : 'Results'}
+            </button>
+          ))}
+        </div>
+
+        {cmTab === 'campaigns' && (
+          <div className="space-y-3">
+            {campaigns.map(c => (
+              <div key={c.id} className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">{c.name}</p>
+                    <p className="text-12px text-gray-500">{c.type}{c.startDate ? ` · ${c.startDate} → ${c.endDate}` : ''}</p>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-full text-11px font-semibold ${statusColor(c.status)}`}>{c.status}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                    <p className="text-lg font-bold text-gray-800">{c.partners}</p>
+                    <p className="text-10px text-gray-500">Partners Using</p>
+                  </div>
+                  <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                    <p className="text-lg font-bold text-[#157A6E]">{c.leadsGenerated}</p>
+                    <p className="text-10px text-gray-500">Leads Generated</p>
+                  </div>
+                  <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                    <p className="text-lg font-bold text-gray-800">{c.partners > 0 ? (c.leadsGenerated / c.partners).toFixed(1) : '—'}</p>
+                    <p className="text-10px text-gray-500">Leads / Partner</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {cmTab === 'assets' && (
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Rebrandable Assets</h3>
+              <button className="px-3 py-1.5 bg-[#157A6E] text-white text-12px rounded-lg hover:bg-[#0f5550]">+ Upload Asset</button>
+            </div>
+            <div className="space-y-2">
+              {assets.map((a, i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="text-13px font-medium text-gray-800">{a.name}</p>
+                    <p className="text-11px text-gray-500">{a.type} · {a.format}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {a.rebrandable && <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-10px rounded-full font-medium">Rebrandable</span>}
+                    <button className="text-11px text-[#157A6E] hover:underline">Share</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {cmTab === 'results' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Campaign Performance</h3>
+              {campaigns.filter(c => c.leadsGenerated > 0).sort((a, b) => b.leadsGenerated - a.leadsGenerated).map(c => (
+                <div key={c.id} className="flex items-center gap-4 py-3 border-b border-gray-100 last:border-0">
+                  <div className="flex-1">
+                    <p className="text-13px font-medium text-gray-800">{c.name}</p>
+                    <p className="text-11px text-gray-500">{c.partners} partners · {c.type}</p>
+                  </div>
+                  <div className="w-32">
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${Math.min(100, (c.leadsGenerated / 50) * 100)}%` }} />
+                    </div>
+                  </div>
+                  <span className="text-13px font-bold text-[#157A6E] w-16 text-right">{c.leadsGenerated}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -638,6 +1225,9 @@ export default function LiveManagerPage() {
     'relationships': renderRelationships,
     'pipeline': renderPipeline,
     'strategic': renderStrategic,
+    'white-space': renderWhiteSpace,
+    'territory': renderTerritory,
+    'co-marketing': renderCoMarketing,
   };
 
   return (

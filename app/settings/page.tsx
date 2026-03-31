@@ -9,9 +9,10 @@ import {
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
+import { SupplierProfile } from '@/components/shared/SupplierProfile';
 import { NAV_ITEMS_MANAGER } from '@/lib/constants';
 
-type Tab = 'profile' | 'notifications' | 'connectors' | 'team' | 'organization';
+type Tab = 'profile' | 'notifications' | 'connectors' | 'team' | 'organization' | 'supplier';
 
 interface Teammate {
   id: string;
@@ -128,6 +129,7 @@ export default function SettingsPage() {
                 { id: 'connectors', label: 'Connectors', icon: Zap },
                 { id: 'team', label: 'Team', icon: Users },
                 { id: 'organization', label: 'Organization', icon: Building2 },
+                { id: 'supplier', label: 'Supplier Profile', icon: Cloud },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -143,6 +145,7 @@ export default function SettingsPage() {
                   {tab.id === 'connectors' && <Zap className="w-4 h-4" />}
                   {tab.id === 'team' && <Users className="w-4 h-4" />}
                   {tab.id === 'organization' && <Building2 className="w-4 h-4" />}
+                  {tab.id === 'supplier' && <Cloud className="w-4 h-4" />}
                   {tab.label}
                 </button>
               ))}
@@ -540,6 +543,23 @@ export default function SettingsPage() {
                 <button className="px-4 py-2 bg-[#157A6E] text-white rounded-[8px] hover:bg-[#0f6960] transition-colors text-[13px] font-medium">
                   Save Changes
                 </button>
+              </div>
+            )}
+
+            {/* Supplier Profile Tab */}
+            {activeTab === 'supplier' && (
+              <div>
+                <div className="mb-6">
+                  <h3 className="font-newsreader text-lg font-bold text-gray-900 mb-1">
+                    Supplier Profile
+                  </h3>
+                  <p className="text-[12px] text-gray-600">
+                    Manage your organization's supplier positioning and messaging for advisors
+                  </p>
+                </div>
+                <SupplierProfile editable={true} onSave={(data) => {
+                  console.log('Supplier profile saved:', data);
+                }} />
               </div>
             )}
           </div>
