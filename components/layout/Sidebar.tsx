@@ -1,6 +1,6 @@
 'use client';
 
-import { Zap, Brain, Handshake, DollarSign, TrendingUp, BarChart3, Users } from 'lucide-react';
+import { Zap, Brain, Handshake, DollarSign, TrendingUp, BarChart3, Users, Hexagon } from 'lucide-react';
 import { type LucideIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -12,6 +12,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   TrendingUp,
   BarChart3,
   Users,
+  Hexagon,
 };
 
 export interface NavItem {
@@ -51,34 +52,55 @@ export function Sidebar({
       </div>
 
       {/* Nav Items */}
-      <nav className="flex-1 px-5 py-6 space-y-1">
-        {items.map((item) => {
-          const IconComponent = ICON_MAP[item.icon];
-          const isActive = activeView === item.id;
+      <nav className="flex-1 px-5 py-6 space-y-6">
+        {/* Main Nav */}
+        <div className="space-y-1">
+          {items.map((item) => {
+            const IconComponent = ICON_MAP[item.icon];
+            const isActive = activeView === item.id;
 
-          return (
-            <button
-              key={item.id}
-              onClick={() => onViewChange(item.id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-colors ${
-                isActive
-                  ? 'bg-[#157A6E] text-white'
-                  : 'text-[#666] hover:bg-[#f5f3f0] hover:text-[#333]'
-              }`}
-              style={{
-                fontSize: '13px',
-                fontWeight: 500,
-              }}
-            >
-              {IconComponent ? (
-                <IconComponent className="w-4 h-4 flex-shrink-0" />
-              ) : (
-                <span className="w-4 h-4 flex-shrink-0" />
-              )}
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={item.id}
+                onClick={() => onViewChange(item.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-colors ${
+                  isActive
+                    ? 'bg-[#157A6E] text-white'
+                    : 'text-[#666] hover:bg-[#f5f3f0] hover:text-[#333]'
+                }`}
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 500,
+                }}
+              >
+                {IconComponent ? (
+                  <IconComponent className="w-4 h-4 flex-shrink-0" />
+                ) : (
+                  <span className="w-4 h-4 flex-shrink-0" />
+                )}
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Integrations Section */}
+        <div className="pt-2 border-t border-[#e8e5e1]">
+          <p className="text-[11px] uppercase tracking-[1px] text-[#999] font-medium px-3 mb-2">
+            Integrations
+          </p>
+          <button
+            onClick={() => router.push('/integrations/hubspot')}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-colors text-[#666] hover:bg-[#f5f3f0] hover:text-[#333]"
+            style={{
+              fontSize: '13px',
+              fontWeight: 500,
+            }}
+          >
+            <Hexagon className="w-4 h-4 flex-shrink-0" />
+            <span>HubSpot</span>
+          </button>
+        </div>
       </nav>
 
       {/* User Section */}
