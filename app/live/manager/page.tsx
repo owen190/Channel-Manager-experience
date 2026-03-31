@@ -100,6 +100,35 @@ export default function LiveManagerPage() {
     }));
   }, [advisors, deals]);
 
+  // Build advisorsByRegion for the map (must be before early returns for hooks rules)
+  const advisorsByRegionMap = useMemo(() => {
+    const regionMap = (location: string): string => {
+      const loc = location.toLowerCase();
+      const ne = ['me', 'nh', 'vt', 'ma', 'ri', 'ct', 'ny', 'nj', 'pa', 'de', 'md', 'dc'];
+      const se = ['va', 'wv', 'nc', 'sc', 'ga', 'fl', 'al', 'ms', 'la', 'ar', 'ky', 'tn'];
+      const mw = ['oh', 'in', 'il', 'mi', 'wi', 'mn', 'ia', 'mo', 'nd', 'sd', 'ne', 'ks'];
+      const sw = ['tx', 'ok', 'nm', 'az'];
+      const w = ['wa', 'or', 'ca', 'nv', 'id', 'mt', 'wy', 'co', 'ut'];
+      for (const s of ne) if (loc.includes(s)) return 'Northeast';
+      for (const s of se) if (loc.includes(s)) return 'Southeast';
+      for (const s of mw) if (loc.includes(s)) return 'Midwest';
+      for (const s of sw) if (loc.includes(s)) return 'Southwest';
+      for (const s of w) if (loc.includes(s)) return 'West';
+      return 'Unknown';
+    };
+    const result: Record<string, { count: number; mrr: number; advisors: Array<{ id: string; name: string; mrr: number }> }> = {};
+    advisorsWithDeals.forEach(a => {
+      const region = a.location ? regionMap(a.location) : 'Unknown';
+      if (region === 'Unknown') return;
+      if (!result[region]) result[region] = { count: 0, mrr: 0, advisors: [] };
+      result[region].count++;
+      result[region].mrr += a.mrr;
+      result[region].advisors.push({ id: a.id, name: a.name, mrr: a.mrr });
+    });
+    Object.values(result).forEach(r => r.advisors.sort((a, b) => b.mrr - a.mrr));
+    return result;
+  }, [advisorsWithDeals]);
+
   const userName = 'Jordan R.';
   const userInitials = 'JR';
 
@@ -338,22 +367,6 @@ export default function LiveManagerPage() {
 
     return 'Unknown';
   };
-
-  // Build advisorsByRegion for the map
-  const advisorsByRegionMap = useMemo(() => {
-    const result: Record<string, { count: number; mrr: number; advisors: Array<{ id: string; name: string; mrr: number }> }> = {};
-    advisorsWithDeals.forEach(a => {
-      const region = a.location ? regionMapping(a.location) : 'Unknown';
-      if (region === 'Unknown') return; // Don't show Unknown on map
-      if (!result[region]) result[region] = { count: 0, mrr: 0, advisors: [] };
-      result[region].count++;
-      result[region].mrr += a.mrr;
-      result[region].advisors.push({ id: a.id, name: a.name, mrr: a.mrr });
-    });
-    // Sort advisors by MRR within each region
-    Object.values(result).forEach(r => r.advisors.sort((a, b) => b.mrr - a.mrr));
-    return result;
-  }, [advisorsWithDeals]);
 
   const renderRelationships = () => {
     // Calculate segment counts
