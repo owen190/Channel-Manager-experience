@@ -49,6 +49,9 @@ export default function LiveManagerPage() {
   const [pipelineKPIExpanded, setPipelineKPIExpanded] = useState<string | null>(null);
   const [expandedStage, setExpandedStage] = useState<DealStage | null>(null);
   const [relationshipSort, setRelationshipSort] = useState<'name' | 'mrr' | 'lastContact'>('mrr');
+  const [searchCity, setSearchCity] = useState('');
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+  const [cmTab, setCmTab] = useState<'campaigns' | 'assets' | 'results'>('campaigns');
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -948,9 +951,6 @@ export default function LiveManagerPage() {
       return locationLower.includes('international') || locationLower.includes('uk') || locationLower.includes('canada') ? 'International' : 'Unknown';
     };
 
-    const [searchCity, setSearchCity] = useState('');
-    const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
-
     const advisorsByRegion: Record<string, typeof advisorsWithDeals> = {};
     advisorsWithDeals.forEach(a => {
       const region = a.location ? regionMapping(a.location) : 'Unknown';
@@ -1100,7 +1100,6 @@ export default function LiveManagerPage() {
   };
 
   const renderCoMarketing = () => {
-    const [cmTab, setCmTab] = useState<'campaigns' | 'assets' | 'results'>('campaigns');
 
     const campaigns = [
       { id: 'cm1', name: 'Cloud Migration Assessment', status: 'active' as const, partners: 8, leadsGenerated: 23, type: 'Email Nurture', startDate: '2026-02-15', endDate: '2026-04-15' },
