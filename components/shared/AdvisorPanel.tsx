@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays, Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle } from 'lucide-react';
 import { Advisor, Deal, EngagementScore } from '@/lib/types';
 import { deals } from '@/lib/data/deals';
+import { SERVICE_CATALOG } from '@/lib/constants';
 import { PulseBadge } from './PulseBadge';
 import { TrajectoryBadge } from './TrajectoryBadge';
 import { SentimentBadge } from './SentimentBadge';
@@ -329,6 +330,102 @@ export function AdvisorPanel({
                     <p className="text-[10px] text-gray-400 mt-2 italic">Compiled from CRM notes, call transcripts, and LinkedIn</p>
                   </div>
                 )}
+
+                {/* White Space Analysis */}
+                {(() => {
+                  // Seeded random function for consistent MRR estimation
+                  const seededRandom = (seed: string): number => {
+                    let hash = 0;
+                    for (let i = 0; i < seed.length; i++) {
+                      const char = seed.charCodeAt(i);
+                      hash = ((hash << 5) - hash) + char;
+                      hash = hash & hash;
+                    }
+                    return Math.abs(hash) % 1000 / 1000;
+                  };
+
+                  // Detect products the advisor is selling
+                  const productsSellingSet = new Set<string>();
+                  advisorDeals.forEach((deal) => {
+                    const dealFirstWord = deal.name.split(' ')[0].toLowerCase();
+                    SERVICE_CATALOG.forEach((product) => {
+                      if (dealFirstWord.includes(product.toLowerCase()) || product.toLowerCase().includes(dealFirstWord)) {
+                        productsSellingSet.add(product);
+                      }
+                    });
+                  });
+
+                  const productsSelling = Array.from(productsSellingSet);
+                  const opportunities = SERVICE_CATALOG.filter((p) => !productsSelling.includes(p));
+                  const coverage = SERVICE_CATALOG.length > 0 ? Math.round((productsSelling.length / SERVICE_CATALOG.length) * 100) : 0;
+
+                  // Calculate total estimated opportunity MRR
+                  const totalOpportunityMRR = opportunities.reduce((sum, product) => {
+                    const rand = seededRandom(advisor.id + product);
+                    const estimatedMRR = Math.round(50 + rand * 150); // Range 50K-200K
+                    return sum + estimatedMRR;
+                  }, 0);
+
+                  return (
+                    <div>
+                      <h3 className="font-bold text-gray-900 mb-3 text-sm uppercase">
+                        White Space Analysis
+                      </h3>
+
+                      {/* Products Selling */}
+                      <div className="mb-3">
+                        <p className="text-xs text-gray-600 mb-2 font-medium">Products Selling</p>
+                        {productsSelling.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {productsSelling.map((product) => (
+                              <span key={product} className="inline-block px-2.5 py-1 bg-teal-100 text-teal-700 rounded text-xs font-medium">
+                                {product}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500">No products detected</p>
+                        )}
+                      </div>
+
+                      {/* Coverage Progress Bar */}
+                      <div className="mb-3">
+                        <div className="flex justify-between items-center mb-1.5">
+                          <p className="text-xs text-gray-600 font-medium">Catalog Coverage</p>
+                          <span className="text-xs font-medium text-gray-900">{coverage}%</span>
+                        </div>
+                        <div className="bg-gray-200 rounded-full h-1.5">
+                          <div
+                            className="bg-teal-500 h-1.5 rounded-full transition-all"
+                            style={{ width: `${coverage}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Opportunities */}
+                      {opportunities.length > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-600 mb-2 font-medium">Opportunities</p>
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            {opportunities.map((product) => (
+                              <span key={product} className="inline-block px-2.5 py-1 bg-amber-100 text-amber-700 rounded text-xs font-medium">
+                                {product}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Estimated Opportunity MRR */}
+                      {opportunities.length > 0 && (
+                        <div className="pt-2 border-t border-gray-200">
+                          <p className="text-xs text-gray-600 mb-1">Est. Opportunity MRR</p>
+                          <p className="text-sm font-bold text-gray-900">${(totalOpportunityMRR / 1000).toFixed(1)}K</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

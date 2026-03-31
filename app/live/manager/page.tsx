@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
+import { USAMap } from '@/components/shared/USAMap';
 import { KPICard } from '@/components/shared/KPICard';
 import { AdvisorTable } from '@/components/shared/AdvisorTable';
 import { AdvisorPanel } from '@/components/shared/AdvisorPanel';
@@ -52,6 +53,7 @@ export default function LiveManagerPage() {
   const [searchCity, setSearchCity] = useState('');
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [cmTab, setCmTab] = useState<'campaigns' | 'assets' | 'results'>('campaigns');
+  const [territoryFilter, setTerritoryFilter] = useState<string | null>(null);
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -319,6 +321,40 @@ export default function LiveManagerPage() {
     </div>
   );
 
+  // Region mapping for territory
+  const regionMapping = (location: string): string => {
+    const locationLower = location.toLowerCase();
+    const neastates = ['me', 'nh', 'vt', 'ma', 'ri', 'ct', 'ny', 'nj', 'pa', 'de', 'md', 'dc'];
+    const southeast = ['va', 'wv', 'nc', 'sc', 'ga', 'fl', 'al', 'ms', 'la', 'ar', 'ky', 'tn'];
+    const midwest = ['oh', 'in', 'il', 'mi', 'wi', 'mn', 'ia', 'mo', 'nd', 'sd', 'ne', 'ks'];
+    const southwest = ['tx', 'ok', 'nm', 'az'];
+    const west = ['wa', 'or', 'ca', 'nv', 'id', 'mt', 'wy', 'co', 'ut'];
+
+    for (const state of neastates) if (locationLower.includes(state)) return 'Northeast';
+    for (const state of southeast) if (locationLower.includes(state)) return 'Southeast';
+    for (const state of midwest) if (locationLower.includes(state)) return 'Midwest';
+    for (const state of southwest) if (locationLower.includes(state)) return 'Southwest';
+    for (const state of west) if (locationLower.includes(state)) return 'West';
+
+    return 'Unknown';
+  };
+
+  // Build advisorsByRegion for the map
+  const advisorsByRegionMap = useMemo(() => {
+    const result: Record<string, { count: number; mrr: number; advisors: Array<{ id: string; name: string; mrr: number }> }> = {};
+    advisorsWithDeals.forEach(a => {
+      const region = a.location ? regionMapping(a.location) : 'Unknown';
+      if (region === 'Unknown') return; // Don't show Unknown on map
+      if (!result[region]) result[region] = { count: 0, mrr: 0, advisors: [] };
+      result[region].count++;
+      result[region].mrr += a.mrr;
+      result[region].advisors.push({ id: a.id, name: a.name, mrr: a.mrr });
+    });
+    // Sort advisors by MRR within each region
+    Object.values(result).forEach(r => r.advisors.sort((a, b) => b.mrr - a.mrr));
+    return result;
+  }, [advisorsWithDeals]);
+
   const renderRelationships = () => {
     // Calculate segment counts
     const allAdvisorsCount = advisorsWithDeals.length;
@@ -342,6 +378,14 @@ export default function LiveManagerPage() {
       filteredAdvisors = advisorsWithDeals.filter(a =>
         a.friction === 'High' || a.friction === 'Critical' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall'
       );
+    }
+
+    // Apply territory filter from map
+    if (territoryFilter) {
+      filteredAdvisors = filteredAdvisors.filter(a => {
+        const region = a.location ? regionMapping(a.location) : 'Unknown';
+        return region === territoryFilter;
+      });
     }
 
     // Apply sorting
@@ -370,9 +414,20 @@ export default function LiveManagerPage() {
       { label: 'Needs Attention', count: needsAttentionCount, key: 'Needs Attention' },
     ];
 
+    const handleRegionClick = (region: string) => {
+      setTerritoryFilter(prev => prev === region ? null : region);
+    };
+
     return (
       <>
         <div className="space-y-4">
+          {/* Territory Map */}
+          <USAMap
+            advisorsByRegion={advisorsByRegionMap}
+            onRegionClick={handleRegionClick}
+            selectedRegion={territoryFilter}
+          />
+
           {/* Segmentation Filter Bar */}
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
             <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Partner Segments</p>
@@ -400,6 +455,7 @@ export default function LiveManagerPage() {
           <div className="flex items-center justify-between">
             <div className="text-12px text-gray-600 font-medium">
               Showing {sortedAdvisors.length} partners
+              {territoryFilter && <span className="ml-1 text-[#157A6E]">in {territoryFilter}</span>}
             </div>
             <div className="flex gap-2">
               <select
@@ -418,7 +474,7 @@ export default function LiveManagerPage() {
           <div className="space-y-2">
             {sortedAdvisors.length === 0 ? (
               <div className="text-center py-8 text-gray-400">
-                <p className="text-12px">No partners match this segment</p>
+                <p className="text-12px">No partners match this filter</p>
               </div>
             ) : (
               sortedAdvisors.map(a => {
@@ -1235,8 +1291,6 @@ export default function LiveManagerPage() {
     'relationships': renderRelationships,
     'pipeline': renderPipeline,
     'strategic': renderStrategic,
-    'white-space': renderWhiteSpace,
-    'territory': renderTerritory,
     'co-marketing': renderCoMarketing,
   };
 
