@@ -1,18 +1,15 @@
 /**
- * Database abstraction layer for Channel Companion Live
+ * Database layer for Channel Companion Live
+ * Connects to Postgres via DATABASE_URL
  *
- * DEV MODE: reads/writes JSON files in /data directory
- * PROD MODE: connects to Railway Postgres via DATABASE_URL
- *
- * Josh: To switch to Postgres, set DATABASE_URL in Railway env vars
- * and update this file to use the postgres client instead of JSON.
- * The API routes don't change — only this file does.
+ * Uses the `postgres` npm package (pure JS, no native deps).
+ * All API routes call methods on the `db` export — nothing else changes.
  */
 
-import { promises as fs } from 'fs';
-import path from 'path';
+import postgres from 'postgres';
 
-// Types matching the schema
+// ============ TYPES ============
+
 export interface LiveAdvisor {
   id: string;
   name: string;
@@ -137,8 +134,6 @@ export interface LiveActivity {
   createdAt?: string;
 }
 
-// ============ ENGAGEMENT SIGNALS ============
-
 export type SignalType =
   | 'quote_request'
   | 'product_inquiry'
@@ -153,76 +148,199 @@ export interface EngagementSignal {
   id: string;
   advisorId: string;
   signalType: SignalType;
-  product?: string;       // e.g. "SD-WAN", "UCaaS", "Managed Security"
-  value?: number;          // estimated deal value if known
+  product?: string;
+  value?: number;
   notes?: string;
-  source?: string;         // "CRM", "Portal", "Email", "Manual"
-  occurredAt: string;      // when the signal happened (not when logged)
+  source?: string;
+  occurredAt: string;
   createdAt?: string;
 }
 
 export interface RevenueIntent {
   advisorId: string;
   advisorName: string;
-  score: number;            // 0-100
+  score: number;
   label: 'Hot' | 'Warm' | 'Interested' | 'Cold';
-  signals30d: number;       // count in last 30 days
-  signals90d: number;       // count in last 90 days
+  signals30d: number;
+  signals90d: number;
   lastSignalDate: string;
   topProducts: string[];
   quoteCount30d: number;
   totalEstimatedValue: number;
 }
 
-// ============ JSON FILE STORE (DEV MODE) ============
+// ============ POSTGRES CONNECTION ============
 
-// Use /tmp on Railway (writable) or data/live locally
-function getDataDir(): string {
-  // If LIVE_DATA_DIR is set, use it
-  if (process.env.LIVE_DATA_DIR) return process.env.LIVE_DATA_DIR;
-  // On Railway or production, use /tmp (guaranteed writable)
-  if (process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production') {
-    return '/tmp/channel-companion-live';
-  }
-  // Local dev: use project directory
-  return path.join(process.cwd(), 'data', 'live');
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  console.warn('[DB] WARNING: DATABASE_URL not set. Database operations will fail.');
 }
 
-const DATA_DIR = getDataDir();
-let dataDirReady = false;
+const sql = postgres(connectionString || 'postgres://localhost:5432/channel_companion', {
+  ssl: connectionString?.includes('railway') || connectionString?.includes('neon') || connectionString?.includes('supabase')
+    ? { rejectUnauthorized: false }
+    : false,
+  max: 10,
+  idle_timeout: 20,
+  connect_timeout: 10,
+});
 
-async function ensureDataDir() {
-  if (dataDirReady) return;
-  try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    dataDirReady = true;
-    console.log(`[DB] Data directory ready: ${DATA_DIR}`);
-  } catch (err) {
-    console.error(`[DB] Failed to create data directory ${DATA_DIR}:`, err);
-    throw new Error(`Cannot create data directory: ${DATA_DIR}`);
-  }
-}
-
-async function readCollection<T>(name: string): Promise<T[]> {
-  await ensureDataDir();
-  const filePath = path.join(DATA_DIR, `${name}.json`);
-  try {
-    const raw = await fs.readFile(filePath, 'utf-8');
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-async function writeCollection<T>(name: string, data: T[]): Promise<void> {
-  await ensureDataDir();
-  const filePath = path.join(DATA_DIR, `${name}.json`);
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
-  console.log(`[DB] Wrote ${data.length} items to ${name}.json`);
-}
+// ============ HELPERS ============
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
+/** Map a Postgres row (snake_case) to a LiveAdvisor (camelCase) */
+function rowToAdvisor(r: any): LiveAdvisor {
+  return {
+    id: r.id,
+    name: r.name,
+    title: r.title,
+    company: r.company,
+    mrr: Number(r.mrr),
+    pulse: r.pulse,
+    trajectory: r.trajectory,
+    tone: r.tone,
+    intent: r.intent,
+    friction: r.friction,
+    dealHealth: r.deal_health,
+    tier: r.tier,
+    connectedSince: r.connected_since || undefined,
+    commPreference: r.comm_preference || undefined,
+    bestDayToReach: r.best_day_to_reach || undefined,
+    referredBy: r.referred_by || undefined,
+    location: r.location || undefined,
+    birthday: r.birthday || undefined,
+    education: r.education || undefined,
+    family: r.family || undefined,
+    hobbies: r.hobbies || undefined,
+    funFact: r.fun_fact || undefined,
+    personalIntel: r.personal_intel || undefined,
+    diagnosis: r.diagnosis || undefined,
+    engagementBreakdown: r.engagement_breakdown || {},
+    tsds: r.tsds || [],
+    previousCompanies: r.previous_companies || [],
+    mutualConnections: r.mutual_connections || [],
+    sharedClients: r.shared_clients || [],
+    createdAt: r.created_at?.toISOString?.() || r.created_at,
+    updatedAt: r.updated_at?.toISOString?.() || r.updated_at,
+  };
+}
+
+function rowToRep(r: any): LiveRep {
+  return {
+    id: r.id,
+    name: r.name,
+    title: r.title,
+    managedMRR: Number(r.managed_mrr),
+    activeDeals: Number(r.active_deals),
+    quotaTarget: Number(r.quota_target),
+    closedWon: Number(r.closed_won),
+    commitTarget: Number(r.commit_target),
+    currentCommit: Number(r.current_commit),
+    partnerCount: Number(r.partner_count),
+    partnerCapacity: Number(r.partner_capacity),
+    top10: Number(r.top10),
+    next20: Number(r.next20),
+    other: Number(r.other),
+    topConcern: r.top_concern || undefined,
+    winRate: Number(r.win_rate),
+    avgCycle: Number(r.avg_cycle),
+    engagementScore: r.engagement_score,
+    dealsWonQTD: Number(r.deals_won_qtd),
+    createdAt: r.created_at?.toISOString?.() || r.created_at,
+    updatedAt: r.updated_at?.toISOString?.() || r.updated_at,
+  };
+}
+
+function rowToDeal(r: any): LiveDeal {
+  return {
+    id: r.id,
+    name: r.name,
+    advisorId: r.advisor_id,
+    repId: r.rep_id || '',
+    mrr: Number(r.mrr),
+    health: r.health,
+    stage: r.stage,
+    probability: Number(r.probability),
+    daysInStage: Number(r.days_in_stage),
+    closeDate: r.close_date || undefined,
+    competitor: r.competitor || undefined,
+    committed: Boolean(r.committed),
+    forecastHistory: Number(r.forecast_history),
+    confidenceScore: r.confidence_score || undefined,
+    lastModified: r.last_modified || undefined,
+    overrideRequested: Boolean(r.override_requested),
+    overrideApproved: r.override_approved ?? undefined,
+    overrideNote: r.override_note || undefined,
+    actionItems: r.action_items || [],
+    createdAt: r.created_at?.toISOString?.() || r.created_at,
+    updatedAt: r.updated_at?.toISOString?.() || r.updated_at,
+  };
+}
+
+function rowToNote(r: any): LiveNote {
+  return {
+    id: r.id,
+    advisorId: r.advisor_id || undefined,
+    dealId: r.deal_id || undefined,
+    repId: r.rep_id || undefined,
+    author: r.author,
+    content: r.content,
+    noteType: r.note_type,
+    source: r.source || undefined,
+    tags: r.tags || [],
+    createdAt: r.created_at?.toISOString?.() || r.created_at,
+    updatedAt: r.updated_at?.toISOString?.() || r.updated_at,
+  };
+}
+
+function rowToTranscript(r: any): LiveTranscript {
+  return {
+    id: r.id,
+    advisorId: r.advisor_id || undefined,
+    dealId: r.deal_id || undefined,
+    repId: r.rep_id || undefined,
+    title: r.title,
+    source: r.source,
+    durationMinutes: r.duration_minutes != null ? Number(r.duration_minutes) : undefined,
+    participants: r.participants || [],
+    content: r.content,
+    summary: r.summary || undefined,
+    keyMoments: r.key_moments || [],
+    sentiment: r.sentiment || undefined,
+    actionItems: r.action_items || [],
+    createdAt: r.created_at?.toISOString?.() || r.created_at,
+  };
+}
+
+function rowToActivity(r: any): LiveActivity {
+  return {
+    id: r.id,
+    advisorId: r.advisor_id || undefined,
+    dealId: r.deal_id || undefined,
+    repId: r.rep_id || undefined,
+    activityType: r.activity_type,
+    description: r.description,
+    metadata: r.metadata || {},
+    createdAt: r.created_at?.toISOString?.() || r.created_at,
+  };
+}
+
+function rowToSignal(r: any): EngagementSignal {
+  return {
+    id: r.id,
+    advisorId: r.advisor_id,
+    signalType: r.signal_type as SignalType,
+    product: r.product || undefined,
+    value: r.value != null ? Number(r.value) : undefined,
+    notes: r.notes || undefined,
+    source: r.source || undefined,
+    occurredAt: r.occurred_at?.toISOString?.() || r.occurred_at,
+    createdAt: r.created_at?.toISOString?.() || r.created_at,
+  };
 }
 
 // ============ DATABASE OPERATIONS ============
@@ -230,264 +348,433 @@ function generateId(): string {
 export const db = {
   // --- Advisors ---
   async getAdvisors(): Promise<LiveAdvisor[]> {
-    return readCollection<LiveAdvisor>('advisors');
+    const rows = await sql`SELECT * FROM advisors ORDER BY name`;
+    return rows.map(rowToAdvisor);
   },
 
   async getAdvisor(id: string): Promise<LiveAdvisor | null> {
-    const advisors = await this.getAdvisors();
-    return advisors.find(a => a.id === id) || null;
+    const rows = await sql`SELECT * FROM advisors WHERE id = ${id}`;
+    return rows.length > 0 ? rowToAdvisor(rows[0]) : null;
   },
 
   async upsertAdvisor(advisor: Partial<LiveAdvisor> & { id?: string }): Promise<LiveAdvisor> {
-    const advisors = await this.getAdvisors();
-    const now = new Date().toISOString();
     const id = advisor.id || generateId();
-    const existing = advisors.findIndex(a => a.id === id);
+    const now = new Date().toISOString();
 
-    const record: LiveAdvisor = {
-      id,
-      name: advisor.name || '',
-      title: advisor.title || '',
-      company: advisor.company || '',
-      mrr: advisor.mrr || 0,
-      pulse: advisor.pulse || 'Steady',
-      trajectory: advisor.trajectory || 'Stable',
-      tone: advisor.tone || 'Neutral',
-      intent: advisor.intent || 'Moderate',
-      friction: advisor.friction || 'Low',
-      dealHealth: advisor.dealHealth || 'Healthy',
-      tier: advisor.tier || 'other',
-      ...advisor,
-      updatedAt: now,
-      createdAt: existing >= 0 ? advisors[existing].createdAt : now,
-    };
-
-    if (existing >= 0) {
-      advisors[existing] = record;
-    } else {
-      advisors.push(record);
-    }
-    await writeCollection('advisors', advisors);
-    return record;
+    const rows = await sql`
+      INSERT INTO advisors (
+        id, name, title, company, mrr, pulse, trajectory, tone, intent, friction,
+        deal_health, tier, connected_since, comm_preference, best_day_to_reach,
+        referred_by, location, birthday, education, family, hobbies, fun_fact,
+        personal_intel, diagnosis, engagement_breakdown, tsds, previous_companies,
+        mutual_connections, shared_clients, created_at, updated_at
+      ) VALUES (
+        ${id},
+        ${advisor.name || ''},
+        ${advisor.title || ''},
+        ${advisor.company || ''},
+        ${advisor.mrr || 0},
+        ${advisor.pulse || 'Steady'},
+        ${advisor.trajectory || 'Stable'},
+        ${advisor.tone || 'Neutral'},
+        ${advisor.intent || 'Moderate'},
+        ${advisor.friction || 'Low'},
+        ${advisor.dealHealth || 'Healthy'},
+        ${advisor.tier || 'other'},
+        ${advisor.connectedSince || null},
+        ${advisor.commPreference || null},
+        ${advisor.bestDayToReach || null},
+        ${advisor.referredBy || null},
+        ${advisor.location || null},
+        ${advisor.birthday || null},
+        ${advisor.education || null},
+        ${advisor.family || null},
+        ${advisor.hobbies || null},
+        ${advisor.funFact || null},
+        ${advisor.personalIntel || null},
+        ${advisor.diagnosis || null},
+        ${sql.json(advisor.engagementBreakdown || {})},
+        ${sql.json(advisor.tsds || [])},
+        ${sql.json(advisor.previousCompanies || [])},
+        ${sql.json(advisor.mutualConnections || [])},
+        ${sql.json(advisor.sharedClients || [])},
+        ${now},
+        ${now}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        title = EXCLUDED.title,
+        company = EXCLUDED.company,
+        mrr = EXCLUDED.mrr,
+        pulse = EXCLUDED.pulse,
+        trajectory = EXCLUDED.trajectory,
+        tone = EXCLUDED.tone,
+        intent = EXCLUDED.intent,
+        friction = EXCLUDED.friction,
+        deal_health = EXCLUDED.deal_health,
+        tier = EXCLUDED.tier,
+        connected_since = EXCLUDED.connected_since,
+        comm_preference = EXCLUDED.comm_preference,
+        best_day_to_reach = EXCLUDED.best_day_to_reach,
+        referred_by = EXCLUDED.referred_by,
+        location = EXCLUDED.location,
+        birthday = EXCLUDED.birthday,
+        education = EXCLUDED.education,
+        family = EXCLUDED.family,
+        hobbies = EXCLUDED.hobbies,
+        fun_fact = EXCLUDED.fun_fact,
+        personal_intel = EXCLUDED.personal_intel,
+        diagnosis = EXCLUDED.diagnosis,
+        engagement_breakdown = EXCLUDED.engagement_breakdown,
+        tsds = EXCLUDED.tsds,
+        previous_companies = EXCLUDED.previous_companies,
+        mutual_connections = EXCLUDED.mutual_connections,
+        shared_clients = EXCLUDED.shared_clients,
+        updated_at = ${now}
+      RETURNING *
+    `;
+    return rowToAdvisor(rows[0]);
   },
 
   async deleteAdvisor(id: string): Promise<boolean> {
-    const advisors = await this.getAdvisors();
-    const filtered = advisors.filter(a => a.id !== id);
-    if (filtered.length === advisors.length) return false;
-    await writeCollection('advisors', filtered);
-    return true;
+    const result = await sql`DELETE FROM advisors WHERE id = ${id}`;
+    return result.count > 0;
   },
 
   // --- Reps ---
   async getReps(): Promise<LiveRep[]> {
-    return readCollection<LiveRep>('reps');
+    const rows = await sql`SELECT * FROM reps ORDER BY name`;
+    return rows.map(rowToRep);
   },
 
   async getRep(id: string): Promise<LiveRep | null> {
-    const reps = await this.getReps();
-    return reps.find(r => r.id === id) || null;
+    const rows = await sql`SELECT * FROM reps WHERE id = ${id}`;
+    return rows.length > 0 ? rowToRep(rows[0]) : null;
   },
 
   async upsertRep(rep: Partial<LiveRep> & { id?: string }): Promise<LiveRep> {
-    const reps = await this.getReps();
-    const now = new Date().toISOString();
     const id = rep.id || generateId();
-    const existing = reps.findIndex(r => r.id === id);
+    const now = new Date().toISOString();
 
-    const record: LiveRep = {
-      id,
-      name: rep.name || '',
-      title: rep.title || '',
-      managedMRR: rep.managedMRR || 0,
-      activeDeals: rep.activeDeals || 0,
-      quotaTarget: rep.quotaTarget || 0,
-      closedWon: rep.closedWon || 0,
-      commitTarget: rep.commitTarget || 0,
-      currentCommit: rep.currentCommit || 0,
-      partnerCount: rep.partnerCount || 0,
-      partnerCapacity: rep.partnerCapacity || 30,
-      top10: rep.top10 || 0,
-      next20: rep.next20 || 0,
-      other: rep.other || 0,
-      winRate: rep.winRate || 0,
-      avgCycle: rep.avgCycle || 0,
-      engagementScore: rep.engagementScore || 'Steady',
-      dealsWonQTD: rep.dealsWonQTD || 0,
-      ...rep,
-      updatedAt: now,
-      createdAt: existing >= 0 ? reps[existing].createdAt : now,
-    };
-
-    if (existing >= 0) {
-      reps[existing] = record;
-    } else {
-      reps.push(record);
-    }
-    await writeCollection('reps', reps);
-    return record;
+    const rows = await sql`
+      INSERT INTO reps (
+        id, name, title, managed_mrr, active_deals, quota_target, closed_won,
+        commit_target, current_commit, partner_count, partner_capacity,
+        top10, next20, other, top_concern, win_rate, avg_cycle,
+        engagement_score, deals_won_qtd, created_at, updated_at
+      ) VALUES (
+        ${id},
+        ${rep.name || ''},
+        ${rep.title || ''},
+        ${rep.managedMRR || 0},
+        ${rep.activeDeals || 0},
+        ${rep.quotaTarget || 0},
+        ${rep.closedWon || 0},
+        ${rep.commitTarget || 0},
+        ${rep.currentCommit || 0},
+        ${rep.partnerCount || 0},
+        ${rep.partnerCapacity || 30},
+        ${rep.top10 || 0},
+        ${rep.next20 || 0},
+        ${rep.other || 0},
+        ${rep.topConcern || null},
+        ${rep.winRate || 0},
+        ${rep.avgCycle || 0},
+        ${rep.engagementScore || 'Steady'},
+        ${rep.dealsWonQTD || 0},
+        ${now},
+        ${now}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        title = EXCLUDED.title,
+        managed_mrr = EXCLUDED.managed_mrr,
+        active_deals = EXCLUDED.active_deals,
+        quota_target = EXCLUDED.quota_target,
+        closed_won = EXCLUDED.closed_won,
+        commit_target = EXCLUDED.commit_target,
+        current_commit = EXCLUDED.current_commit,
+        partner_count = EXCLUDED.partner_count,
+        partner_capacity = EXCLUDED.partner_capacity,
+        top10 = EXCLUDED.top10,
+        next20 = EXCLUDED.next20,
+        other = EXCLUDED.other,
+        top_concern = EXCLUDED.top_concern,
+        win_rate = EXCLUDED.win_rate,
+        avg_cycle = EXCLUDED.avg_cycle,
+        engagement_score = EXCLUDED.engagement_score,
+        deals_won_qtd = EXCLUDED.deals_won_qtd,
+        updated_at = ${now}
+      RETURNING *
+    `;
+    return rowToRep(rows[0]);
   },
 
   // --- Deals ---
   async getDeals(): Promise<LiveDeal[]> {
-    return readCollection<LiveDeal>('deals');
+    const rows = await sql`SELECT * FROM deals ORDER BY name`;
+    return rows.map(rowToDeal);
   },
 
   async getDeal(id: string): Promise<LiveDeal | null> {
-    const deals = await this.getDeals();
-    return deals.find(d => d.id === id) || null;
+    const rows = await sql`SELECT * FROM deals WHERE id = ${id}`;
+    return rows.length > 0 ? rowToDeal(rows[0]) : null;
   },
 
   async upsertDeal(deal: Partial<LiveDeal> & { id?: string }): Promise<LiveDeal> {
-    const deals = await this.getDeals();
-    const now = new Date().toISOString();
     const id = deal.id || generateId();
-    const existing = deals.findIndex(d => d.id === id);
+    const now = new Date().toISOString();
 
-    const record: LiveDeal = {
-      id,
-      name: deal.name || '',
-      advisorId: deal.advisorId || '',
-      repId: deal.repId || '',
-      mrr: deal.mrr || 0,
-      health: deal.health || 'Healthy',
-      stage: deal.stage || 'Discovery',
-      probability: deal.probability || 0,
-      daysInStage: deal.daysInStage || 0,
-      committed: deal.committed || false,
-      forecastHistory: deal.forecastHistory || 0,
-      overrideRequested: deal.overrideRequested || false,
-      ...deal,
-      updatedAt: now,
-      createdAt: existing >= 0 ? deals[existing].createdAt : now,
-    };
-
-    if (existing >= 0) {
-      deals[existing] = record;
-    } else {
-      deals.push(record);
-    }
-    await writeCollection('deals', deals);
-    return record;
+    const rows = await sql`
+      INSERT INTO deals (
+        id, name, advisor_id, rep_id, mrr, health, stage, probability,
+        days_in_stage, close_date, competitor, committed, forecast_history,
+        confidence_score, last_modified, override_requested, override_approved,
+        override_note, action_items, created_at, updated_at
+      ) VALUES (
+        ${id},
+        ${deal.name || ''},
+        ${deal.advisorId || null},
+        ${deal.repId || null},
+        ${deal.mrr || 0},
+        ${deal.health || 'Healthy'},
+        ${deal.stage || 'Discovery'},
+        ${deal.probability || 0},
+        ${deal.daysInStage || 0},
+        ${deal.closeDate || null},
+        ${deal.competitor || null},
+        ${deal.committed || false},
+        ${deal.forecastHistory || 0},
+        ${deal.confidenceScore || 'Medium'},
+        ${deal.lastModified || null},
+        ${deal.overrideRequested || false},
+        ${deal.overrideApproved ?? null},
+        ${deal.overrideNote || null},
+        ${sql.json(deal.actionItems || [])},
+        ${now},
+        ${now}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        advisor_id = EXCLUDED.advisor_id,
+        rep_id = EXCLUDED.rep_id,
+        mrr = EXCLUDED.mrr,
+        health = EXCLUDED.health,
+        stage = EXCLUDED.stage,
+        probability = EXCLUDED.probability,
+        days_in_stage = EXCLUDED.days_in_stage,
+        close_date = EXCLUDED.close_date,
+        competitor = EXCLUDED.competitor,
+        committed = EXCLUDED.committed,
+        forecast_history = EXCLUDED.forecast_history,
+        confidence_score = EXCLUDED.confidence_score,
+        last_modified = EXCLUDED.last_modified,
+        override_requested = EXCLUDED.override_requested,
+        override_approved = EXCLUDED.override_approved,
+        override_note = EXCLUDED.override_note,
+        action_items = EXCLUDED.action_items,
+        updated_at = ${now}
+      RETURNING *
+    `;
+    return rowToDeal(rows[0]);
   },
 
   // --- Notes ---
   async getNotes(filters?: { advisorId?: string; dealId?: string }): Promise<LiveNote[]> {
-    const notes = await readCollection<LiveNote>('notes');
-    if (!filters) return notes;
-    return notes.filter(n => {
-      if (filters.advisorId && n.advisorId !== filters.advisorId) return false;
-      if (filters.dealId && n.dealId !== filters.dealId) return false;
-      return true;
-    });
+    if (filters?.advisorId && filters?.dealId) {
+      const rows = await sql`SELECT * FROM notes WHERE advisor_id = ${filters.advisorId} AND deal_id = ${filters.dealId} ORDER BY created_at DESC`;
+      return rows.map(rowToNote);
+    }
+    if (filters?.advisorId) {
+      const rows = await sql`SELECT * FROM notes WHERE advisor_id = ${filters.advisorId} ORDER BY created_at DESC`;
+      return rows.map(rowToNote);
+    }
+    if (filters?.dealId) {
+      const rows = await sql`SELECT * FROM notes WHERE deal_id = ${filters.dealId} ORDER BY created_at DESC`;
+      return rows.map(rowToNote);
+    }
+    const rows = await sql`SELECT * FROM notes ORDER BY created_at DESC`;
+    return rows.map(rowToNote);
   },
 
   async createNote(note: Omit<LiveNote, 'id' | 'createdAt' | 'updatedAt'>): Promise<LiveNote> {
-    const notes = await this.getNotes();
-    const now = new Date().toISOString();
-    const record: LiveNote = {
-      ...note,
-      id: generateId(),
-      createdAt: now,
-      updatedAt: now,
-    };
-    notes.push(record);
-    await writeCollection('notes', notes);
-    return record;
+    const rows = await sql`
+      INSERT INTO notes (advisor_id, deal_id, rep_id, author, content, note_type, source, tags)
+      VALUES (
+        ${note.advisorId || null},
+        ${note.dealId || null},
+        ${note.repId || null},
+        ${note.author},
+        ${note.content},
+        ${note.noteType},
+        ${note.source || null},
+        ${sql.json(note.tags || [])}
+      )
+      RETURNING *
+    `;
+    return rowToNote(rows[0]);
   },
 
   // --- Transcripts ---
   async getTranscripts(filters?: { advisorId?: string }): Promise<LiveTranscript[]> {
-    const transcripts = await readCollection<LiveTranscript>('transcripts');
-    if (!filters) return transcripts;
-    return transcripts.filter(t => {
-      if (filters.advisorId && t.advisorId !== filters.advisorId) return false;
-      return true;
-    });
+    if (filters?.advisorId) {
+      const rows = await sql`SELECT * FROM transcripts WHERE advisor_id = ${filters.advisorId} ORDER BY created_at DESC`;
+      return rows.map(rowToTranscript);
+    }
+    const rows = await sql`SELECT * FROM transcripts ORDER BY created_at DESC`;
+    return rows.map(rowToTranscript);
   },
 
   async createTranscript(transcript: Omit<LiveTranscript, 'id' | 'createdAt'>): Promise<LiveTranscript> {
-    const transcripts = await this.getTranscripts();
-    const now = new Date().toISOString();
-    const record: LiveTranscript = {
-      ...transcript,
-      id: generateId(),
-      createdAt: now,
-    };
-    transcripts.push(record);
-    await writeCollection('transcripts', transcripts);
-    return record;
+    const rows = await sql`
+      INSERT INTO transcripts (
+        advisor_id, deal_id, rep_id, title, source, duration_minutes,
+        participants, content, summary, key_moments, sentiment, action_items
+      ) VALUES (
+        ${transcript.advisorId || null},
+        ${transcript.dealId || null},
+        ${transcript.repId || null},
+        ${transcript.title},
+        ${transcript.source},
+        ${transcript.durationMinutes || null},
+        ${sql.json(transcript.participants || [])},
+        ${transcript.content},
+        ${transcript.summary || null},
+        ${sql.json(transcript.keyMoments || [])},
+        ${transcript.sentiment || 'Neutral'},
+        ${sql.json(transcript.actionItems || [])}
+      )
+      RETURNING *
+    `;
+    return rowToTranscript(rows[0]);
   },
 
   // --- Activity Log ---
   async getActivity(filters?: { advisorId?: string; limit?: number }): Promise<LiveActivity[]> {
-    let activity = await readCollection<LiveActivity>('activity');
+    const limit = filters?.limit || 100;
     if (filters?.advisorId) {
-      activity = activity.filter(a => a.advisorId === filters.advisorId);
+      const rows = await sql`SELECT * FROM activity_log WHERE advisor_id = ${filters.advisorId} ORDER BY created_at DESC LIMIT ${limit}`;
+      return rows.map(rowToActivity);
     }
-    activity.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-    if (filters?.limit) {
-      activity = activity.slice(0, filters.limit);
-    }
-    return activity;
+    const rows = await sql`SELECT * FROM activity_log ORDER BY created_at DESC LIMIT ${limit}`;
+    return rows.map(rowToActivity);
   },
 
   async logActivity(activity: Omit<LiveActivity, 'id' | 'createdAt'>): Promise<LiveActivity> {
-    const activities = await readCollection<LiveActivity>('activity');
-    const record: LiveActivity = {
-      ...activity,
-      id: generateId(),
-      createdAt: new Date().toISOString(),
-    };
-    activities.push(record);
-    await writeCollection('activity', activities);
-    return record;
+    const rows = await sql`
+      INSERT INTO activity_log (advisor_id, deal_id, rep_id, activity_type, description, metadata)
+      VALUES (
+        ${activity.advisorId || null},
+        ${activity.dealId || null},
+        ${activity.repId || null},
+        ${activity.activityType},
+        ${activity.description},
+        ${sql.json((activity.metadata || {}) as Record<string, any>)}
+      )
+      RETURNING *
+    `;
+    return rowToActivity(rows[0]);
   },
 
   // --- Engagement Signals ---
   async getSignals(filters?: { advisorId?: string; signalType?: SignalType; since?: string }): Promise<EngagementSignal[]> {
-    let signals = await readCollection<EngagementSignal>('signals');
-    if (filters?.advisorId) signals = signals.filter(s => s.advisorId === filters.advisorId);
-    if (filters?.signalType) signals = signals.filter(s => s.signalType === filters.signalType);
-    if (filters?.since) {
-      const sinceDate = new Date(filters.since).getTime();
-      signals = signals.filter(s => new Date(s.occurredAt).getTime() >= sinceDate);
+    const conditions: string[] = [];
+
+    // Build dynamic query based on filters
+    if (filters?.advisorId && filters?.signalType && filters?.since) {
+      const rows = await sql`
+        SELECT * FROM signals
+        WHERE advisor_id = ${filters.advisorId}
+          AND signal_type = ${filters.signalType}
+          AND occurred_at >= ${filters.since}
+        ORDER BY occurred_at DESC
+      `;
+      return rows.map(rowToSignal);
     }
-    signals.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
-    return signals;
+    if (filters?.advisorId && filters?.signalType) {
+      const rows = await sql`
+        SELECT * FROM signals
+        WHERE advisor_id = ${filters.advisorId} AND signal_type = ${filters.signalType}
+        ORDER BY occurred_at DESC
+      `;
+      return rows.map(rowToSignal);
+    }
+    if (filters?.advisorId && filters?.since) {
+      const rows = await sql`
+        SELECT * FROM signals
+        WHERE advisor_id = ${filters.advisorId} AND occurred_at >= ${filters.since}
+        ORDER BY occurred_at DESC
+      `;
+      return rows.map(rowToSignal);
+    }
+    if (filters?.advisorId) {
+      const rows = await sql`
+        SELECT * FROM signals WHERE advisor_id = ${filters.advisorId}
+        ORDER BY occurred_at DESC
+      `;
+      return rows.map(rowToSignal);
+    }
+    if (filters?.signalType) {
+      const rows = await sql`
+        SELECT * FROM signals WHERE signal_type = ${filters.signalType}
+        ORDER BY occurred_at DESC
+      `;
+      return rows.map(rowToSignal);
+    }
+    if (filters?.since) {
+      const rows = await sql`
+        SELECT * FROM signals WHERE occurred_at >= ${filters.since}
+        ORDER BY occurred_at DESC
+      `;
+      return rows.map(rowToSignal);
+    }
+    const rows = await sql`SELECT * FROM signals ORDER BY occurred_at DESC`;
+    return rows.map(rowToSignal);
   },
 
   async createSignal(signal: Omit<EngagementSignal, 'id' | 'createdAt'>): Promise<EngagementSignal> {
-    const signals = await readCollection<EngagementSignal>('signals');
-    const record: EngagementSignal = {
-      ...signal,
-      id: generateId(),
-      createdAt: new Date().toISOString(),
-    };
-    signals.push(record);
-    await writeCollection('signals', signals);
-    return record;
+    const rows = await sql`
+      INSERT INTO signals (advisor_id, signal_type, product, value, notes, source, occurred_at)
+      VALUES (
+        ${signal.advisorId},
+        ${signal.signalType},
+        ${signal.product || null},
+        ${signal.value || null},
+        ${signal.notes || null},
+        ${signal.source || null},
+        ${signal.occurredAt}
+      )
+      RETURNING *
+    `;
+    return rowToSignal(rows[0]);
   },
 
   async bulkCreateSignals(newSignals: Omit<EngagementSignal, 'id' | 'createdAt'>[]): Promise<number> {
-    const signals = await readCollection<EngagementSignal>('signals');
-    const now = new Date().toISOString();
-    const records = newSignals.map(s => ({
-      ...s,
-      id: generateId(),
-      createdAt: now,
-    }));
-    signals.push(...records);
-    await writeCollection('signals', signals);
-    return records.length;
+    if (newSignals.length === 0) return 0;
+
+    // Insert signals one at a time (simple and reliable)
+    let count = 0;
+    for (const signal of newSignals) {
+      await sql`
+        INSERT INTO signals (advisor_id, signal_type, product, value, notes, source, occurred_at)
+        VALUES (
+          ${signal.advisorId},
+          ${signal.signalType},
+          ${signal.product || null},
+          ${signal.value || null},
+          ${signal.notes || null},
+          ${signal.source || null},
+          ${signal.occurredAt}
+        )
+      `;
+      count++;
+    }
+    return count;
   },
 
   async deleteSignal(id: string): Promise<boolean> {
-    const signals = await readCollection<EngagementSignal>('signals');
-    const filtered = signals.filter(s => s.id !== id);
-    if (filtered.length === signals.length) return false;
-    await writeCollection('signals', filtered);
-    return true;
+    const result = await sql`DELETE FROM signals WHERE id = ${id}`;
+    return result.count > 0;
   },
 
   // --- Revenue Intent Computation ---
@@ -500,7 +787,6 @@ export const db = {
     const d30 = 30 * 24 * 60 * 60 * 1000;
     const d90 = 90 * 24 * 60 * 60 * 1000;
 
-    // Signal weights: quotes and pricing are strongest buying signals
     const WEIGHTS: Record<SignalType, number> = {
       quote_request: 25,
       pricing_request: 20,
@@ -518,22 +804,18 @@ export const db = {
       const signals90d = advisorSignals.filter(s => now - new Date(s.occurredAt).getTime() < d90);
       const quoteCount30d = signals30d.filter(s => s.signalType === 'quote_request').length;
 
-      // Weighted score: recent signals count more
       let rawScore = 0;
       for (const s of signals30d) {
-        rawScore += (WEIGHTS[s.signalType] || 5) * 1.5; // 1.5x recency boost for 30d
+        rawScore += (WEIGHTS[s.signalType] || 5) * 1.5;
       }
       for (const s of signals90d.filter(s => now - new Date(s.occurredAt).getTime() >= d30)) {
         rawScore += WEIGHTS[s.signalType] || 5;
       }
-      // Normalize to 0-100
       const score = Math.min(100, Math.round(rawScore));
 
-      // Label
       const label: RevenueIntent['label'] =
         score >= 70 ? 'Hot' : score >= 40 ? 'Warm' : score >= 15 ? 'Interested' : 'Cold';
 
-      // Top products by frequency
       const productCounts: Record<string, number> = {};
       for (const s of advisorSignals) {
         if (s.product) productCounts[s.product] = (productCounts[s.product] || 0) + 1;
@@ -564,7 +846,7 @@ export const db = {
     });
   },
 
-  // --- Aggregate helpers for signal computation ---
+  // --- Aggregate helpers ---
   async getAdvisorContext(advisorId: string) {
     const [advisor, deals, notes, transcripts, activity, signals, revenueIntent] = await Promise.all([
       this.getAdvisor(advisorId),
@@ -579,7 +861,6 @@ export const db = {
     return { advisor, deals, notes, transcripts, activity, signals, revenueIntent };
   },
 
-  // Build full context string for Claude AI
   async buildAIContext(advisorId?: string): Promise<string> {
     if (advisorId) {
       const ctx = await this.getAdvisorContext(advisorId);
@@ -611,7 +892,6 @@ export const db = {
       return parts.filter(Boolean).join('\n');
     }
 
-    // General portfolio context
     const [advisors, deals, reps, intentScores] = await Promise.all([
       this.getAdvisors(),
       this.getDeals(),
