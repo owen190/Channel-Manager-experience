@@ -6,29 +6,46 @@
 
 The live environment lets Owen enter real partner data, call notes, and transcripts through an admin UI at `/live`. The data feeds into live dashboard views at `/live/manager` and `/live/leader` that mirror the demo dashboards but use real data. An AI assistant powered by the Claude API is integrated into both views.
 
-**Current state:** Everything works with JSON file storage (files in `data/live/`). To make it production-ready, you'll swap to Postgres. The architecture is designed so only one file changes.
+**Current state:** The backend is fully wired to Postgres. You just need to provision a database and set the `DATABASE_URL` environment variable.
 
 ---
 
-### Quick Start (Development)
+### Quick Start (Railway)
 
-```bash
-git clone <repo-url>
-cd channel-companion
-npm install
-npm run dev
-```
+1. **Add Postgres on Railway**
+   - In the Railway dashboard, click **+ New** → **Database** → **Add PostgreSQL**
+   - Railway auto-creates a `DATABASE_URL` variable — link it to the app service
 
-Visit `http://localhost:3000/live` to start entering data. The JSON files are created automatically in `data/live/`.
+2. **Set environment variables**
+   In the app service's Variables tab:
+   ```
+   DATABASE_URL=postgres://...  (auto-linked from Railway Postgres, or paste manually)
+   ANTHROPIC_API_KEY=sk-ant-...  (for Claude AI chat)
+   ```
+
+3. **Run the schema**
+   Connect to the Railway Postgres instance and run `lib/db/schema.sql`:
+   ```bash
+   # Option A: psql (if you have it locally)
+   psql $DATABASE_URL < lib/db/schema.sql
+
+   # Option B: Railway CLI
+   railway run psql < lib/db/schema.sql
+
+   # Option C: Paste the contents of lib/db/schema.sql into the Railway DB console (Data tab → Query)
+   ```
+
+4. **Deploy**
+   Push to GitHub → Railway auto-deploys. That's it.
 
 ---
 
 ### Architecture
 
 ```
-lib/db/index.ts      ← Database abstraction (swap this for Postgres)
+lib/db/index.ts      ← Postgres database layer (all queries live here)
 lib/db/adapter.ts    ← Converts live DB types → demo component types
-lib/db/schema.sql    ← Full Postgres schema (ready to run)
+lib/db/schema.sql    ← Full Postgres schema (run this against your DB)
 
 app/api/live/
   advisors/route.ts  ← CRUD: GET all, POST upsert, DELETE by id
@@ -36,68 +53,15 @@ app/api/live/
   reps/route.ts      ← CRUD: GET all, POST upsert
   notes/route.ts     ← CRUD: GET (filterable), POST create
   transcripts/route.ts ← CRUD: GET (filterable), POST create
+  signals/route.ts   ← Engagement signals: GET, POST (single/bulk), DELETE
+  intent/route.ts    ← Revenue Intent scores: GET (computed from signals)
   ai/route.ts        ← Claude API integration
 
 app/live/
-  page.tsx           ← Admin UI (data entry, 6 tabs)
+  page.tsx           ← Admin UI (data entry, 7 tabs)
   manager/page.tsx   ← Live manager dashboard
   leader/page.tsx    ← Live leader dashboard
-
-data/live/           ← JSON file storage (dev only, gitignored)
 ```
-
----
-
-### Switching to Postgres (Railway)
-
-**Time estimate: 1-2 hours**
-
-1. **Add Postgres on Railway**
-   - In the Railway dashboard, add a Postgres plugin to the project
-   - Copy the `DATABASE_URL` connection string
-
-2. **Set environment variables on Railway**
-   ```
-   DATABASE_URL=postgres://...  (from Railway)
-   ANTHROPIC_API_KEY=sk-ant-...  (for Claude AI)
-   ```
-
-3. **Run the schema migration**
-   Connect to the Railway Postgres instance and run `lib/db/schema.sql`:
-   ```bash
-   psql $DATABASE_URL < lib/db/schema.sql
-   ```
-   Or paste the contents into the Railway database console.
-
-4. **Update `lib/db/index.ts`**
-   Replace the JSON file operations with Postgres queries. The `postgres` npm package is already installed. Here's the pattern:
-
-   ```typescript
-   import postgres from 'postgres';
-
-   const sql = postgres(process.env.DATABASE_URL!);
-
-   export const db = {
-     async getAdvisors() {
-       return sql`SELECT * FROM advisors ORDER BY name`;
-     },
-
-     async upsertAdvisor(advisor) {
-       return sql`
-         INSERT INTO advisors ${sql(advisor)}
-         ON CONFLICT (id) DO UPDATE SET ${sql(advisor)}
-         RETURNING *
-       `.then(rows => rows[0]);
-     },
-
-     // ... same pattern for all other methods
-   };
-   ```
-
-   **Key point:** The API routes don't change at all. Only `lib/db/index.ts` changes.
-
-5. **Deploy**
-   Push to GitHub → Railway auto-deploys.
 
 ---
 
@@ -105,12 +69,24 @@ data/live/           ← JSON file storage (dev only, gitignored)
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | For Postgres | Railway Postgres connection string |
+| `DATABASE_URL` | **Yes** | Postgres connection string (Railway, Neon, Supabase, etc.) |
 | `ANTHROPIC_API_KEY` | For AI chat | Claude API key (get from console.anthropic.com) |
 
 Without `ANTHROPIC_API_KEY`, the AI chat shows a friendly fallback message instead of failing.
 
-Without `DATABASE_URL`, the app uses JSON file storage automatically.
+**SSL:** The app auto-detects Railway, Neon, and Supabase hostnames and enables SSL. For other providers, SSL is off by default — the connection string can include `?sslmode=require` if needed.
+
+---
+
+### Engagement Signals & Revenue Intent
+
+The system tracks buying signals to predict revenue conversion likelihood:
+
+**Signal Types:** `quote_request`, `product_inquiry`, `pricing_request`, `demo_request`, `technical_eval`, `training_completed`, `portal_login`, `spec_download`
+
+**Revenue Intent** is a computed score (0-100) per advisor based on weighted signals with a 1.5x recency boost for the last 30 days. Labels: Hot (70+), Warm (40-69), Interested (15-39), Cold (0-14).
+
+Signals can be entered manually in the admin UI or bulk-imported via the API.
 
 ---
 
@@ -139,6 +115,14 @@ All endpoints are at `/api/live/`:
 - `GET` — Returns transcripts (optional `?advisorId=` filter)
 - `POST` — Create transcript
 
+**Signals** (`/api/live/signals`)
+- `GET` — Returns signals (optional `?advisorId=`, `?signalType=`, `?since=` filters)
+- `POST` — Create signal (single object or array for bulk)
+- `DELETE` — Delete signal (pass `id` in query string)
+
+**Revenue Intent** (`/api/live/intent`)
+- `GET` — Returns computed Revenue Intent scores (optional `?advisorId=` filter)
+
 **AI** (`/api/live/ai`)
 - `POST` — Send message to Claude with portfolio context
   ```json
@@ -157,19 +141,21 @@ All endpoints are at `/api/live/`:
 See `lib/db/schema.sql` for the full Postgres schema. Key relationships:
 
 - **Advisors** are the core entity (partners/channel advisors)
-- **Deals** belong to an advisor and a rep
+- **Deals** belong to an advisor and optionally a rep
 - **Reps** are the sales team members
 - **Notes** can be linked to advisors, deals, or reps
 - **Transcripts** are call recordings linked to advisors
+- **Signals** track engagement/buying signals per advisor
 - **Activity** is an auto-generated audit log
 
-Signals (pulse, trajectory, friction) are stored directly on advisors for now. The schema includes an `advisor_signals` view for deriving them from activity data when you're ready for that.
+All foreign keys use `ON DELETE CASCADE` — deleting an advisor removes their deals, notes, transcripts, signals, and activity automatically.
 
 ---
 
 ### Notes for Owen
 
 - The demo views (`/manager`, `/leader`) use static data and are unchanged
-- The live views (`/live/manager`, `/live/leader`) fetch from the database
+- The live views (`/live/manager`, `/live/leader`) fetch from Postgres
 - Both can coexist — demo for pitch decks, live for actual demos
-- The admin UI at `/live` has a "Manager View →" and "Leader View →" button in the header
+- The admin UI at `/live` has "Manager View" and "Leader View" buttons in the header
+- Data persists across deploys (it's in Postgres, not the filesystem)
