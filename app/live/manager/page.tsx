@@ -122,9 +122,9 @@ export default function LiveManagerPage() {
   );
 
   const engScore = (a: Advisor) => {
-    const scores = { Strong: 3, Steady: 2, Fading: 1 };
+    const scores: Record<string, number> = { Strong: 3, Steady: 2, Rising: 2.5, Fading: 1, Flatline: 0 };
     const eb = a.engagementBreakdown;
-    return ((scores[eb.engagement] || 0) + (scores[eb.pipelineStrength] || 0) + (scores[eb.responsiveness] || 0) + (scores[eb.growthPotential] || 0)) / 4;
+    return ((scores[eb.engagement] ?? 1.5) + (scores[eb.pipelineStrength] ?? 1.5) + (scores[eb.responsiveness] ?? 1.5) + (scores[eb.growthPotential] ?? 1.5)) / 4;
   };
 
   // Diagnostic rows
@@ -452,29 +452,176 @@ export default function LiveManagerPage() {
 
   const renderStrategic = () => {
     const frictionIssues = advisors.filter(a => a.friction === 'High' || a.friction === 'Critical');
+
+    // Heatmap: advisors in a grid, color-coded by health score (composite of pulse, friction, trajectory)
+    const healthValue = (a: Advisor): number => {
+      const pulseScores: Record<string, number> = { Strong: 90, Steady: 65, Rising: 55, Fading: 30, Flatline: 10 };
+      const frictionPenalty: Record<string, number> = { Low: 0, Moderate: -10, High: -25, Critical: -40 };
+      const trajectoryMod: Record<string, number> = { Accelerating: 10, Climbing: 5, Stable: 0, Slipping: -10, Freefall: -20 };
+      return Math.max(0, Math.min(100,
+        (pulseScores[a.pulse] || 50) + (frictionPenalty[a.friction] || 0) + (trajectoryMod[a.trajectory] || 0)
+      ));
+    };
+
+    const heatColor = (score: number): string => {
+      if (score >= 80) return 'bg-emerald-500';
+      if (score >= 65) return 'bg-emerald-400';
+      if (score >= 50) return 'bg-yellow-400';
+      if (score >= 35) return 'bg-orange-400';
+      if (score >= 20) return 'bg-red-400';
+      return 'bg-red-600';
+    };
+
+    const heatTextColor = (score: number): string => {
+      if (score >= 50) return 'text-white';
+      return 'text-white';
+    };
+
+    // Sort advisors: highest MRR first for visual impact
+    const sortedAdvisors = [...advisors].filter(a => a.mrr > 0).sort((a, b) => b.mrr - a.mrr);
+
+    // Group by tier
+    const tierGroups = [
+      { label: 'Top 10', tier: 'top10', advisors: sortedAdvisors.filter(a => a.tier === 'top10') },
+      { label: 'Next 20', tier: 'next20', advisors: sortedAdvisors.filter(a => a.tier === 'next20') },
+      { label: 'Other', tier: 'other', advisors: sortedAdvisors.filter(a => a.tier === 'other') },
+    ].filter(g => g.advisors.length > 0);
+
+    // Friction timeline data for sparkline effect
+    const frictionByLevel = [
+      { level: 'Critical', count: advisors.filter(a => a.friction === 'Critical').length, mrr: advisors.filter(a => a.friction === 'Critical').reduce((s, a) => s + a.mrr, 0), color: 'bg-red-600', textColor: 'text-red-700', bgColor: 'bg-red-50' },
+      { level: 'High', count: advisors.filter(a => a.friction === 'High').length, mrr: advisors.filter(a => a.friction === 'High').reduce((s, a) => s + a.mrr, 0), color: 'bg-red-400', textColor: 'text-red-600', bgColor: 'bg-red-50' },
+      { level: 'Moderate', count: advisors.filter(a => a.friction === 'Moderate').length, mrr: advisors.filter(a => a.friction === 'Moderate').reduce((s, a) => s + a.mrr, 0), color: 'bg-amber-400', textColor: 'text-amber-700', bgColor: 'bg-amber-50' },
+      { level: 'Low', count: advisors.filter(a => a.friction === 'Low').length, mrr: advisors.filter(a => a.friction === 'Low').reduce((s, a) => s + a.mrr, 0), color: 'bg-emerald-400', textColor: 'text-emerald-700', bgColor: 'bg-emerald-50' },
+    ];
+
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-4">
+        {/* KPI Row */}
+        <div className="grid grid-cols-4 gap-4">
           <KPICard label="Days to Quarter End" value={`${DAYS_REMAINING}`} change={QUARTER_END} changeType="neutral" />
           <KPICard label="High Friction Partners" value={`${frictionIssues.length}`} change={`${formatCurrency(frictionIssues.reduce((s, a) => s + a.mrr, 0))} at risk`} changeType={frictionIssues.length > 0 ? "negative" : "neutral"} />
+          <KPICard label="Critical Friction" value={`${advisors.filter(a => a.friction === 'Critical').length}`} change={advisors.filter(a => a.friction === 'Critical').length > 0 ? 'Immediate action needed' : 'None'} changeType={advisors.filter(a => a.friction === 'Critical').length > 0 ? "negative" : "positive"} />
+          <KPICard label="Healthy Partners" value={`${advisors.filter(a => a.friction === 'Low' && (a.pulse === 'Strong' || a.pulse === 'Steady')).length}`} change={`of ${advisors.length} total`} changeType="positive" />
         </div>
 
+        {/* Friction Distribution Bar */}
         <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Friction Analysis</h3>
+          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Friction Distribution</h3>
+          <div className="flex h-8 rounded-lg overflow-hidden mb-3">
+            {frictionByLevel.filter(f => f.count > 0).map(f => (
+              <div key={f.level} className={`${f.color} flex items-center justify-center transition-all`}
+                   style={{ width: `${(f.count / advisors.length) * 100}%` }}>
+                <span className="text-[10px] font-bold text-white">{f.count}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-4">
+            {frictionByLevel.filter(f => f.count > 0).map(f => (
+              <div key={f.level} className="flex items-center gap-1.5">
+                <div className={`w-2.5 h-2.5 rounded-sm ${f.color}`} />
+                <span className="text-11px text-gray-600">{f.level}: {f.count} ({formatCurrency(f.mrr)})</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Partner Health Heatmap */}
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Partner Health Heatmap</h3>
+              <p className="text-11px text-gray-400 mt-0.5">Composite score: Pulse + Trajectory + Friction · Sized by MRR · Click to drill in</p>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5">
+                <div className="w-3 h-2 rounded-sm bg-red-600" />
+                <div className="w-3 h-2 rounded-sm bg-red-400" />
+                <div className="w-3 h-2 rounded-sm bg-orange-400" />
+                <div className="w-3 h-2 rounded-sm bg-yellow-400" />
+                <div className="w-3 h-2 rounded-sm bg-emerald-400" />
+                <div className="w-3 h-2 rounded-sm bg-emerald-500" />
+              </div>
+              <span className="text-10px text-gray-400 ml-1">Critical → Healthy</span>
+            </div>
+          </div>
+
+          {tierGroups.map(group => (
+            <div key={group.tier} className="mb-5 last:mb-0">
+              <div className="flex items-center gap-2 mb-2">
+                <TierBadge tier={group.tier} />
+                <span className="text-11px text-gray-400">{group.advisors.length} partners · {formatCurrency(group.advisors.reduce((s, a) => s + a.mrr, 0))} MRR</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {group.advisors.map(a => {
+                  const score = healthValue(a);
+                  const size = Math.max(36, Math.min(72, 36 + (a.mrr / 1000) * 1.2));
+                  return (
+                    <div
+                      key={a.id}
+                      className={`${heatColor(score)} rounded-md flex flex-col items-center justify-center cursor-pointer
+                        hover:ring-2 hover:ring-gray-800 hover:ring-offset-1 transition-all group relative`}
+                      style={{ width: `${size}px`, height: `${size}px`, minWidth: `${size}px` }}
+                      onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}
+                    >
+                      <span className={`text-[9px] font-bold ${heatTextColor(score)} leading-tight text-center px-0.5`}>
+                        {a.name.split(' ').map(n => n[0]).join('')}
+                      </span>
+                      <span className={`text-[8px] ${heatTextColor(score)} opacity-80`}>
+                        {score}
+                      </span>
+                      {/* Tooltip */}
+                      <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-10px rounded-lg px-3 py-2 whitespace-nowrap z-20 shadow-lg">
+                        <p className="font-semibold">{a.name}</p>
+                        <p className="text-gray-300">{a.company} · {formatCurrency(a.mrr)}</p>
+                        <div className="flex items-center gap-2 mt-1 text-[9px]">
+                          <span>Pulse: {a.pulse}</span>
+                          <span>·</span>
+                          <span>Friction: {a.friction}</span>
+                          <span>·</span>
+                          <span>Trajectory: {a.trajectory}</span>
+                        </div>
+                        {a.diagnosis && <p className="text-gray-400 mt-1 max-w-[250px] text-[9px]">{a.diagnosis.substring(0, 80)}...</p>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Friction Detail Cards */}
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">
+            Friction Cases
+            {frictionIssues.length > 0 && <span className="ml-2 text-12px font-normal text-red-500">({frictionIssues.length} requiring attention · {formatCurrency(frictionIssues.reduce((s, a) => s + a.mrr, 0))} MRR at risk)</span>}
+          </h3>
           {frictionIssues.length === 0 ? (
             <p className="text-12px text-gray-400 italic">No high-friction partners</p>
           ) : (
             <div className="space-y-3">
-              {frictionIssues.map(a => (
-                <div key={a.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100"
+              {frictionIssues.sort((a, b) => {
+                const order: Record<string, number> = { Critical: 0, High: 1 };
+                return (order[a.friction] ?? 2) - (order[b.friction] ?? 2) || b.mrr - a.mrr;
+              }).map(a => (
+                <div key={a.id} className={`p-4 rounded-lg cursor-pointer transition-colors ${a.friction === 'Critical' ? 'bg-red-50 border border-red-200 hover:bg-red-100' : 'bg-amber-50 border border-amber-200 hover:bg-amber-100'}`}
                      onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}>
-                  <div>
-                    <p className="text-13px font-medium text-gray-800">{a.name}</p>
-                    <p className="text-11px text-gray-500">{a.company} · {a.diagnosis}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <FrictionBadge level={a.friction} />
-                    <span className="text-13px font-semibold">{formatCurrency(a.mrr)}</span>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-13px font-semibold text-gray-800">{a.name}</p>
+                        <FrictionBadge level={a.friction} />
+                        <PulseBadge pulse={a.pulse} />
+                        <TrajectoryBadge trajectory={a.trajectory} />
+                      </div>
+                      <p className="text-12px text-gray-600">{a.company} · {a.location || 'Unknown'}</p>
+                      <p className="text-11px text-gray-500 mt-1.5 leading-relaxed">{a.diagnosis}</p>
+                    </div>
+                    <div className="text-right ml-4 shrink-0">
+                      <p className="text-[15px] font-bold text-gray-800">{formatCurrency(a.mrr)}</p>
+                      <p className="text-10px text-gray-400">monthly</p>
+                    </div>
                   </div>
                 </div>
               ))}
