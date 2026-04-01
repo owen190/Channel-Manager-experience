@@ -100,30 +100,20 @@ export default function LiveManagerPage() {
     }));
   }, [advisors, deals]);
 
-  // Build advisorsByRegion for the map (must be before early returns for hooks rules)
-  const advisorsByRegionMap = useMemo(() => {
-    const regionMap = (location: string): string => {
-      const loc = location.toLowerCase();
-      const ne = ['me', 'nh', 'vt', 'ma', 'ri', 'ct', 'ny', 'nj', 'pa', 'de', 'md', 'dc'];
-      const se = ['va', 'wv', 'nc', 'sc', 'ga', 'fl', 'al', 'ms', 'la', 'ar', 'ky', 'tn'];
-      const mw = ['oh', 'in', 'il', 'mi', 'wi', 'mn', 'ia', 'mo', 'nd', 'sd', 'ne', 'ks'];
-      const sw = ['tx', 'ok', 'nm', 'az'];
-      const w = ['wa', 'or', 'ca', 'nv', 'id', 'mt', 'wy', 'co', 'ut'];
-      for (const s of ne) if (loc.includes(s)) return 'Northeast';
-      for (const s of se) if (loc.includes(s)) return 'Southeast';
-      for (const s of mw) if (loc.includes(s)) return 'Midwest';
-      for (const s of sw) if (loc.includes(s)) return 'Southwest';
-      for (const s of w) if (loc.includes(s)) return 'West';
-      return 'Unknown';
-    };
-    const result: Record<string, { count: number; mrr: number; advisors: Array<{ id: string; name: string; mrr: number }> }> = {};
+  // Build advisorsByCity for the map (must be before early returns for hooks rules)
+  const advisorsByCityMap = useMemo(() => {
+    const result: Record<string, { city: string; state: string; count: number; mrr: number; advisors: Array<{ id: string; name: string; mrr: number }> }> = {};
     advisorsWithDeals.forEach(a => {
-      const region = a.location ? regionMap(a.location) : 'Unknown';
-      if (region === 'Unknown') return;
-      if (!result[region]) result[region] = { count: 0, mrr: 0, advisors: [] };
-      result[region].count++;
-      result[region].mrr += a.mrr;
-      result[region].advisors.push({ id: a.id, name: a.name, mrr: a.mrr });
+      const loc = a.location?.trim();
+      if (!loc) return;
+      // Use the full "City, ST" string as the key
+      if (!result[loc]) {
+        const parts = loc.split(',').map(s => s.trim());
+        result[loc] = { city: parts[0] || loc, state: parts[1] || '', count: 0, mrr: 0, advisors: [] };
+      }
+      result[loc].count++;
+      result[loc].mrr += a.mrr;
+      result[loc].advisors.push({ id: a.id, name: a.name, mrr: a.mrr });
     });
     Object.values(result).forEach(r => r.advisors.sort((a, b) => b.mrr - a.mrr));
     return result;
@@ -351,23 +341,6 @@ export default function LiveManagerPage() {
   );
 
   // Region mapping for territory
-  const regionMapping = (location: string): string => {
-    const locationLower = location.toLowerCase();
-    const neastates = ['me', 'nh', 'vt', 'ma', 'ri', 'ct', 'ny', 'nj', 'pa', 'de', 'md', 'dc'];
-    const southeast = ['va', 'wv', 'nc', 'sc', 'ga', 'fl', 'al', 'ms', 'la', 'ar', 'ky', 'tn'];
-    const midwest = ['oh', 'in', 'il', 'mi', 'wi', 'mn', 'ia', 'mo', 'nd', 'sd', 'ne', 'ks'];
-    const southwest = ['tx', 'ok', 'nm', 'az'];
-    const west = ['wa', 'or', 'ca', 'nv', 'id', 'mt', 'wy', 'co', 'ut'];
-
-    for (const state of neastates) if (locationLower.includes(state)) return 'Northeast';
-    for (const state of southeast) if (locationLower.includes(state)) return 'Southeast';
-    for (const state of midwest) if (locationLower.includes(state)) return 'Midwest';
-    for (const state of southwest) if (locationLower.includes(state)) return 'Southwest';
-    for (const state of west) if (locationLower.includes(state)) return 'West';
-
-    return 'Unknown';
-  };
-
   const renderRelationships = () => {
     // Calculate segment counts
     const allAdvisorsCount = advisorsWithDeals.length;
@@ -393,11 +366,10 @@ export default function LiveManagerPage() {
       );
     }
 
-    // Apply territory filter from map
+    // Apply city filter from map
     if (territoryFilter) {
       filteredAdvisors = filteredAdvisors.filter(a => {
-        const region = a.location ? regionMapping(a.location) : 'Unknown';
-        return region === territoryFilter;
+        return a.location?.trim() === territoryFilter;
       });
     }
 
@@ -427,8 +399,8 @@ export default function LiveManagerPage() {
       { label: 'Needs Attention', count: needsAttentionCount, key: 'Needs Attention' },
     ];
 
-    const handleRegionClick = (region: string) => {
-      setTerritoryFilter(prev => prev === region ? null : region);
+    const handleCityClick = (city: string) => {
+      setTerritoryFilter(prev => prev === city ? null : city);
     };
 
     return (
@@ -436,9 +408,9 @@ export default function LiveManagerPage() {
         <div className="space-y-4">
           {/* Territory Map */}
           <USAMap
-            advisorsByRegion={advisorsByRegionMap}
-            onRegionClick={handleRegionClick}
-            selectedRegion={territoryFilter}
+            advisorsByCity={advisorsByCityMap}
+            onCityClick={handleCityClick}
+            selectedCity={territoryFilter}
           />
 
           {/* Segmentation Filter Bar */}
