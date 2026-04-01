@@ -508,14 +508,6 @@ export function AdvisorPanel({
                     Channel Relationships
                   </h3>
                   <dl className="space-y-2 text-sm">
-                    {advisor.tsds?.length > 0 && (
-                      <div className="flex justify-between">
-                        <dt className="text-gray-600" title="Technical Solution Designs">Technical Specializations</dt>
-                        <dd className="font-medium text-gray-900">
-                          {advisor.tsds.join(', ')}
-                        </dd>
-                      </div>
-                    )}
                     {advisor.previousCompanies?.length > 0 && (
                       <div className="flex justify-between">
                         <dt className="text-gray-600">Previous Companies</dt>

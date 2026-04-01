@@ -39,10 +39,8 @@ export function TopBar({
 }: TopBarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
-  const settingsRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const userId = 'user-1'; // In a real app, get from session/auth
 
@@ -52,7 +50,6 @@ export function TopBar({
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotifications(false);
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) setShowSettings(false);
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -110,7 +107,7 @@ export function TopBar({
           <button
             className={`w-[34px] h-[34px] flex items-center justify-center border rounded-[8px] hover:bg-gray-50 transition-colors ${showNotifications ? 'border-[#157A6E] bg-gray-50 text-[#157A6E]' : 'border-[#e0ddd9] text-gray-600'}`}
             aria-label="Notifications"
-            onClick={() => { setShowNotifications(!showNotifications); setShowSettings(false); }}
+            onClick={() => setShowNotifications(!showNotifications)}
           >
             <Bell className="w-4 h-4" />
           </button>
@@ -127,36 +124,14 @@ export function TopBar({
         />
 
         {/* Settings */}
-        <div className="relative" ref={settingsRef}>
-          <button
-            className={`w-[34px] h-[34px] flex items-center justify-center border rounded-[8px] hover:bg-gray-50 transition-colors ${showSettings ? 'border-[#157A6E] bg-gray-50 text-[#157A6E]' : 'border-[#e0ddd9] text-gray-600'}`}
-            aria-label="Settings"
-            onClick={() => { setShowSettings(!showSettings); setShowNotifications(false); }}
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-
-          {showSettings && (
-            <div className="absolute right-0 top-full mt-2 w-[220px] bg-white border border-[#e8e5e1] rounded-xl shadow-xl z-50">
-              <div className="px-4 py-3 border-b border-[#f0ede9]">
-                <h3 className="text-13px font-semibold text-gray-900">Settings</h3>
-              </div>
-              <div className="py-1">
-                {[
-                  { label: 'Display Preferences', desc: 'Theme & layout' },
-                  { label: 'Notification Settings', desc: 'Alerts & digests' },
-                  { label: 'Integration Status', desc: '4 connected' },
-                  { label: 'Data Sources', desc: 'CRM, Gong, Fireflies' },
-                ].map((item, i) => (
-                  <button key={i} className="w-full px-4 py-2.5 text-left hover:bg-[#F7F5F2] transition-colors">
-                    <p className="text-12px font-medium text-gray-800">{item.label}</p>
-                    <p className="text-10px text-gray-400">{item.desc}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        <button
+          className="w-[34px] h-[34px] flex items-center justify-center border border-[#e0ddd9] rounded-[8px] hover:bg-gray-50 hover:border-[#157A6E] transition-colors text-gray-600 hover:text-[#157A6E]"
+          aria-label="Settings"
+          onClick={() => router.push('/settings')}
+          title="Settings"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
       </div>
     </div>
     </>

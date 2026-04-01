@@ -608,6 +608,42 @@ export default function LiveLeaderDashboard() {
     );
   };
 
+  const renderSupplierAccountability = () => (
+    <div className="space-y-6">
+      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
+        <div className="w-16 h-16 bg-[#157A6E]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#157A6E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <h2 className="text-xl font-semibold font-['Newsreader'] text-gray-800 mb-2">Supplier Accountability</h2>
+        <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">
+          Track supplier performance, SLA compliance, and accountability metrics across your channel program. Hold suppliers accountable to their commitments.
+        </p>
+        <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto mb-8">
+          <div className="bg-[#F7F5F2] rounded-lg p-4">
+            <p className="text-[10px] text-gray-500 uppercase font-medium">SLA Compliance</p>
+            <p className="text-lg font-semibold text-gray-400 mt-1">—</p>
+          </div>
+          <div className="bg-[#F7F5F2] rounded-lg p-4">
+            <p className="text-[10px] text-gray-500 uppercase font-medium">Active Suppliers</p>
+            <p className="text-lg font-semibold text-gray-400 mt-1">—</p>
+          </div>
+          <div className="bg-[#F7F5F2] rounded-lg p-4">
+            <p className="text-[10px] text-gray-500 uppercase font-medium">Issues Open</p>
+            <p className="text-lg font-semibold text-gray-400 mt-1">—</p>
+          </div>
+        </div>
+        <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2 rounded-full text-xs font-medium">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          Coming Soon — No supplier data connected yet
+        </div>
+      </div>
+    </div>
+  );
+
   const viewRenderers: Record<string, () => React.ReactNode> = {
     'command-center': renderCommandCenter,
     'forecast': renderForecast,
@@ -615,6 +651,7 @@ export default function LiveLeaderDashboard() {
     'relationships': renderRelationships,
     'pipeline': renderPipeline,
     'intelligence': renderIntelligence,
+    'supplier-accountability': renderSupplierAccountability,
   };
 
   return (

@@ -6,7 +6,7 @@ import {
   TrendingDown, TrendingUp, Zap, Users, ChevronDown, ChevronUp, X,
   ArrowLeft, MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays,
   Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle, RefreshCw,
-  Megaphone, Star, TrendingUp as TrendingUpIcon, CheckCircle, AlertCircle as AlertCircleIcon,
+  Megaphone, Star, TrendingUp as TrendingUpIcon, CheckCircle, AlertCircle as AlertCircleIcon, Edit, Plus,
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -22,6 +22,8 @@ import { SentimentBadge } from '@/components/shared/SentimentBadge';
 import { SupplierAccountabilityCard, AdvisorSentimentFeed } from '@/components/shared/RatingsDisplay';
 import { TrajectoryBadge } from '@/components/shared/TrajectoryBadge';
 import { TierBadge } from '@/components/shared/TierBadge';
+import { DealModal } from '@/components/shared/DealModal';
+import { PartnerModal } from '@/components/shared/PartnerModal';
 import { NAV_ITEMS_MANAGER, STAGE_WEIGHTS, QUARTER_END, DAYS_REMAINING, SERVICE_CATALOG } from '@/lib/constants';
 import { Advisor, Deal, DealHealth, FrictionLevel, DiagnosticRow, EngagementScore, PartnerTier } from '@/lib/types';
 import { adaptAdvisor, adaptDeal } from '@/lib/db/adapter';
@@ -54,6 +56,11 @@ export default function LiveManagerPage() {
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [cmTab, setCmTab] = useState<'campaigns' | 'assets' | 'results'>('campaigns');
   const [territoryFilter, setTerritoryFilter] = useState<string | null>(null);
+  const [showDealModal, setShowDealModal] = useState(false);
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  const [showPartnerModal, setShowPartnerModal] = useState(false);
+  const [editingPartner, setEditingPartner] = useState<Advisor | null>(null);
+  const [relationshipViewMode, setRelationshipViewMode] = useState<'partners' | 'tsds'>('partners');
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -90,7 +97,37 @@ export default function LiveManagerPage() {
     setLoading(false);
   };
 
+
+  const handleSaveDeal = async (dealData: Partial<Deal>) => {
+    try {
+      const response = await fetch('/api/live/deals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dealData),
+      });
+      if (!response.ok) throw new Error('Failed to save deal');
+      await fetchData();
+    } catch (err) {
+      console.error('Error saving deal:', err);
+      throw err;
+    }
+  };
   useEffect(() => { fetchData(); }, []);
+
+  const handleSavePartner = async (partnerData: Partial<Advisor>) => {
+    try {
+      const response = await fetch('/api/live/advisors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(partnerData),
+      });
+      if (!response.ok) throw new Error('Failed to save partner');
+      await fetchData();
+    } catch (err) {
+      console.error('Error saving partner:', err);
+      throw err;
+    }
+  };
 
   // Wire up advisor -> deal relationship
   const advisorsWithDeals = useMemo(() => {
@@ -403,8 +440,52 @@ export default function LiveManagerPage() {
       setTerritoryFilter(prev => prev === city ? null : city);
     };
 
+    // Calculate TSD data
+    const allTsds = new Set<string>();
+    advisorsWithDeals.forEach(a => {
+      a.tsds?.forEach(tsd => allTsds.add(tsd));
+    });
+    const tsdArray = Array.from(allTsds).sort();
+    const tsdData = tsdArray.map(tsd => {
+      const advisorsWithTsd = advisorsWithDeals.filter(a => a.tsds?.includes(tsd));
+      const mrrWithTsd = advisorsWithTsd.reduce((sum, a) => sum + a.mrr, 0);
+      return {
+        tsd,
+        advisorCount: advisorsWithTsd.length,
+        mrr: mrrWithTsd,
+        advisors: advisorsWithTsd,
+      };
+    });
+
+    const [selectedTsdAdvisors, setSelectedTsdAdvisors] = useState<Advisor[]>([]);
+
     return (
       <>
+        {/* View Toggle */}
+        <div className="flex gap-3 mb-6">
+          <button
+            onClick={() => setRelationshipViewMode('partners')}
+            className={`px-4 py-2 rounded-[8px] text-13px font-medium transition-colors ${
+              relationshipViewMode === 'partners'
+                ? 'bg-[#157A6E] text-white'
+                : 'bg-white border border-[#e8e5e1] text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Partners
+          </button>
+          <button
+            onClick={() => setRelationshipViewMode('tsds')}
+            className={`px-4 py-2 rounded-[8px] text-13px font-medium transition-colors ${
+              relationshipViewMode === 'tsds'
+                ? 'bg-[#157A6E] text-white'
+                : 'bg-white border border-[#e8e5e1] text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Technical Solutions ({tsdArray.length})
+          </button>
+        </div>
+
+        {relationshipViewMode === 'partners' && (
         <div className="space-y-4">
           {/* Territory Map */}
           <USAMap
@@ -436,13 +517,19 @@ export default function LiveManagerPage() {
             </div>
           </div>
 
-          {/* Sort Controls */}
+          {/* Sort Controls & Add Button */}
           <div className="flex items-center justify-between">
             <div className="text-12px text-gray-600 font-medium">
               Showing {sortedAdvisors.length} partners
               {territoryFilter && <span className="ml-1 text-[#157A6E]">in {territoryFilter}</span>}
             </div>
             <div className="flex gap-2">
+              <button
+                onClick={() => { setEditingPartner(null); setShowPartnerModal(true); }}
+                className="px-4 py-2 bg-[#157A6E] text-white rounded-lg text-12px font-medium hover:bg-[#12675b] transition-colors"
+              >
+                + Add Partner
+              </button>
               <select
                 value={relationshipSort}
                 onChange={(e) => setRelationshipSort(e.target.value as 'name' | 'mrr' | 'lastContact')}
@@ -475,9 +562,18 @@ export default function LiveManagerPage() {
                         <p className="text-13px font-semibold text-gray-900">{a.name}</p>
                         <p className="text-11px text-gray-500">{a.company} · {a.title}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-13px font-semibold text-gray-800">{formatCurrency(a.mrr)}</p>
-                        <TierBadge tier={a.tier} />
+                      <div className="flex items-start gap-3">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingPartner(a); setShowPartnerModal(true); }}
+                          className="text-gray-400 hover:text-[#157A6E] transition-colors pt-0.5"
+                          title="Edit partner"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <div className="text-right">
+                          <p className="text-13px font-semibold text-gray-800">{formatCurrency(a.mrr)}</p>
+                          <TierBadge tier={a.tier} />
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 mt-3">
@@ -494,6 +590,8 @@ export default function LiveManagerPage() {
             )}
           </div>
         </div>
+        )}
+
         {/* AdvisorPanel as overlay */}
         {selectedAdvisor && (
           <AdvisorPanel
@@ -503,6 +601,57 @@ export default function LiveManagerPage() {
             onClose={() => { setPanelOpen(false); setSelectedAdvisor(null); }}
           />
         )}
+
+        {relationshipViewMode === 'tsds' && (
+        <div className="space-y-4">
+          {/* TSDs Grid */}
+          {tsdArray.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              <p className="text-12px">No technical solutions assigned yet</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              {tsdData.map(tsd => (
+                <div
+                  key={tsd.tsd}
+                  className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 hover:shadow-md transition-all"
+                >
+                  <div className="mb-3">
+                    <p className="text-13px font-semibold text-gray-900">{tsd.tsd}</p>
+                    <p className="text-11px text-gray-500 mt-1">
+                      {tsd.advisorCount} advisor{tsd.advisorCount !== 1 ? 's' : ''} · {formatCurrency(tsd.mrr)} MRR
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {tsd.advisors.map(advisor => (
+                      <div
+                        key={advisor.id}
+                        className="p-2 bg-gray-50 rounded flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => { setSelectedAdvisor(advisor); setPanelOpen(true); }}
+                      >
+                        <div className="text-11px">
+                          <p className="text-gray-800 font-medium">{advisor.name}</p>
+                          <p className="text-gray-500">{advisor.company}</p>
+                        </div>
+                        <span className="text-11px font-semibold text-[#157A6E]">{formatCurrency(advisor.mrr)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        )}
+
+        {/* PartnerModal */}
+        <PartnerModal
+          isOpen={showPartnerModal}
+          onClose={() => { setShowPartnerModal(false); setEditingPartner(null); }}
+          editingPartner={editingPartner}
+          onSave={handleSavePartner}
+        />
       </>
     );
   };
@@ -523,34 +672,49 @@ export default function LiveManagerPage() {
         </div>
 
         <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">All Deals</h3>
-            <select className="text-12px border border-gray-200 rounded px-2 py-1" value={dealFilter.health} onChange={e => setDealFilter({ ...dealFilter, health: e.target.value })}>
-              <option value="all">All Health</option>
-              <option value="Healthy">Healthy</option>
-              <option value="Monitor">Monitor</option>
-              <option value="At Risk">At Risk</option>
-              <option value="Stalled">Stalled</option>
-            </select>
-            <select className="text-12px border border-gray-200 rounded px-2 py-1" value={dealFilter.stage} onChange={e => setDealFilter({ ...dealFilter, stage: e.target.value })}>
-              <option value="all">All Stages</option>
-              {stages.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3">
+              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">All Deals</h3>
+              <select className="text-12px border border-gray-200 rounded px-2 py-1" value={dealFilter.health} onChange={e => setDealFilter({ ...dealFilter, health: e.target.value })}>
+                <option value="all">All Health</option>
+                <option value="Healthy">Healthy</option>
+                <option value="Monitor">Monitor</option>
+                <option value="At Risk">At Risk</option>
+                <option value="Stalled">Stalled</option>
+              </select>
+              <select className="text-12px border border-gray-200 rounded px-2 py-1" value={dealFilter.stage} onChange={e => setDealFilter({ ...dealFilter, stage: e.target.value })}>
+                <option value="all">All Stages</option>
+                {stages.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <button
+              onClick={() => { setShowDealModal(true); setEditingDeal(null); }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-[#157A6E] text-white rounded-lg hover:bg-[#126B5F] transition-colors text-12px font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              Add Deal
+            </button>
           </div>
           <div className="space-y-2">
             {filtered.length === 0 && <p className="text-12px text-gray-400 italic">No deals match filters</p>}
             {filtered.map(d => {
               const adv = advisors.find(a => a.id === d.advisorId);
               return (
-                <div key={d.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer"
+                <div key={d.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 group"
                      onClick={() => { if (adv) { setSelectedAdvisor(adv); setPanelOpen(true); setActiveViewRaw('relationships'); } }}>
-                  <div className="flex-1">
+                  <div className="flex-1 cursor-pointer">
                     <p className="text-13px font-medium text-gray-800">{d.name}</p>
                     <p className="text-11px text-gray-500">{adv?.name || 'Unassigned'} · {d.stage} · {d.daysInStage}d in stage</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <DealHealthBadge health={d.health} />
                     <span className="text-13px font-semibold text-gray-800">{formatCurrency(d.mrr)}</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditingDeal(d); setShowDealModal(true); }}
+                      className="p-1.5 text-gray-400 hover:text-[#157A6E] hover:bg-gray-200 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               );
@@ -1309,6 +1473,13 @@ export default function LiveManagerPage() {
           </div>
         </main>
       </div>
+      <DealModal
+        isOpen={showDealModal}
+        onClose={() => { setShowDealModal(false); setEditingDeal(null); }}
+        onSave={handleSaveDeal}
+        editingDeal={editingDeal}
+        advisors={advisors}
+      />
       <AIChat role="manager" selectedAdvisor={selectedAdvisor} live={true} />
     </div>
   );
