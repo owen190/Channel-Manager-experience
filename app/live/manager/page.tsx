@@ -7,7 +7,7 @@ import {
   ArrowLeft, MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays,
   Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle, RefreshCw,
   Megaphone, Star, TrendingUp as TrendingUpIcon, CheckCircle, AlertCircle as AlertCircleIcon, Edit, Plus,
-  LayoutGrid, Map, FileText,
+  LayoutGrid, Map, FileText, Mail, Building2, ArrowUpRight, BarChart3, UserPlus,
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -66,6 +66,7 @@ export default function LiveManagerPage() {
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [pipelineMetricsView, setPipelineMetricsView] = useState<'deals' | 'quotes-vs-sold'>('deals');
   const [selectedTsdAdvisors, setSelectedTsdAdvisors] = useState<Advisor[]>([]);
+  const [expandedTsdCompany, setExpandedTsdCompany] = useState<string | null>(null);
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -256,6 +257,81 @@ export default function LiveManagerPage() {
     }
     return Math.abs(hash) % 1000 / 1000;
   };
+
+  // TSD Company Data — contacts at each Technology Solutions Distributor
+  const TSD_COMPANIES = useMemo(() => {
+    const companies = [
+      {
+        name: 'Telarus',
+        logo: '🟦',
+        description: 'Largest privately-held technology solutions distributor',
+        contacts: [
+          { id: 'tel-1', name: 'Sarah Mitchell', title: 'Channel Development Manager', email: 's.mitchell@telarus.com', phone: '(801) 555-4821', lastContact: '2026-03-29', introsQTD: 8, introsAllTime: 47, revenueAttributed: 142000 },
+          { id: 'tel-2', name: 'James Thornton', title: 'Solutions Engineer', email: 'j.thornton@telarus.com', phone: '(801) 555-3392', lastContact: '2026-03-25', introsQTD: 5, introsAllTime: 31, revenueAttributed: 88000 },
+          { id: 'tel-3', name: 'Rachael Nguyen', title: 'Partner Success Lead', email: 'r.nguyen@telarus.com', phone: '(801) 555-1104', lastContact: '2026-04-01', introsQTD: 12, introsAllTime: 63, revenueAttributed: 215000 },
+        ],
+      },
+      {
+        name: 'Avant',
+        logo: '🟧',
+        description: 'Leading channel platform for IT decision making',
+        contacts: [
+          { id: 'av-1', name: 'Derek Paulson', title: 'Channel Account Manager', email: 'd.paulson@avant.com', phone: '(312) 555-6678', lastContact: '2026-03-31', introsQTD: 10, introsAllTime: 52, revenueAttributed: 178000 },
+          { id: 'av-2', name: 'Monica Reeves', title: 'Solutions Architect', email: 'm.reeves@avant.com', phone: '(312) 555-2241', lastContact: '2026-03-28', introsQTD: 6, introsAllTime: 28, revenueAttributed: 95000 },
+        ],
+      },
+      {
+        name: 'Bridgepointe',
+        logo: '🟩',
+        description: 'Technology advisory and distribution platform',
+        contacts: [
+          { id: 'bp-1', name: 'Kevin Marsh', title: 'VP Channel Partnerships', email: 'k.marsh@bridgepointe.com', phone: '(925) 555-8812', lastContact: '2026-03-22', introsQTD: 4, introsAllTime: 19, revenueAttributed: 67000 },
+          { id: 'bp-2', name: 'Alicia Tran', title: 'Partner Development Rep', email: 'a.tran@bridgepointe.com', phone: '(925) 555-3350', lastContact: '2026-03-27', introsQTD: 7, introsAllTime: 34, revenueAttributed: 112000 },
+        ],
+      },
+      {
+        name: 'Intelisys',
+        logo: '🟪',
+        description: 'Telecommunications master agent and solutions distributor',
+        contacts: [
+          { id: 'in-1', name: 'Robert Cianci', title: 'Channel Director', email: 'r.cianci@intelisys.com', phone: '(203) 555-9901', lastContact: '2026-03-30', introsQTD: 9, introsAllTime: 41, revenueAttributed: 156000 },
+          { id: 'in-2', name: 'Patricia Dunn', title: 'Sales Engineer', email: 'p.dunn@intelisys.com', phone: '(203) 555-4478', lastContact: '2026-03-18', introsQTD: 3, introsAllTime: 22, revenueAttributed: 71000 },
+          { id: 'in-3', name: 'Tyler Washington', title: 'Partner Enablement Manager', email: 't.washington@intelisys.com', phone: '(203) 555-6632', lastContact: '2026-04-01', introsQTD: 11, introsAllTime: 55, revenueAttributed: 198000 },
+        ],
+      },
+      {
+        name: 'AppDirect',
+        logo: '🔵',
+        description: 'B2B subscription commerce platform and marketplace',
+        contacts: [
+          { id: 'ad-1', name: 'Yuki Tanaka', title: 'Partner Growth Manager', email: 'y.tanaka@appdirect.com', phone: '(415) 555-7723', lastContact: '2026-03-26', introsQTD: 6, introsAllTime: 25, revenueAttributed: 83000 },
+          { id: 'ad-2', name: 'Chris Brennan', title: 'Solutions Consultant', email: 'c.brennan@appdirect.com', phone: '(415) 555-1198', lastContact: '2026-03-20', introsQTD: 2, introsAllTime: 14, revenueAttributed: 45000 },
+        ],
+      },
+    ];
+
+    // Assign partners to TSD companies deterministically
+    const tsdNames = companies.map(c => c.name);
+    const partnersByTsd: Record<string, typeof advisorsWithDeals> = {};
+    tsdNames.forEach(n => { partnersByTsd[n] = []; });
+    advisorsWithDeals.forEach(a => {
+      const idx = Math.floor(seededRandom(a.id + '-tsd') * tsdNames.length);
+      const secondIdx = Math.floor(seededRandom(a.id + '-tsd2') * tsdNames.length);
+      partnersByTsd[tsdNames[idx]].push(a);
+      if (secondIdx !== idx && seededRandom(a.id + '-tsd-dual') > 0.6) {
+        partnersByTsd[tsdNames[secondIdx]].push(a);
+      }
+    });
+
+    return companies.map(c => {
+      const partners = partnersByTsd[c.name] || [];
+      const revenue = partners.reduce((s, p) => s + p.mrr, 0);
+      const totalIntrosQTD = c.contacts.reduce((s, ct) => s + ct.introsQTD, 0);
+      const totalIntrosAllTime = c.contacts.reduce((s, ct) => s + ct.introsAllTime, 0);
+      const totalRevenueAttributed = c.contacts.reduce((s, ct) => s + ct.revenueAttributed, 0);
+      return { ...c, partners, revenue, totalIntrosQTD, totalIntrosAllTime, totalRevenueAttributed };
+    });
+  }, [advisorsWithDeals, seededRandom]);
 
   // Co-marketing opportunity detection
   const coMarketingOpportunities = useMemo(() => {
@@ -554,7 +630,7 @@ export default function LiveManagerPage() {
         <div className="flex gap-2 mb-6 border-b border-[#e8e5e1] pb-3">
           {[
             { key: 'partners', label: 'Partners', icon: Users },
-            { key: 'tsds', label: `TSDs (${tsdArray.length})`, icon: Briefcase },
+            { key: 'tsds', label: `TSDs (${TSD_COMPANIES.length})`, icon: Building2 },
             { key: 'territory', label: 'Territory Map', icon: Map },
             { key: 'white-space', label: 'White Space', icon: LayoutGrid },
           ].map(tab => (
@@ -728,75 +804,190 @@ export default function LiveManagerPage() {
         )}
 
         {/* ── TSDs SUB-TAB ── */}
-        {relationshipViewMode === 'tsds' && (
+        {relationshipViewMode === 'tsds' && (() => {
+          const totalTsdIntrosQTD = TSD_COMPANIES.reduce((s, c) => s + c.totalIntrosQTD, 0);
+          const totalTsdIntrosAllTime = TSD_COMPANIES.reduce((s, c) => s + c.totalIntrosAllTime, 0);
+          const totalTsdRevenue = TSD_COMPANIES.reduce((s, c) => s + c.totalRevenueAttributed, 0);
+          const totalTsdContacts = TSD_COMPANIES.reduce((s, c) => s + c.contacts.length, 0);
+          const maxTsdRevenue = Math.max(...TSD_COMPANIES.map(c => c.totalRevenueAttributed), 1);
+          const tsdColors: Record<string, string> = { Telarus: '#2563EB', Avant: '#EA580C', Bridgepointe: '#16A34A', Intelisys: '#7C3AED', AppDirect: '#0891B2' };
+
+          return (
         <div className="space-y-4">
-          <div className="bg-[#F0FAF8] rounded-[10px] border border-[#157A6E]/20 p-4">
-            <p className="text-12px text-[#157A6E] font-medium">Technology Solutions Distributors (TSDs) are your upstream partners — companies like Avant, Telarus, Intelisys, and Sandler Partners that connect you to supplier ecosystems and enablement resources.</p>
+          {/* KPI Row */}
+          <div className="grid grid-cols-4 gap-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
+              <p className="text-10px text-gray-500 uppercase font-medium">Intros This Quarter</p>
+              <p className="text-xl font-bold text-[#157A6E] mt-1">{totalTsdIntrosQTD}</p>
+              <p className="text-10px text-gray-400 mt-0.5">{totalTsdIntrosAllTime} all-time</p>
+            </div>
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
+              <p className="text-10px text-gray-500 uppercase font-medium">Revenue via TSDs</p>
+              <p className="text-xl font-bold text-[#157A6E] mt-1">{formatCurrency(totalTsdRevenue)}</p>
+            </div>
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
+              <p className="text-10px text-gray-500 uppercase font-medium">TSD Contacts</p>
+              <p className="text-xl font-bold text-gray-800 mt-1">{totalTsdContacts}</p>
+              <p className="text-10px text-gray-400 mt-0.5">across {TSD_COMPANIES.length} companies</p>
+            </div>
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
+              <p className="text-10px text-gray-500 uppercase font-medium">Partners Sourced</p>
+              <p className="text-xl font-bold text-gray-800 mt-1">{TSD_COMPANIES.reduce((s, c) => s + c.partners.length, 0)}</p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
-              <p className="text-10px text-gray-500 uppercase font-medium">Active TSDs</p>
-              <p className="text-xl font-bold text-gray-800 mt-1">{tsdArray.length}</p>
+          {/* Revenue by TSD Chart */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="w-4 h-4 text-[#157A6E]" />
+              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Revenue by TSD</h3>
             </div>
-            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
-              <p className="text-10px text-gray-500 uppercase font-medium">Partners via TSDs</p>
-              <p className="text-xl font-bold text-gray-800 mt-1">{tsdData.reduce((s, t) => s + t.advisorCount, 0)}</p>
-            </div>
-            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
-              <p className="text-10px text-gray-500 uppercase font-medium">TSD MRR</p>
-              <p className="text-xl font-bold text-[#157A6E] mt-1">{formatCurrency(tsdData.reduce((s, t) => s + t.mrr, 0))}</p>
-            </div>
-          </div>
-
-          {tsdArray.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">
-              <p className="text-12px">No Technology Solutions Distributors assigned yet</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-4">
-              {tsdData.map(tsd => {
-                const healthyCount = tsd.advisors.filter(a => a.pulse === 'Strong' || a.pulse === 'Steady').length;
-                const atRiskCount = tsd.advisors.filter(a => a.trajectory === 'Freefall' || a.trajectory === 'Slipping').length;
-                return (
-                <div key={tsd.tsd} className="bg-white rounded-[10px] border border-[#e8e5e1] p-5 hover:shadow-md transition-all">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <p className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">{tsd.tsd}</p>
-                      <p className="text-11px text-gray-500 mt-1">{tsd.advisorCount} partner{tsd.advisorCount !== 1 ? 's' : ''} · {formatCurrency(tsd.mrr)} MRR</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {atRiskCount > 0 && <span className="px-2 py-0.5 bg-red-50 text-red-600 text-10px font-semibold rounded-full">{atRiskCount} at risk</span>}
-                      <span className="px-2 py-0.5 bg-green-50 text-green-700 text-10px font-semibold rounded-full">{healthyCount} healthy</span>
+            <div className="space-y-3">
+              {TSD_COMPANIES.sort((a, b) => b.totalRevenueAttributed - a.totalRevenueAttributed).map(company => (
+                <div key={company.name} className="flex items-center gap-3">
+                  <div className="w-24 text-12px font-medium text-gray-700 flex-shrink-0">{company.name}</div>
+                  <div className="flex-1 h-7 bg-gray-100 rounded-full overflow-hidden relative cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => setExpandedTsdCompany(prev => prev === company.name ? null : company.name)}>
+                    <div className="h-full rounded-full flex items-center transition-all duration-500"
+                      style={{ width: `${(company.totalRevenueAttributed / maxTsdRevenue) * 100}%`, backgroundColor: tsdColors[company.name] || '#157A6E' }}>
+                      <span className="text-10px font-semibold text-white ml-2 whitespace-nowrap">{formatCurrency(company.totalRevenueAttributed)}</span>
                     </div>
                   </div>
-                  <div className="mb-3">
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${Math.min(100, (tsd.mrr / Math.max(...tsdData.map(t => t.mrr), 1)) * 100)}%` }} />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    {tsd.advisors.map(advisor => (
-                      <div key={advisor.id} className="p-2.5 bg-gray-50 rounded-lg flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
-                        onClick={() => { setSelectedAdvisor(advisor); setPanelOpen(true); }}>
-                        <div className="text-11px flex-1">
-                          <p className="text-gray-800 font-medium">{advisor.name}</p>
-                          <p className="text-gray-500">{advisor.company}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <PulseBadge pulse={advisor.pulse} />
-                          <span className="text-11px font-semibold text-[#157A6E]">{formatCurrency(advisor.mrr)}</span>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="w-20 text-right flex-shrink-0">
+                    <span className="text-11px font-semibold text-gray-600">{company.totalIntrosQTD} intros</span>
                   </div>
                 </div>
-                );
-              })}
+              ))}
             </div>
-          )}
+          </div>
+
+          {/* TSD Company Cards */}
+          <div className="space-y-3">
+            {TSD_COMPANIES.map(company => {
+              const isExpanded = expandedTsdCompany === company.name;
+              const color = tsdColors[company.name] || '#157A6E';
+              return (
+              <div key={company.name} className={`bg-white rounded-[10px] border transition-all ${isExpanded ? 'border-[#157A6E] shadow-md' : 'border-[#e8e5e1] hover:shadow-sm'}`}>
+                {/* Company Header — always visible */}
+                <div className="p-5 cursor-pointer" onClick={() => setExpandedTsdCompany(prev => prev === company.name ? null : company.name)}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg" style={{ backgroundColor: color + '18' }}>
+                        {company.logo}
+                      </div>
+                      <div>
+                        <p className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">{company.name}</p>
+                        <p className="text-11px text-gray-500">{company.description}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-13px font-bold" style={{ color }}>{company.totalIntrosQTD} intros QTD</p>
+                        <p className="text-10px text-gray-400">{company.totalIntrosAllTime} all-time</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-13px font-bold text-[#157A6E]">{formatCurrency(company.totalRevenueAttributed)}</p>
+                        <p className="text-10px text-gray-400">{company.partners.length} partners</p>
+                      </div>
+                      {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Expanded Content — contacts + partners */}
+                {isExpanded && (
+                <div className="border-t border-[#e8e5e1] px-5 pb-5">
+                  {/* Contacts */}
+                  <div className="pt-4 mb-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-12px font-semibold text-gray-700 uppercase tracking-wide">Your Contacts at {company.name}</p>
+                      <button className="flex items-center gap-1 text-11px font-medium text-[#157A6E] hover:underline">
+                        <UserPlus className="w-3 h-3" /> Add Contact
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                      {company.contacts.map(contact => {
+                        const daysSince = Math.floor((new Date().getTime() - new Date(contact.lastContact).getTime()) / (1000 * 60 * 60 * 24));
+                        return (
+                        <div key={contact.id} className="flex items-center gap-4 p-3 bg-[#F7F5F2] rounded-lg hover:bg-[#f0ede9] transition-colors">
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-11px font-semibold flex-shrink-0"
+                            style={{ backgroundColor: color }}>
+                            {contact.name.split(' ').map(n => n[0]).join('')}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-13px font-semibold text-gray-800">{contact.name}</p>
+                            <p className="text-11px text-gray-500">{contact.title}</p>
+                          </div>
+                          <div className="flex items-center gap-6 flex-shrink-0">
+                            <div className="text-center">
+                              <p className="text-13px font-bold" style={{ color }}>{contact.introsQTD}</p>
+                              <p className="text-9px text-gray-400 uppercase">Intros QTD</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-13px font-bold text-gray-600">{contact.introsAllTime}</p>
+                              <p className="text-9px text-gray-400 uppercase">All-Time</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-13px font-bold text-[#157A6E]">{formatCurrency(contact.revenueAttributed)}</p>
+                              <p className="text-9px text-gray-400 uppercase">Revenue</p>
+                            </div>
+                            <div className="text-center">
+                              <p className={`text-11px font-medium ${daysSince <= 3 ? 'text-green-600' : daysSince <= 7 ? 'text-yellow-600' : 'text-red-500'}`}>
+                                {daysSince}d ago
+                              </p>
+                              <p className="text-9px text-gray-400 uppercase">Contact</p>
+                            </div>
+                            <div className="flex gap-1">
+                              <button className="p-1.5 rounded hover:bg-white transition-colors" title={contact.email}>
+                                <Mail className="w-3.5 h-3.5 text-gray-400 hover:text-[#157A6E]" />
+                              </button>
+                              <button className="p-1.5 rounded hover:bg-white transition-colors" title={contact.phone}>
+                                <Phone className="w-3.5 h-3.5 text-gray-400 hover:text-[#157A6E]" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Partners sourced through this TSD */}
+                  {company.partners.length > 0 && (
+                  <div>
+                    <p className="text-12px font-semibold text-gray-700 uppercase tracking-wide mb-3">Partners via {company.name} ({company.partners.length})</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {company.partners.slice(0, 6).map(partner => (
+                        <div key={partner.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                          onClick={() => { setSelectedAdvisor(partner); setPanelOpen(true); }}>
+                          <div className="text-11px min-w-0 flex-1">
+                            <p className="text-gray-800 font-medium truncate">{partner.name}</p>
+                            <p className="text-gray-500 truncate">{partner.company}</p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <PulseBadge pulse={partner.pulse} />
+                            <span className="text-11px font-semibold text-[#157A6E]">{formatCurrency(partner.mrr)}</span>
+                            <ArrowUpRight className="w-3 h-3 text-gray-300" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {company.partners.length > 6 && (
+                      <p className="text-center text-11px text-[#157A6E] font-medium mt-2 cursor-pointer hover:underline">
+                        + {company.partners.length - 6} more partners
+                      </p>
+                    )}
+                  </div>
+                  )}
+                </div>
+                )}
+              </div>
+              );
+            })}
+          </div>
         </div>
-        )}
+          );
+        })()}
 
         {/* ── TERRITORY MAP SUB-TAB ── */}
         {relationshipViewMode === 'territory' && (
