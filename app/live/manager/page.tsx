@@ -65,6 +65,7 @@ export default function LiveManagerPage() {
   const [contactTypeFilter, setContactTypeFilter] = useState<string>('All');
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [pipelineMetricsView, setPipelineMetricsView] = useState<'deals' | 'quotes-vs-sold'>('deals');
+  const [selectedTsdAdvisors, setSelectedTsdAdvisors] = useState<Advisor[]>([]);
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -546,8 +547,6 @@ export default function LiveManagerPage() {
       const avgSold = closedDeals.length > 0 ? closedDeals.reduce((s, d) => s + d.mrr, 0) / closedDeals.length : 0;
       return { region, partners: advs.length, mrr: regionMRR, pipeline: regionPipeline, avgSold, closedCount: closedDeals.length };
     }).sort((a, b) => b.mrr - a.mrr);
-
-    const [selectedTsdAdvisors, setSelectedTsdAdvisors] = useState<Advisor[]>([]);
 
     return (
       <>
