@@ -481,7 +481,7 @@ export default function LiveManagerPage() {
                 : 'bg-white border border-[#e8e5e1] text-gray-700 hover:bg-gray-50'
             }`}
           >
-            Technical Solutions ({tsdArray.length})
+            TSDs ({tsdArray.length})
           </button>
         </div>
 
@@ -604,42 +604,86 @@ export default function LiveManagerPage() {
 
         {relationshipViewMode === 'tsds' && (
         <div className="space-y-4">
+          {/* TSD Explainer */}
+          <div className="bg-[#F0FAF8] rounded-[10px] border border-[#157A6E]/20 p-4">
+            <p className="text-12px text-[#157A6E] font-medium">Technology Solutions Distributors (TSDs) are your upstream partners — companies like Avant, Telarus, Intelisys, and Sandler Partners that connect you to supplier ecosystems and enablement resources.</p>
+          </div>
+
+          {/* TSD Summary KPIs */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
+              <p className="text-10px text-gray-500 uppercase font-medium">Active TSDs</p>
+              <p className="text-xl font-bold text-gray-800 mt-1">{tsdArray.length}</p>
+            </div>
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
+              <p className="text-10px text-gray-500 uppercase font-medium">Partners via TSDs</p>
+              <p className="text-xl font-bold text-gray-800 mt-1">{tsdData.reduce((s, t) => s + t.advisorCount, 0)}</p>
+            </div>
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
+              <p className="text-10px text-gray-500 uppercase font-medium">TSD MRR</p>
+              <p className="text-xl font-bold text-[#157A6E] mt-1">{formatCurrency(tsdData.reduce((s, t) => s + t.mrr, 0))}</p>
+            </div>
+          </div>
+
           {/* TSDs Grid */}
           {tsdArray.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
-              <p className="text-12px">No technical solutions assigned yet</p>
+              <p className="text-12px">No Technology Solutions Distributors assigned yet</p>
+              <p className="text-11px text-gray-300 mt-1">Assign TSDs to your partners to track distributor relationships</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">
-              {tsdData.map(tsd => (
+              {tsdData.map(tsd => {
+                const healthyCount = tsd.advisors.filter(a => a.pulse === 'Strong' || a.pulse === 'Steady').length;
+                const atRiskCount = tsd.advisors.filter(a => a.trajectory === 'Freefall' || a.trajectory === 'Slipping').length;
+                return (
                 <div
                   key={tsd.tsd}
-                  className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 hover:shadow-md transition-all"
+                  className="bg-white rounded-[10px] border border-[#e8e5e1] p-5 hover:shadow-md transition-all"
                 >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">{tsd.tsd}</p>
+                      <p className="text-11px text-gray-500 mt-1">
+                        {tsd.advisorCount} partner{tsd.advisorCount !== 1 ? 's' : ''} · {formatCurrency(tsd.mrr)} MRR
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {atRiskCount > 0 && (
+                        <span className="px-2 py-0.5 bg-red-50 text-red-600 text-10px font-semibold rounded-full">{atRiskCount} at risk</span>
+                      )}
+                      <span className="px-2 py-0.5 bg-green-50 text-green-700 text-10px font-semibold rounded-full">{healthyCount} healthy</span>
+                    </div>
+                  </div>
+
+                  {/* MRR bar */}
                   <div className="mb-3">
-                    <p className="text-13px font-semibold text-gray-900">{tsd.tsd}</p>
-                    <p className="text-11px text-gray-500 mt-1">
-                      {tsd.advisorCount} advisor{tsd.advisorCount !== 1 ? 's' : ''} · {formatCurrency(tsd.mrr)} MRR
-                    </p>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${Math.min(100, (tsd.mrr / Math.max(...tsdData.map(t => t.mrr), 1)) * 100)}%` }} />
+                    </div>
                   </div>
 
                   <div className="space-y-2">
                     {tsd.advisors.map(advisor => (
                       <div
                         key={advisor.id}
-                        className="p-2 bg-gray-50 rounded flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="p-2.5 bg-gray-50 rounded-lg flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
                         onClick={() => { setSelectedAdvisor(advisor); setPanelOpen(true); }}
                       >
-                        <div className="text-11px">
+                        <div className="text-11px flex-1">
                           <p className="text-gray-800 font-medium">{advisor.name}</p>
                           <p className="text-gray-500">{advisor.company}</p>
                         </div>
-                        <span className="text-11px font-semibold text-[#157A6E]">{formatCurrency(advisor.mrr)}</span>
+                        <div className="flex items-center gap-2">
+                          <PulseBadge pulse={advisor.pulse} />
+                          <span className="text-11px font-semibold text-[#157A6E]">{formatCurrency(advisor.mrr)}</span>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1441,6 +1485,8 @@ export default function LiveManagerPage() {
     'pipeline': renderPipeline,
     'strategic': renderStrategic,
     'co-marketing': renderCoMarketing,
+    'white-space': renderWhiteSpace,
+    'territory': renderTerritory,
   };
 
   return (

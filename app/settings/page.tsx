@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import {
   User, Bell, Zap, Users, Building2, LogOut, Save, Upload, X,
   Cloud, Mail, MessageSquare, Calendar, ChevronRight, Check, Edit2,
-  Clock, AlertCircle, TrendingDown, BarChart3, MapPin, Globe
+  Clock, AlertCircle, TrendingDown, BarChart3, MapPin, Globe,
+  ArrowLeft, RefreshCw, RefreshCcw, Activity, Database, ArrowRightLeft, CheckCircle, AlertTriangle,
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -30,6 +31,26 @@ interface NotificationConfig {
   weeklyDigest: boolean;
 }
 
+interface ConnectorDetail {
+  id: string;
+  name: string;
+}
+
+interface FieldMapping {
+  ccField: string;
+  externalField: string;
+  type: string;
+}
+
+interface SyncLog {
+  id: string;
+  timestamp: string;
+  action: string;
+  recordCount: number;
+  status: 'success' | 'error';
+  error?: string;
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('profile');
@@ -37,6 +58,9 @@ export default function SettingsPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('channel_manager');
   const [saving, setSaving] = useState(false);
+  const [connectorDetail, setConnectorDetail] = useState<ConnectorDetail | null>(null);
+  const [connectorSubTab, setConnectorSubTab] = useState<'overview' | 'field-mapping' | 'sync-log'>('overview');
+  const [syncing, setSyncing] = useState(false);
 
   // Mock data
   const [profileData, setProfileData] = useState({
@@ -380,7 +404,7 @@ export default function SettingsPage() {
             )}
 
             {/* Connectors Tab */}
-            {activeTab === 'connectors' && (
+            {activeTab === 'connectors' && !connectorDetail && (
               <div className="space-y-6">
                 <div>
                   <h3 className="font-newsreader text-lg font-bold text-gray-900 mb-1">
@@ -398,7 +422,13 @@ export default function SettingsPage() {
                     return (
                       <div
                         key={tool.id}
-                        className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 flex items-start justify-between"
+                        className={`bg-white rounded-[10px] border border-[#e8e5e1] p-4 flex items-start justify-between ${isConnected ? 'cursor-pointer hover:border-[#157A6E] hover:shadow-sm' : ''} transition-all`}
+                        onClick={() => {
+                          if (isConnected) {
+                            setConnectorDetail({ id: tool.id, name: tool.name });
+                            setConnectorSubTab('overview');
+                          }
+                        }}
                       >
                         <div className="flex items-start gap-3">
                           <Icon className="w-5 h-5 text-[#157A6E] flex-shrink-0 mt-0.5" />
@@ -417,15 +447,243 @@ export default function SettingsPage() {
                             </div>
                           </div>
                         </div>
-                        <button className="text-[12px] font-medium text-[#157A6E] hover:underline">
-                          {isConnected ? 'Disconnect' : 'Connect'}
-                        </button>
+                        <div className="flex flex-col items-end gap-2">
+                          <button
+                            className="text-[12px] font-medium text-[#157A6E] hover:underline"
+                            onClick={(e) => { e.stopPropagation(); }}
+                          >
+                            {isConnected ? 'Disconnect' : 'Connect'}
+                          </button>
+                          {isConnected && (
+                            <span className="flex items-center gap-1 text-[10px] text-gray-400">
+                              <ChevronRight className="w-3 h-3" />
+                              Manage
+                            </span>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
             )}
+
+            {/* Connector Detail View */}
+            {activeTab === 'connectors' && connectorDetail && (() => {
+              const fieldMappings: Record<string, FieldMapping[]> = {
+                hubspot: [
+                  { ccField: 'name', externalField: 'firstname + lastname', type: 'text' },
+                  { ccField: 'title', externalField: 'jobtitle', type: 'text' },
+                  { ccField: 'company', externalField: 'company', type: 'text' },
+                  { ccField: 'email', externalField: 'email', type: 'email' },
+                  { ccField: 'mrr', externalField: 'custom note', type: 'currency' },
+                  { ccField: 'pulse', externalField: 'custom note', type: 'text' },
+                  { ccField: 'tier', externalField: 'role_in_the_channel', type: 'select' },
+                  { ccField: 'friction', externalField: 'custom note', type: 'text' },
+                  { ccField: 'lifecyclestage', externalField: 'based on tier', type: 'derived' },
+                ],
+                salesforce: [
+                  { ccField: 'name', externalField: 'Name', type: 'text' },
+                  { ccField: 'company', externalField: 'Account.Name', type: 'text' },
+                  { ccField: 'email', externalField: 'Email', type: 'email' },
+                  { ccField: 'mrr', externalField: 'Monthly_Revenue__c', type: 'currency' },
+                  { ccField: 'deals', externalField: 'Opportunity', type: 'object' },
+                  { ccField: 'stage', externalField: 'StageName', type: 'select' },
+                ],
+                gong: [
+                  { ccField: 'advisor.id', externalField: 'participant.email', type: 'lookup' },
+                  { ccField: 'transcript', externalField: 'call.transcript', type: 'text' },
+                  { ccField: 'sentiment', externalField: 'call.sentiment_score', type: 'number' },
+                  { ccField: 'topics', externalField: 'call.topics[]', type: 'array' },
+                  { ccField: 'duration', externalField: 'call.duration', type: 'number' },
+                ],
+                slack: [
+                  { ccField: 'notifications', externalField: '#channel-alerts', type: 'channel' },
+                  { ccField: 'deal_updates', externalField: '#deals-pipeline', type: 'channel' },
+                  { ccField: 'morning_briefing', externalField: 'DM to user', type: 'message' },
+                ],
+              };
+
+              const dealStageMappings: Record<string, Array<{ ccStage: string; externalStage: string }>> = {
+                hubspot: [
+                  { ccStage: 'Discovery', externalStage: 'appointmentscheduled' },
+                  { ccStage: 'Qualifying', externalStage: 'qualifiedtobuy' },
+                  { ccStage: 'Proposal', externalStage: 'presentationscheduled' },
+                  { ccStage: 'Negotiating', externalStage: 'decisionmakerboughtin' },
+                  { ccStage: 'Closed Won', externalStage: 'closedwon' },
+                  { ccStage: 'Stalled', externalStage: 'closedlost' },
+                ],
+                salesforce: [
+                  { ccStage: 'Discovery', externalStage: 'Prospecting' },
+                  { ccStage: 'Qualifying', externalStage: 'Qualification' },
+                  { ccStage: 'Proposal', externalStage: 'Proposal/Price Quote' },
+                  { ccStage: 'Negotiating', externalStage: 'Negotiation/Review' },
+                  { ccStage: 'Closed Won', externalStage: 'Closed Won' },
+                  { ccStage: 'Stalled', externalStage: 'Closed Lost' },
+                ],
+              };
+
+              const mappings = fieldMappings[connectorDetail.id] || [];
+              const stages = dealStageMappings[connectorDetail.id] || [];
+
+              const handleSync = async () => {
+                setSyncing(true);
+                setTimeout(() => {
+                  setSyncing(false);
+                  alert(`${connectorDetail.name} sync complete`);
+                }, 1500);
+              };
+
+              return (
+              <div className="space-y-6">
+                {/* Back button + Header */}
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setConnectorDetail(null)}
+                    className="p-2 hover:bg-white rounded-lg transition-colors"
+                  >
+                    <ArrowLeft className="w-5 h-5 text-gray-600" />
+                  </button>
+                  <div className="flex-1">
+                    <h3 className="font-newsreader text-lg font-bold text-gray-900">
+                      {connectorDetail.name} Integration
+                    </h3>
+                    <p className="text-[12px] text-gray-500">Manage sync, field mappings, and activity</p>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="text-[12px] font-medium text-green-700">Connected</span>
+                  </div>
+                </div>
+
+                {/* Sub-tabs */}
+                <div className="flex border-b border-[#e8e5e1] gap-6">
+                  {[
+                    { id: 'overview' as const, label: 'Overview' },
+                    { id: 'field-mapping' as const, label: 'Field Mapping' },
+                    { id: 'sync-log' as const, label: 'Sync Log' },
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setConnectorSubTab(tab.id)}
+                      className={`pb-3 px-1 border-b-2 transition-colors text-[13px] font-medium ${
+                        connectorSubTab === tab.id
+                          ? 'border-[#157A6E] text-[#157A6E]'
+                          : 'border-transparent text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Overview sub-tab */}
+                {connectorSubTab === 'overview' && (
+                  <div className="space-y-4">
+                    <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                      <h4 className="font-medium text-gray-900 text-[14px] mb-4">Sync Status</h4>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between py-2 border-b border-[#e8e5e1]">
+                          <span className="text-[13px] text-gray-700">Connection Status</span>
+                          <span className="text-[13px] font-medium text-green-600">Connected</span>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-[#e8e5e1]">
+                          <span className="text-[13px] text-gray-700">Last Sync</span>
+                          <span className="text-[13px] font-medium text-gray-900">Today, 8:00 AM</span>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-[#e8e5e1]">
+                          <span className="text-[13px] text-gray-700">Synced Records</span>
+                          <span className="text-[13px] font-medium text-gray-900">0</span>
+                        </div>
+                        <div className="flex items-center justify-between py-2">
+                          <span className="text-[13px] text-gray-700">Sync Direction</span>
+                          <span className="text-[13px] font-medium text-gray-900">Bi-directional</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                      <h4 className="font-medium text-gray-900 text-[14px] mb-4">Quick Actions</h4>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={handleSync}
+                          disabled={syncing}
+                          className="px-4 py-2 bg-[#157A6E] text-white rounded-[8px] hover:bg-[#0f6960] transition-colors text-[13px] font-medium flex items-center gap-2 disabled:opacity-50"
+                        >
+                          <RefreshCcw className="w-4 h-4" />
+                          {syncing ? 'Syncing...' : 'Sync Now'}
+                        </button>
+                        <button className="px-4 py-2 border border-[#157A6E] text-[#157A6E] rounded-[8px] hover:bg-[#F0FAF8] transition-colors text-[13px] font-medium">
+                          Push Advisors
+                        </button>
+                        <button className="px-4 py-2 border border-[#157A6E] text-[#157A6E] rounded-[8px] hover:bg-[#F0FAF8] transition-colors text-[13px] font-medium">
+                          Push Deals
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Deal Stage Mapping */}
+                    {stages.length > 0 && (
+                      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                        <h4 className="font-medium text-gray-900 text-[14px] mb-4">Deal Stage Mapping</h4>
+                        <table className="w-full text-[13px]">
+                          <thead>
+                            <tr className="border-b border-[#e8e5e1]">
+                              <th className="text-left py-2 font-medium text-gray-500">CC Stage</th>
+                              <th className="text-left py-2 font-medium text-gray-500">{connectorDetail.name} Stage</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {stages.map((s, i) => (
+                              <tr key={i} className="border-b border-[#e8e5e1] last:border-0">
+                                <td className="py-2 font-medium text-gray-900">{s.ccStage}</td>
+                                <td className="py-2 text-gray-700">{s.externalStage}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Field Mapping sub-tab */}
+                {connectorSubTab === 'field-mapping' && (
+                  <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
+                    <table className="w-full text-[13px]">
+                      <thead>
+                        <tr className="border-b border-[#e8e5e1] bg-[#F7F5F2]">
+                          <th className="px-6 py-4 text-left font-medium text-gray-700">Channel Companion Field</th>
+                          <th className="px-6 py-4 text-left font-medium text-gray-700">{connectorDetail.name} Field</th>
+                          <th className="px-6 py-4 text-left font-medium text-gray-700">Type</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {mappings.map((m, i) => (
+                          <tr key={i} className="border-b border-[#e8e5e1] hover:bg-[#F7F5F2]">
+                            <td className="px-6 py-4 font-medium text-gray-900">{m.ccField}</td>
+                            <td className="px-6 py-4 text-gray-700">{m.externalField}</td>
+                            <td className="px-6 py-4">
+                              <span className="px-2 py-1 rounded-full bg-[#F0FAF8] text-[#157A6E] text-[11px] font-medium">{m.type}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Sync Log sub-tab */}
+                {connectorSubTab === 'sync-log' && (
+                  <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
+                    <Activity className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-[13px] text-gray-600">No sync activity yet</p>
+                    <p className="text-[11px] text-gray-400 mt-1">Sync activity will appear here once data starts flowing</p>
+                  </div>
+                )}
+              </div>
+              );
+            })()}
 
             {/* Team Tab */}
             {activeTab === 'team' && (

@@ -29,6 +29,8 @@ export const NAV_ITEMS_MANAGER = [
   { id: 'relationships', label: 'Relationships', icon: 'Handshake' },
   { id: 'pipeline', label: 'Pipeline', icon: 'DollarSign' },
   { id: 'strategic', label: 'Strategic', icon: 'TrendingUp' },
+  { id: 'white-space', label: 'White Space', icon: 'Grid' },
+  { id: 'territory', label: 'Territory', icon: 'MapPin' },
   { id: 'co-marketing', label: 'Co-Marketing', icon: 'Megaphone' },
 ];
 

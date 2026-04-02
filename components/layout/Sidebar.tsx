@@ -1,6 +1,6 @@
 'use client';
 
-import { Zap, Brain, Handshake, DollarSign, TrendingUp, BarChart3, Users, Hexagon, Target, MapPin, Megaphone, Shield } from 'lucide-react';
+import { Zap, Brain, Handshake, DollarSign, TrendingUp, BarChart3, Users, Hexagon, Target, MapPin, Megaphone, Shield, LayoutGrid, Settings } from 'lucide-react';
 import { type LucideIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -17,6 +17,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   MapPin,
   Megaphone,
   Shield,
+  Grid: LayoutGrid,
 };
 
 export interface NavItem {
@@ -88,21 +89,22 @@ export function Sidebar({
           })}
         </div>
 
-        {/* Integrations Section */}
+        {/* Settings Section */}
         <div className="pt-2 border-t border-[#e8e5e1]">
-          <p className="text-[11px] uppercase tracking-[1px] text-[#999] font-medium px-3 mb-2">
-            Integrations
-          </p>
           <button
-            onClick={() => router.push('/integrations/hubspot')}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-colors text-[#666] hover:bg-[#f5f3f0] hover:text-[#333]"
+            onClick={() => router.push('/settings')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-colors ${
+              activeView === 'settings'
+                ? 'bg-[#157A6E] text-white'
+                : 'text-[#666] hover:bg-[#f5f3f0] hover:text-[#333]'
+            }`}
             style={{
               fontSize: '13px',
               fontWeight: 500,
             }}
           >
-            <Hexagon className="w-4 h-4 flex-shrink-0" />
-            <span>HubSpot</span>
+            <Settings className="w-4 h-4 flex-shrink-0" />
+            <span>Settings</span>
           </button>
         </div>
       </nav>

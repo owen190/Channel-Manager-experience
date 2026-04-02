@@ -5,6 +5,7 @@ import {
   Clock, AlertTriangle, ChevronDown, ChevronRight, ArrowLeft,
   MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays,
   Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle, X, RefreshCw, Users,
+  TrendingDown, TrendingUp, BarChart3, Star, Shield, CheckCircle,
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -17,6 +18,7 @@ import { PulseBadge } from '@/components/shared/PulseBadge';
 import { TrajectoryBadge } from '@/components/shared/TrajectoryBadge';
 import { FrictionBadge } from '@/components/shared/FrictionBadge';
 import { TierBadge } from '@/components/shared/TierBadge';
+import { SupplierAccountabilityCard, AdvisorSentimentFeed } from '@/components/shared/RatingsDisplay';
 import { NAV_ITEMS_LEADER, QUARTER_END, DAYS_REMAINING, STAGE_WEIGHTS } from '@/lib/constants';
 import { EngagementScore, DealStage, Advisor, Deal, Rep, ForecastHistoryEntry } from '@/lib/types';
 import { adaptAdvisor, adaptDeal, adaptRep } from '@/lib/db/adapter';
@@ -35,6 +37,7 @@ export default function LiveLeaderDashboard() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [reps, setReps] = useState<Rep[]>([]);
   const [intents, setIntents] = useState<any[]>([]);
+  const [ratings, setRatings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const [activeView, setActiveViewRaw] = useState('command-center');
@@ -67,20 +70,23 @@ export default function LiveLeaderDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [advisorsRes, dealsRes, repsRes, intentsRes] = await Promise.all([
+      const [advisorsRes, dealsRes, repsRes, intentsRes, ratingsRes] = await Promise.all([
         fetch('/api/live/advisors'),
         fetch('/api/live/deals'),
         fetch('/api/live/reps'),
         fetch('/api/live/intent'),
+        fetch('/api/live/ratings'),
       ]);
       const rawAdvisors = await advisorsRes.json();
       const rawDeals = await dealsRes.json();
       const rawReps = await repsRes.json();
       const rawIntents = await intentsRes.json();
+      const rawRatings = await ratingsRes.json();
       setAdvisors(rawAdvisors.map(adaptAdvisor));
       setDeals(rawDeals.map(adaptDeal));
       setReps(rawReps.map(adaptRep));
       setIntents(Array.isArray(rawIntents) ? rawIntents : []);
+      setRatings(rawRatings);
     } catch (err) {
       console.error('Failed to fetch live data:', err);
     }
@@ -608,41 +614,178 @@ export default function LiveLeaderDashboard() {
     );
   };
 
-  const renderSupplierAccountability = () => (
+  const renderSupplierAccountability = () => {
+    // Aggregate friction data across all reps' advisors
+    const frictionByLevel = [
+      { level: 'Critical', advisors: advisors.filter(a => a.friction === 'Critical'), color: 'bg-red-600', textColor: 'text-red-700', bgColor: 'bg-red-50' },
+      { level: 'High', advisors: advisors.filter(a => a.friction === 'High'), color: 'bg-red-400', textColor: 'text-red-600', bgColor: 'bg-red-50' },
+      { level: 'Moderate', advisors: advisors.filter(a => a.friction === 'Moderate'), color: 'bg-amber-400', textColor: 'text-amber-700', bgColor: 'bg-amber-50' },
+      { level: 'Low', advisors: advisors.filter(a => a.friction === 'Low'), color: 'bg-emerald-400', textColor: 'text-emerald-700', bgColor: 'bg-emerald-50' },
+    ];
+    const totalFrictionPartners = advisors.filter(a => a.friction === 'High' || a.friction === 'Critical').length;
+    const frictionMRR = advisors.filter(a => a.friction === 'High' || a.friction === 'Critical').reduce((s, a) => s + a.mrr, 0);
+    const avgFrictionScore = advisors.length > 0 ? Math.round(advisors.reduce((s, a) => {
+      const scores: Record<string, number> = { Low: 100, Moderate: 65, High: 30, Critical: 10 };
+      return s + (scores[a.friction] || 50);
+    }, 0) / advisors.length) : 0;
+
+    // Aggregate rep-level friction
+    const repFriction = reps.map(rep => {
+      const repAdvisors = advisors.filter(a => {
+        const repDeals = deals.filter(d => d.repId === rep.id);
+        return repDeals.some(d => d.advisorId === a.id);
+      });
+      const highFriction = repAdvisors.filter(a => a.friction === 'High' || a.friction === 'Critical');
+      return {
+        rep,
+        totalPartners: repAdvisors.length,
+        highFrictionCount: highFriction.length,
+        frictionMRR: highFriction.reduce((s, a) => s + a.mrr, 0),
+        topIssues: highFriction.slice(0, 3),
+      };
+    }).filter(r => r.totalPartners > 0).sort((a, b) => b.highFrictionCount - a.highFrictionCount);
+
+    return (
     <div className="space-y-6">
-      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
-        <div className="w-16 h-16 bg-[#157A6E]/10 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#157A6E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          </svg>
+      {/* KPI Row */}
+      <div className="grid grid-cols-4 gap-4">
+        <KPICard label="Org Friction Score" value={`${avgFrictionScore}/100`} change={avgFrictionScore >= 70 ? 'Healthy' : avgFrictionScore >= 50 ? 'Needs attention' : 'Critical'} changeType={avgFrictionScore >= 70 ? "positive" : avgFrictionScore >= 50 ? "neutral" : "negative"} />
+        <KPICard label="High Friction Partners" value={`${totalFrictionPartners}`} change={`${formatCurrency(frictionMRR)} MRR at risk`} changeType={totalFrictionPartners > 0 ? "negative" : "positive"} />
+        <KPICard label="Avg Win Rate" value={`${avgWinRate}%`} change="across team" changeType="neutral" />
+        <KPICard label="Active Suppliers" value={`${new Set(deals.map(d => d.name.split(' ')[0])).size}`} change="in pipeline" changeType="positive" />
+      </div>
+
+      {/* Friction Distribution */}
+      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+        <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Friction Distribution Across Partners</h3>
+        <div className="flex h-8 rounded-lg overflow-hidden mb-3">
+          {frictionByLevel.filter(f => f.advisors.length > 0).map(f => (
+            <div key={f.level} className={`${f.color} flex items-center justify-center transition-all`}
+                 style={{ width: `${(f.advisors.length / advisors.length) * 100}%` }}>
+              <span className="text-[10px] font-bold text-white">{f.advisors.length}</span>
+            </div>
+          ))}
         </div>
-        <h2 className="text-xl font-semibold font-['Newsreader'] text-gray-800 mb-2">Supplier Accountability</h2>
-        <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">
-          Track supplier performance, SLA compliance, and accountability metrics across your channel program. Hold suppliers accountable to their commitments.
-        </p>
-        <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto mb-8">
-          <div className="bg-[#F7F5F2] rounded-lg p-4">
-            <p className="text-[10px] text-gray-500 uppercase font-medium">SLA Compliance</p>
-            <p className="text-lg font-semibold text-gray-400 mt-1">—</p>
-          </div>
-          <div className="bg-[#F7F5F2] rounded-lg p-4">
-            <p className="text-[10px] text-gray-500 uppercase font-medium">Active Suppliers</p>
-            <p className="text-lg font-semibold text-gray-400 mt-1">—</p>
-          </div>
-          <div className="bg-[#F7F5F2] rounded-lg p-4">
-            <p className="text-[10px] text-gray-500 uppercase font-medium">Issues Open</p>
-            <p className="text-lg font-semibold text-gray-400 mt-1">—</p>
-          </div>
-        </div>
-        <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2 rounded-full text-xs font-medium">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          Coming Soon — No supplier data connected yet
+        <div className="flex items-center gap-4">
+          {frictionByLevel.filter(f => f.advisors.length > 0).map(f => (
+            <div key={f.level} className="flex items-center gap-1.5">
+              <div className={`w-2.5 h-2.5 rounded-sm ${f.color}`} />
+              <span className="text-11px text-gray-600">{f.level}: {f.advisors.length} ({formatCurrency(f.advisors.reduce((s, a) => s + a.mrr, 0))})</span>
+            </div>
+          ))}
         </div>
       </div>
+
+      {/* Channel Standard Ratings */}
+      {ratings && (
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Supplier Ratings</h3>
+              <p className="text-11px text-gray-400 mt-0.5">Data from The Channel Standard Ratings Platform</p>
+            </div>
+            <a
+              href="https://www.the-channel-standard.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#157A6E] text-11px font-semibold hover:underline flex items-center gap-1"
+            >
+              View Full Ratings
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6v12h12v-6m0-6l4-4m0 0l-4 4m4-4v4" />
+              </svg>
+            </a>
+          </div>
+          <SupplierAccountabilityCard data={ratings} loading={false} />
+        </div>
+      )}
+
+      {/* Advisor Sentiment Feed */}
+      {ratings?.supplier?.recentFeedback && ratings.supplier.recentFeedback.length > 0 && (
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <AdvisorSentimentFeed data={ratings} />
+        </div>
+      )}
+
+      {/* Friction by Rep */}
+      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+        <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Friction by Rep</h3>
+        {repFriction.length === 0 ? (
+          <p className="text-12px text-gray-400 italic">No rep-level friction data available</p>
+        ) : (
+          <div className="space-y-3">
+            {repFriction.map(rf => (
+              <div key={rf.rep.id} className="p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <p className="text-13px font-semibold text-gray-800">{rf.rep.name}</p>
+                    <EngLabel score={rf.rep.engagementScore} />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {rf.highFrictionCount > 0 && (
+                      <span className="text-11px font-medium text-red-600">{rf.highFrictionCount} high friction</span>
+                    )}
+                    <span className="text-12px font-semibold text-gray-700">{rf.totalPartners} partners</span>
+                  </div>
+                </div>
+                {rf.topIssues.length > 0 && (
+                  <div className="space-y-1 mt-2">
+                    {rf.topIssues.map(a => (
+                      <div key={a.id} className="flex items-center justify-between text-11px py-1 px-2 bg-white rounded">
+                        <div className="flex items-center gap-2">
+                          <FrictionBadge level={a.friction} />
+                          <span className="text-gray-800 font-medium">{a.name}</span>
+                          <span className="text-gray-400">·</span>
+                          <span className="text-gray-500">{a.company}</span>
+                        </div>
+                        <span className="font-semibold text-gray-700">{formatCurrency(a.mrr)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Critical Friction Cases */}
+      {advisors.filter(a => a.friction === 'Critical').length > 0 && (
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">
+            Critical Friction Cases
+            <span className="ml-2 text-12px font-normal text-red-500">
+              ({advisors.filter(a => a.friction === 'Critical').length} requiring immediate attention)
+            </span>
+          </h3>
+          <div className="space-y-3">
+            {advisors.filter(a => a.friction === 'Critical').sort((a, b) => b.mrr - a.mrr).map(a => (
+              <div key={a.id} className="p-4 bg-red-50 border border-red-200 rounded-lg cursor-pointer hover:bg-red-100 transition-colors"
+                   onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-13px font-semibold text-gray-800">{a.name}</p>
+                      <FrictionBadge level={a.friction} />
+                      <PulseBadge pulse={a.pulse} />
+                      <TrajectoryBadge trajectory={a.trajectory} />
+                    </div>
+                    <p className="text-12px text-gray-600">{a.company} · {a.location || 'Unknown'}</p>
+                    <p className="text-11px text-gray-500 mt-1.5 leading-relaxed">{a.diagnosis}</p>
+                  </div>
+                  <div className="text-right ml-4 shrink-0">
+                    <p className="text-[15px] font-bold text-gray-800">{formatCurrency(a.mrr)}</p>
+                    <p className="text-10px text-gray-400">monthly</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
-  );
+    );
+  };
 
   const viewRenderers: Record<string, () => React.ReactNode> = {
     'command-center': renderCommandCenter,
