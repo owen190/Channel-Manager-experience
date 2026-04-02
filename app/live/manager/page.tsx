@@ -7,6 +7,7 @@ import {
   ArrowLeft, MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays,
   Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle, RefreshCw,
   Megaphone, Star, TrendingUp as TrendingUpIcon, CheckCircle, AlertCircle as AlertCircleIcon, Edit, Plus,
+  LayoutGrid, Map, FileText,
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -60,7 +61,10 @@ export default function LiveManagerPage() {
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [showPartnerModal, setShowPartnerModal] = useState(false);
   const [editingPartner, setEditingPartner] = useState<Advisor | null>(null);
-  const [relationshipViewMode, setRelationshipViewMode] = useState<'partners' | 'tsds'>('partners');
+  const [relationshipViewMode, setRelationshipViewMode] = useState<'partners' | 'tsds' | 'territory' | 'white-space'>('partners');
+  const [contactTypeFilter, setContactTypeFilter] = useState<string>('All');
+  const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [pipelineMetricsView, setPipelineMetricsView] = useState<'deals' | 'quotes-vs-sold'>('deals');
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -96,7 +100,6 @@ export default function LiveManagerPage() {
     }
     setLoading(false);
   };
-
 
   const handleSaveDeal = async (dealData: Partial<Deal>) => {
     try {
@@ -137,13 +140,12 @@ export default function LiveManagerPage() {
     }));
   }, [advisors, deals]);
 
-  // Build advisorsByCity for the map (must be before early returns for hooks rules)
+  // Build advisorsByCity for the map
   const advisorsByCityMap = useMemo(() => {
     const result: Record<string, { city: string; state: string; count: number; mrr: number; advisors: Array<{ id: string; name: string; mrr: number }> }> = {};
     advisorsWithDeals.forEach(a => {
       const loc = a.location?.trim();
       if (!loc) return;
-      // Use the full "City, ST" string as the key
       if (!result[loc]) {
         const parts = loc.split(',').map(s => s.trim());
         result[loc] = { city: parts[0] || loc, state: parts[1] || '', count: 0, mrr: 0, advisors: [] };
@@ -155,6 +157,51 @@ export default function LiveManagerPage() {
     Object.values(result).forEach(r => r.advisors.sort((a, b) => b.mrr - a.mrr));
     return result;
   }, [advisorsWithDeals]);
+
+  // Build state-level data for territory map
+  const stateDataMap = useMemo(() => {
+    const result: Record<string, { partners: number; mrr: number; pipeline: number; deals: number }> = {};
+    advisorsWithDeals.forEach(a => {
+      const loc = a.location?.trim();
+      if (!loc) return;
+      const parts = loc.split(',').map(s => s.trim());
+      const stateAbbr = parts[1]?.toUpperCase();
+      if (!stateAbbr || stateAbbr.length !== 2) return;
+      if (!result[stateAbbr]) result[stateAbbr] = { partners: 0, mrr: 0, pipeline: 0, deals: 0 };
+      result[stateAbbr].partners++;
+      result[stateAbbr].mrr += a.mrr;
+    });
+    deals.forEach(d => {
+      const advisor = advisors.find(a => a.id === d.advisorId);
+      if (!advisor?.location) return;
+      const parts = advisor.location.split(',').map(s => s.trim());
+      const stateAbbr = parts[1]?.toUpperCase();
+      if (!stateAbbr || stateAbbr.length !== 2) return;
+      if (!result[stateAbbr]) result[stateAbbr] = { partners: 0, mrr: 0, pipeline: 0, deals: 0 };
+      result[stateAbbr].deals++;
+      if (d.stage !== 'Closed Won' && d.stage !== 'Stalled') {
+        result[stateAbbr].pipeline += d.mrr;
+      }
+    });
+    return result;
+  }, [advisorsWithDeals, deals, advisors]);
+
+  // Region mapping helper
+  const regionMapping = (location: string): string => {
+    const locationLower = location.toLowerCase();
+    const neastates = ['me', 'nh', 'vt', 'ma', 'ri', 'ct', 'ny', 'nj', 'pa', 'de', 'md', 'dc'];
+    const southeast = ['va', 'wv', 'nc', 'sc', 'ga', 'fl', 'al', 'ms', 'la', 'ar', 'ky', 'tn'];
+    const midwest = ['oh', 'in', 'il', 'mi', 'wi', 'mn', 'ia', 'mo', 'nd', 'sd', 'ne', 'ks'];
+    const southwest = ['tx', 'ok', 'nm', 'az'];
+    const west = ['wa', 'or', 'ca', 'nv', 'id', 'mt', 'wy', 'co', 'ut'];
+
+    for (const state of neastates) if (locationLower.includes(state)) return 'Northeast';
+    for (const state of southeast) if (locationLower.includes(state)) return 'Southeast';
+    for (const state of midwest) if (locationLower.includes(state)) return 'Midwest';
+    for (const state of southwest) if (locationLower.includes(state)) return 'Southwest';
+    for (const state of west) if (locationLower.includes(state)) return 'West';
+    return 'Other';
+  };
 
   const userName = 'Jordan R.';
   const userInitials = 'JR';
@@ -186,9 +233,6 @@ export default function LiveManagerPage() {
   // Quadrant data
   const quadrantAdvisors = advisorsWithDeals.filter(a => a.mrr > 0);
   const maxMRR = Math.max(...quadrantAdvisors.map(a => a.mrr), 1);
-  const top5Ids = new Set(
-    [...quadrantAdvisors].sort((a, b) => b.mrr - a.mrr).slice(0, 5).map(a => a.id)
-  );
 
   const engScore = (a: Advisor) => {
     const scores: Record<string, number> = { Strong: 3, Steady: 2, Rising: 2.5, Fading: 1, Flatline: 0 };
@@ -200,6 +244,56 @@ export default function LiveManagerPage() {
   const diagnosticRows: DiagnosticRow[] = advisors
     .filter(a => a.friction !== 'Low' || a.pulse === 'Fading' || a.pulse === 'Flatline')
     .map(a => ({ advisor: a.name, pulse: a.pulse, dealHealth: a.dealHealth, friction: a.friction, diagnosis: a.diagnosis }));
+
+  // Seeded random for deterministic mock data
+  const seededRandom = (seed: string): number => {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      const char = seed.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return Math.abs(hash) % 1000 / 1000;
+  };
+
+  // Co-marketing opportunity detection
+  const coMarketingOpportunities = useMemo(() => {
+    const opps: Array<{ advisor: Advisor; reason: string; type: string }> = [];
+    advisorsWithDeals.forEach(a => {
+      if (a.pulse === 'Strong' && a.tier === 'top10') {
+        opps.push({ advisor: a, reason: `${a.name} is a top-10 partner with strong engagement — ideal co-marketing candidate`, type: 'High-Value Amplification' });
+      }
+      if (a.trajectory === 'Accelerating' || a.trajectory === 'Climbing') {
+        const advisorDeals = deals.filter(d => d.advisorId === a.id && d.stage === 'Closed Won');
+        if (advisorDeals.length >= 2) {
+          opps.push({ advisor: a, reason: `${a.name} is on an upward trajectory with ${advisorDeals.length} closed deals — prime for case study`, type: 'Success Story' });
+        }
+      }
+    });
+    return opps.slice(0, 5);
+  }, [advisorsWithDeals, deals]);
+
+  // Quotes vs Sold per partner
+  const quotesVsSold = useMemo(() => {
+    return advisorsWithDeals.map(a => {
+      const advisorDeals = deals.filter(d => d.advisorId === a.id);
+      const totalQuotes = advisorDeals.length;
+      const soldDeals = advisorDeals.filter(d => d.stage === 'Closed Won').length;
+      // Mock quarterly breakdown with seeded random
+      const q1Quotes = Math.max(0, Math.floor(seededRandom(`${a.id}-q1q`) * totalQuotes * 0.6));
+      const q1Sold = Math.max(0, Math.floor(seededRandom(`${a.id}-q1s`) * soldDeals * 0.5));
+      const q2Quotes = totalQuotes - q1Quotes;
+      const q2Sold = soldDeals - q1Sold;
+      return {
+        ...a,
+        totalQuotes,
+        soldDeals,
+        closeRate: totalQuotes > 0 ? (soldDeals / totalQuotes * 100) : 0,
+        q1: { quotes: q1Quotes, sold: q1Sold },
+        q2: { quotes: q2Quotes, sold: q2Sold },
+      };
+    }).filter(a => a.totalQuotes > 0).sort((a, b) => b.totalQuotes - a.totalQuotes);
+  }, [advisorsWithDeals, deals]);
 
   if (loading) {
     return (
@@ -229,6 +323,9 @@ export default function LiveManagerPage() {
     );
   }
 
+  // ════════════════════════════════════════════════
+  // COMMAND CENTER
+  // ════════════════════════════════════════════════
   const renderCommandCenter = () => (
     <div className="space-y-6">
       {/* KPI Row */}
@@ -238,6 +335,28 @@ export default function LiveManagerPage() {
         <KPICard label="At-Risk MRR" value={formatCurrency(atRiskMRR)} change={`${atRiskAdvisors.length} partners`} changeType={atRiskAdvisors.length > 0 ? "negative" : "neutral"} />
         <KPICard label="Closed Won QTD" value={formatCurrency(closedWonMRR)} change={`${closedWonDeals.length} deals`} changeType="positive" />
       </div>
+
+      {/* Co-Marketing Opportunity Alert (conditional) */}
+      {coMarketingOpportunities.length > 0 && (
+        <div className="bg-gradient-to-r from-[#157A6E]/5 to-[#157A6E]/10 rounded-[10px] border border-[#157A6E]/20 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Megaphone className="w-4 h-4 text-[#157A6E]" />
+            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-[#157A6E]">Co-Marketing Opportunities</h3>
+            <span className="px-2 py-0.5 bg-[#157A6E] text-white text-10px rounded-full font-bold">{coMarketingOpportunities.length} primed</span>
+          </div>
+          <div className="space-y-2">
+            {coMarketingOpportunities.slice(0, 3).map((opp, i) => (
+              <div key={i} className="flex items-center justify-between p-3 bg-white/70 rounded-lg">
+                <div>
+                  <p className="text-13px font-medium text-gray-800">{opp.advisor.name} — {opp.type}</p>
+                  <p className="text-11px text-gray-500">{opp.reason}</p>
+                </div>
+                <span className="text-12px font-semibold text-[#157A6E]">{formatCurrency(opp.advisor.mrr)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-2 gap-6">
@@ -309,105 +428,52 @@ export default function LiveManagerPage() {
           </div>
         </div>
       </div>
-
-      {/* Revenue Intent */}
-      {intents.filter((i: any) => i.signals90d > 0).length > 0 && (
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Revenue Intent</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {intents.filter((i: any) => i.signals90d > 0).sort((a: any, b: any) => b.score - a.score).slice(0, 8).map((intent: any) => {
-              const colors: Record<string, string> = { Hot: 'border-red-300 bg-red-50', Warm: 'border-amber-300 bg-amber-50', Interested: 'border-blue-300 bg-blue-50', Cold: 'border-gray-200 bg-gray-50' };
-              const badgeColors: Record<string, string> = { Hot: 'bg-red-100 text-red-700', Warm: 'bg-amber-100 text-amber-700', Interested: 'bg-blue-100 text-blue-700', Cold: 'bg-gray-100 text-gray-500' };
-              return (
-                <div key={intent.advisorId} className={`rounded-lg border p-3 ${colors[intent.label] || 'border-gray-200'} cursor-pointer hover:shadow-sm`}
-                     onClick={() => { const a = advisorsWithDeals.find(x => x.id === intent.advisorId); if (a) { setSelectedAdvisor(a); setPanelOpen(true); } }}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-12px font-semibold text-gray-800 truncate">{intent.advisorName}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${badgeColors[intent.label]}`}>{intent.label}</span>
-                  </div>
-                  <div className="h-1.5 bg-white/60 rounded-full overflow-hidden mb-1.5">
-                    <div className={`h-full rounded-full ${intent.score >= 70 ? 'bg-red-400' : intent.score >= 40 ? 'bg-amber-400' : 'bg-blue-400'}`} style={{ width: `${intent.score}%` }} />
-                  </div>
-                  <div className="text-10px text-gray-500">
-                    {intent.quoteCount30d > 0 && <span className="font-medium text-gray-700">{intent.quoteCount30d} quotes · </span>}
-                    {intent.signals30d} signals (30d)
-                    {intent.topProducts.length > 0 && <span className="block mt-0.5">{intent.topProducts.join(', ')}</span>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Engagement Quadrant */}
-      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-        <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Partner Engagement Quadrant</h3>
-        <div className="relative h-[300px] border border-gray-200 rounded-lg bg-gray-50">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-px h-full bg-gray-300 absolute left-1/2" />
-            <div className="h-px w-full bg-gray-300 absolute top-1/2" />
-          </div>
-          <span className="absolute top-2 left-3 text-10px text-gray-400">High Engagement · Low MRR</span>
-          <span className="absolute top-2 right-3 text-10px text-gray-400">High Engagement · High MRR</span>
-          <span className="absolute bottom-2 left-3 text-10px text-gray-400">Low Engagement · Low MRR</span>
-          <span className="absolute bottom-2 right-3 text-10px text-gray-400">Low Engagement · High MRR</span>
-          {quadrantAdvisors.map(a => {
-            const eng = engScore(a);
-            const x = (a.mrr / maxMRR) * 90 + 5;
-            const y = 95 - (eng / 3) * 90;
-            const pulseColor: Record<string, string> = { Strong: '#22c55e', Rising: '#3b82f6', Steady: '#eab308', Fading: '#f97316', Flatline: '#ef4444' };
-            return (
-              <div key={a.id} className="absolute cursor-pointer group" style={{ left: `${x}%`, top: `${y}%`, transform: 'translate(-50%, -50%)' }}
-                   onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
-                <div className="w-3 h-3 rounded-full border-2 border-white shadow" style={{ backgroundColor: pulseColor[a.pulse] || '#9ca3af' }} />
-                {top5Ids.has(a.id) && (
-                  <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[9px] font-medium text-gray-600 whitespace-nowrap">
-                    {a.name.split(' ')[0]} {a.name.split(' ')[1]?.[0]}.
-                  </span>
-                )}
-                <div className="hidden group-hover:block absolute bottom-5 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-10px rounded px-2 py-1 whitespace-nowrap z-10">
-                  {a.name} · {formatCurrency(a.mrr)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 
-  // Region mapping for territory
+  // ════════════════════════════════════════════════
+  // RELATIONSHIPS (with sub-tabs: Partners, TSDs, Territory, White Space)
+  // ════════════════════════════════════════════════
   const renderRelationships = () => {
-    // Calculate segment counts
+    // Contact type categories
+    const contactTypes = ['All', 'Partner', 'Champion', 'Decision Maker', 'Influencer', 'End User'];
+    // Assign mock contact types based on seeded random
+    const getContactType = (advisor: Advisor): string => {
+      const types = ['Partner', 'Champion', 'Decision Maker', 'Influencer', 'End User'];
+      const idx = Math.floor(seededRandom(advisor.id + '-ct') * types.length);
+      return types[idx];
+    };
+
+    // Filtering logic
     const allAdvisorsCount = advisorsWithDeals.length;
-    const activatedCount = advisorsWithDeals.filter(a => a.pulse !== 'Flatline').length;
-    const activeCount = advisorsWithDeals.filter(a => ['Strong', 'Rising', 'Steady'].includes(a.pulse)).length;
-    const top20Count = [...advisorsWithDeals].sort((a, b) => b.mrr - a.mrr).slice(0, 20).length;
+    const activatedCount = advisorsWithDeals.filter(a => deals.some(d => d.advisorId === a.id)).length;
+    const activeCount = advisorsWithDeals.filter(a => a.pulse === 'Strong' || a.pulse === 'Steady').length;
+    const top20Count = advisorsWithDeals.filter(a => a.tier === 'top10' || a.tier === 'next20').length;
     const needsAttentionCount = advisorsWithDeals.filter(a =>
       a.friction === 'High' || a.friction === 'Critical' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall'
     ).length;
 
-    // Calculate filtered advisors based on segment
-    let filteredAdvisors = advisorsWithDeals;
+    let filteredAdvisors = [...advisorsWithDeals];
     if (relationshipFilter === 'Activated') {
-      filteredAdvisors = advisorsWithDeals.filter(a => a.pulse !== 'Flatline');
+      filteredAdvisors = advisorsWithDeals.filter(a => deals.some(d => d.advisorId === a.id));
     } else if (relationshipFilter === 'Active') {
-      filteredAdvisors = advisorsWithDeals.filter(a => ['Strong', 'Rising', 'Steady'].includes(a.pulse));
+      filteredAdvisors = advisorsWithDeals.filter(a => a.pulse === 'Strong' || a.pulse === 'Steady');
     } else if (relationshipFilter === 'Strategic Top 20') {
-      const top20Ids = new Set([...advisorsWithDeals].sort((a, b) => b.mrr - a.mrr).slice(0, 20).map(a => a.id));
-      filteredAdvisors = advisorsWithDeals.filter(a => top20Ids.has(a.id));
+      filteredAdvisors = advisorsWithDeals.filter(a => a.tier === 'top10' || a.tier === 'next20');
     } else if (relationshipFilter === 'Needs Attention') {
       filteredAdvisors = advisorsWithDeals.filter(a =>
         a.friction === 'High' || a.friction === 'Critical' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall'
       );
     }
 
+    // Apply contact type filter
+    if (contactTypeFilter !== 'All') {
+      filteredAdvisors = filteredAdvisors.filter(a => getContactType(a) === contactTypeFilter);
+    }
+
     // Apply city filter from map
     if (territoryFilter) {
-      filteredAdvisors = filteredAdvisors.filter(a => {
-        return a.location?.trim() === territoryFilter;
-      });
+      filteredAdvisors = filteredAdvisors.filter(a => a.location?.trim() === territoryFilter);
     }
 
     // Apply sorting
@@ -421,7 +487,6 @@ export default function LiveManagerPage() {
       return a.name.localeCompare(b.name);
     });
 
-    // Calculate days since last contact
     const getDaysSinceContact = (lastContactDate: string): number => {
       const last = new Date(lastContactDate);
       const now = new Date();
@@ -440,51 +505,76 @@ export default function LiveManagerPage() {
       setTerritoryFilter(prev => prev === city ? null : city);
     };
 
-    // Calculate TSD data
+    // TSD data
     const allTsds = new Set<string>();
-    advisorsWithDeals.forEach(a => {
-      a.tsds?.forEach(tsd => allTsds.add(tsd));
-    });
+    advisorsWithDeals.forEach(a => { a.tsds?.forEach(tsd => allTsds.add(tsd)); });
     const tsdArray = Array.from(allTsds).sort();
     const tsdData = tsdArray.map(tsd => {
       const advisorsWithTsd = advisorsWithDeals.filter(a => a.tsds?.includes(tsd));
       const mrrWithTsd = advisorsWithTsd.reduce((sum, a) => sum + a.mrr, 0);
+      return { tsd, advisorCount: advisorsWithTsd.length, mrr: mrrWithTsd, advisors: advisorsWithTsd };
+    });
+
+    // White space data per advisor
+    const whiteSpaceData = advisorsWithDeals.map(advisor => {
+      const advisorDeals = deals.filter(d => d.advisorId === advisor.id);
+      const soldProducts = new Set(advisorDeals.map(d => d.name.split(' ')[0]).filter(p => SERVICE_CATALOG.includes(p)));
+      const opportunityProducts = SERVICE_CATALOG.filter(p => !soldProducts.has(p));
+      const crossSellScore = (soldProducts.size / SERVICE_CATALOG.length) * 100;
       return {
-        tsd,
-        advisorCount: advisorsWithTsd.length,
-        mrr: mrrWithTsd,
-        advisors: advisorsWithTsd,
+        ...advisor,
+        soldProducts: Array.from(soldProducts),
+        opportunityProducts,
+        crossSellScore,
+        opportunityMRR: opportunityProducts.reduce((sum, p) => sum + (2000 + seededRandom(`${advisor.id}-${p}`) * 6000), 0),
       };
     });
+
+    // Region analysis for territory sub-tab
+    const advisorsByRegion: Record<string, typeof advisorsWithDeals> = {};
+    advisorsWithDeals.forEach(a => {
+      const region = a.location ? regionMapping(a.location) : 'Other';
+      if (!advisorsByRegion[region]) advisorsByRegion[region] = [];
+      advisorsByRegion[region].push(a);
+    });
+
+    const regionAnalysis = Object.entries(advisorsByRegion).map(([region, advs]) => {
+      const regionDeals = deals.filter(d => advs.some(a => a.id === d.advisorId));
+      const regionMRR = advs.reduce((s, a) => s + a.mrr, 0);
+      const regionPipeline = regionDeals.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Stalled').reduce((s, d) => s + d.mrr, 0);
+      const closedDeals = regionDeals.filter(d => d.stage === 'Closed Won');
+      const avgSold = closedDeals.length > 0 ? closedDeals.reduce((s, d) => s + d.mrr, 0) / closedDeals.length : 0;
+      return { region, partners: advs.length, mrr: regionMRR, pipeline: regionPipeline, avgSold, closedCount: closedDeals.length };
+    }).sort((a, b) => b.mrr - a.mrr);
 
     const [selectedTsdAdvisors, setSelectedTsdAdvisors] = useState<Advisor[]>([]);
 
     return (
       <>
-        {/* View Toggle */}
-        <div className="flex gap-3 mb-6">
-          <button
-            onClick={() => setRelationshipViewMode('partners')}
-            className={`px-4 py-2 rounded-[8px] text-13px font-medium transition-colors ${
-              relationshipViewMode === 'partners'
-                ? 'bg-[#157A6E] text-white'
-                : 'bg-white border border-[#e8e5e1] text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            Partners
-          </button>
-          <button
-            onClick={() => setRelationshipViewMode('tsds')}
-            className={`px-4 py-2 rounded-[8px] text-13px font-medium transition-colors ${
-              relationshipViewMode === 'tsds'
-                ? 'bg-[#157A6E] text-white'
-                : 'bg-white border border-[#e8e5e1] text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            TSDs ({tsdArray.length})
-          </button>
+        {/* Sub-Tab Navigation */}
+        <div className="flex gap-2 mb-6 border-b border-[#e8e5e1] pb-3">
+          {[
+            { key: 'partners', label: 'Partners', icon: Users },
+            { key: 'tsds', label: `TSDs (${tsdArray.length})`, icon: Briefcase },
+            { key: 'territory', label: 'Territory Map', icon: Map },
+            { key: 'white-space', label: 'White Space', icon: LayoutGrid },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setRelationshipViewMode(tab.key as any)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-[8px] text-13px font-medium transition-colors ${
+                relationshipViewMode === tab.key
+                  ? 'bg-[#157A6E] text-white'
+                  : 'bg-white border border-[#e8e5e1] text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <tab.icon className="w-3.5 h-3.5" />
+              {tab.label}
+            </button>
+          ))}
         </div>
 
+        {/* ── PARTNERS SUB-TAB ── */}
         {relationshipViewMode === 'partners' && (
         <div className="space-y-4">
           {/* Territory Map */}
@@ -494,8 +584,24 @@ export default function LiveManagerPage() {
             selectedCity={territoryFilter}
           />
 
-          {/* Segmentation Filter Bar */}
+          {/* Contact Type Filter */}
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+            <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Contact Type</p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {contactTypes.map(ct => (
+                <button
+                  key={ct}
+                  onClick={() => setContactTypeFilter(ct)}
+                  className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
+                    contactTypeFilter === ct
+                      ? 'bg-[#157A6E] text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {ct}
+                </button>
+              ))}
+            </div>
             <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Partner Segments</p>
             <div className="flex flex-wrap gap-2">
               {segments.map(seg => (
@@ -522,6 +628,7 @@ export default function LiveManagerPage() {
             <div className="text-12px text-gray-600 font-medium">
               Showing {sortedAdvisors.length} partners
               {territoryFilter && <span className="ml-1 text-[#157A6E]">in {territoryFilter}</span>}
+              {contactTypeFilter !== 'All' && <span className="ml-1 text-[#157A6E]">· {contactTypeFilter}</span>}
             </div>
             <div className="flex gap-2">
               <button
@@ -542,7 +649,7 @@ export default function LiveManagerPage() {
             </div>
           </div>
 
-          {/* Advisors List */}
+          {/* Advisors List with inline White Space */}
           <div className="space-y-2">
             {sortedAdvisors.length === 0 ? (
               <div className="text-center py-8 text-gray-400">
@@ -551,6 +658,8 @@ export default function LiveManagerPage() {
             ) : (
               sortedAdvisors.map(a => {
                 const daysSince = getDaysSinceContact(a.lastContact);
+                const ws = whiteSpaceData.find(w => w.id === a.id);
+                const contactType = getContactType(a);
                 return (
                   <div
                     key={a.id}
@@ -559,7 +668,10 @@ export default function LiveManagerPage() {
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
-                        <p className="text-13px font-semibold text-gray-900">{a.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-13px font-semibold text-gray-900">{a.name}</p>
+                          <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 text-[10px] rounded font-medium">{contactType}</span>
+                        </div>
                         <p className="text-11px text-gray-500">{a.company} · {a.title}</p>
                       </div>
                       <div className="flex items-start gap-3">
@@ -576,7 +688,7 @@ export default function LiveManagerPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 mt-3">
+                    <div className="flex items-center gap-3 mt-2">
                       <PulseBadge pulse={a.pulse} />
                       <TrajectoryBadge trajectory={a.trajectory} />
                       <FrictionBadge level={a.friction} />
@@ -584,6 +696,20 @@ export default function LiveManagerPage() {
                         Last contacted: {daysSince}d ago
                       </span>
                     </div>
+                    {/* Inline White Space indicator */}
+                    {ws && ws.opportunityProducts.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <LayoutGrid className="w-3 h-3 text-gray-400" />
+                          <span className="text-10px text-gray-500 font-medium">White Space:</span>
+                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${ws.crossSellScore}%` }} />
+                          </div>
+                          <span className="text-10px font-semibold text-gray-600">{ws.crossSellScore.toFixed(0)}%</span>
+                          <span className="text-10px text-gray-400">{ws.opportunityProducts.length} opps</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -602,14 +728,13 @@ export default function LiveManagerPage() {
           />
         )}
 
+        {/* ── TSDs SUB-TAB ── */}
         {relationshipViewMode === 'tsds' && (
         <div className="space-y-4">
-          {/* TSD Explainer */}
           <div className="bg-[#F0FAF8] rounded-[10px] border border-[#157A6E]/20 p-4">
             <p className="text-12px text-[#157A6E] font-medium">Technology Solutions Distributors (TSDs) are your upstream partners — companies like Avant, Telarus, Intelisys, and Sandler Partners that connect you to supplier ecosystems and enablement resources.</p>
           </div>
 
-          {/* TSD Summary KPIs */}
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
               <p className="text-10px text-gray-500 uppercase font-medium">Active TSDs</p>
@@ -625,11 +750,9 @@ export default function LiveManagerPage() {
             </div>
           </div>
 
-          {/* TSDs Grid */}
           {tsdArray.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
               <p className="text-12px">No Technology Solutions Distributors assigned yet</p>
-              <p className="text-11px text-gray-300 mt-1">Assign TSDs to your partners to track distributor relationships</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">
@@ -637,39 +760,26 @@ export default function LiveManagerPage() {
                 const healthyCount = tsd.advisors.filter(a => a.pulse === 'Strong' || a.pulse === 'Steady').length;
                 const atRiskCount = tsd.advisors.filter(a => a.trajectory === 'Freefall' || a.trajectory === 'Slipping').length;
                 return (
-                <div
-                  key={tsd.tsd}
-                  className="bg-white rounded-[10px] border border-[#e8e5e1] p-5 hover:shadow-md transition-all"
-                >
+                <div key={tsd.tsd} className="bg-white rounded-[10px] border border-[#e8e5e1] p-5 hover:shadow-md transition-all">
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">{tsd.tsd}</p>
-                      <p className="text-11px text-gray-500 mt-1">
-                        {tsd.advisorCount} partner{tsd.advisorCount !== 1 ? 's' : ''} · {formatCurrency(tsd.mrr)} MRR
-                      </p>
+                      <p className="text-11px text-gray-500 mt-1">{tsd.advisorCount} partner{tsd.advisorCount !== 1 ? 's' : ''} · {formatCurrency(tsd.mrr)} MRR</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {atRiskCount > 0 && (
-                        <span className="px-2 py-0.5 bg-red-50 text-red-600 text-10px font-semibold rounded-full">{atRiskCount} at risk</span>
-                      )}
+                      {atRiskCount > 0 && <span className="px-2 py-0.5 bg-red-50 text-red-600 text-10px font-semibold rounded-full">{atRiskCount} at risk</span>}
                       <span className="px-2 py-0.5 bg-green-50 text-green-700 text-10px font-semibold rounded-full">{healthyCount} healthy</span>
                     </div>
                   </div>
-
-                  {/* MRR bar */}
                   <div className="mb-3">
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${Math.min(100, (tsd.mrr / Math.max(...tsdData.map(t => t.mrr), 1)) * 100)}%` }} />
                     </div>
                   </div>
-
                   <div className="space-y-2">
                     {tsd.advisors.map(advisor => (
-                      <div
-                        key={advisor.id}
-                        className="p-2.5 bg-gray-50 rounded-lg flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
-                        onClick={() => { setSelectedAdvisor(advisor); setPanelOpen(true); }}
-                      >
+                      <div key={advisor.id} className="p-2.5 bg-gray-50 rounded-lg flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => { setSelectedAdvisor(advisor); setPanelOpen(true); }}>
                         <div className="text-11px flex-1">
                           <p className="text-gray-800 font-medium">{advisor.name}</p>
                           <p className="text-gray-500">{advisor.company}</p>
@@ -689,6 +799,173 @@ export default function LiveManagerPage() {
         </div>
         )}
 
+        {/* ── TERRITORY MAP SUB-TAB ── */}
+        {relationshipViewMode === 'territory' && (
+        <div className="space-y-4">
+          {/* Full US Map with state markers */}
+          <USAMap
+            advisorsByCity={advisorsByCityMap}
+            onCityClick={handleCityClick}
+            selectedCity={null}
+            showAllStates={true}
+            stateData={stateDataMap}
+            onStateClick={(abbr) => setSelectedState(prev => prev === abbr ? null : abbr)}
+            selectedState={selectedState}
+          />
+
+          {/* Region Analysis */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Regional Analysis</h3>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                <p className="text-10px text-gray-500 uppercase font-medium">Total MRR</p>
+                <p className="text-lg font-bold text-[#157A6E]">{formatCurrency(totalMRR)}</p>
+              </div>
+              <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                <p className="text-10px text-gray-500 uppercase font-medium">Pipeline by Region</p>
+                <p className="text-lg font-bold text-gray-800">{formatCurrency(pipelineMRR)}</p>
+              </div>
+              <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                <p className="text-10px text-gray-500 uppercase font-medium">Avg Deal Size</p>
+                <p className="text-lg font-bold text-gray-800">{closedWonDeals.length > 0 ? formatCurrency(closedWonMRR / closedWonDeals.length) : '—'}</p>
+              </div>
+            </div>
+            <table className="w-full text-12px">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left py-2 font-medium text-gray-500">Region</th>
+                  <th className="text-right py-2 font-medium text-gray-500">Partners</th>
+                  <th className="text-right py-2 font-medium text-gray-500">MRR</th>
+                  <th className="text-right py-2 font-medium text-gray-500">Pipeline</th>
+                  <th className="text-right py-2 font-medium text-gray-500">Avg Sold</th>
+                  <th className="text-right py-2 font-medium text-gray-500">Closed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {regionAnalysis.map(r => (
+                  <tr key={r.region} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="py-2 font-medium text-gray-800">{r.region}</td>
+                    <td className="py-2 text-right text-gray-600">{r.partners}</td>
+                    <td className="py-2 text-right font-semibold text-[#157A6E]">{formatCurrency(r.mrr)}</td>
+                    <td className="py-2 text-right text-gray-600">{formatCurrency(r.pipeline)}</td>
+                    <td className="py-2 text-right text-gray-600">{r.avgSold > 0 ? formatCurrency(r.avgSold) : '—'}</td>
+                    <td className="py-2 text-right text-gray-600">{r.closedCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* State detail (if selected) */}
+          {selectedState && stateDataMap[selectedState] && (
+            <div className="bg-white rounded-[10px] border border-[#157A6E]/30 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">
+                  {selectedState} Detail
+                </h3>
+                <button onClick={() => setSelectedState(null)} className="text-12px text-[#157A6E] hover:underline">Clear</button>
+              </div>
+              <div className="grid grid-cols-4 gap-4 mb-4">
+                <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                  <p className="text-10px text-gray-500">Partners</p>
+                  <p className="text-lg font-bold text-gray-800">{stateDataMap[selectedState].partners}</p>
+                </div>
+                <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                  <p className="text-10px text-gray-500">MRR</p>
+                  <p className="text-lg font-bold text-[#157A6E]">{formatCurrency(stateDataMap[selectedState].mrr)}</p>
+                </div>
+                <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                  <p className="text-10px text-gray-500">Pipeline</p>
+                  <p className="text-lg font-bold text-gray-800">{formatCurrency(stateDataMap[selectedState].pipeline)}</p>
+                </div>
+                <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                  <p className="text-10px text-gray-500">Deals</p>
+                  <p className="text-lg font-bold text-gray-800">{stateDataMap[selectedState].deals}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {advisorsWithDeals
+                  .filter(a => a.location?.toUpperCase().includes(`, ${selectedState}`))
+                  .sort((a, b) => b.mrr - a.mrr)
+                  .map(a => (
+                    <div key={a.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                      onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
+                      <div>
+                        <p className="text-13px font-medium text-gray-800">{a.name}</p>
+                        <p className="text-11px text-gray-500">{a.company} · {a.location}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <PulseBadge pulse={a.pulse} />
+                        <span className="text-13px font-semibold text-[#157A6E]">{formatCurrency(a.mrr)}</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+        )}
+
+        {/* ── WHITE SPACE SUB-TAB ── */}
+        {relationshipViewMode === 'white-space' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-3 gap-4">
+            <KPICard label="Total White Space MRR" value={formatCurrency(whiteSpaceData.reduce((s, a) => s + a.opportunityMRR, 0))} change={`${whiteSpaceData.length} advisors`} changeType="positive" />
+            <KPICard label="Avg Cross-Sell" value={`${(whiteSpaceData.reduce((s, a) => s + a.crossSellScore, 0) / Math.max(whiteSpaceData.length, 1)).toFixed(0)}%`} change="of catalog covered" changeType="neutral" />
+            <KPICard label="Services in Catalog" value={`${SERVICE_CATALOG.length}`} change="available products" changeType="positive" />
+          </div>
+
+          <div className="space-y-4">
+            {[...whiteSpaceData].sort((a, b) => a.crossSellScore - b.crossSellScore).map(advisor => {
+              const colorClass = advisor.crossSellScore < 30 ? 'border-red-200 bg-red-50' : advisor.crossSellScore < 60 ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50';
+              const scoreColor = advisor.crossSellScore < 30 ? 'text-red-700' : advisor.crossSellScore < 60 ? 'text-amber-700' : 'text-emerald-700';
+              const statusBadgeClass = advisor.crossSellScore < 30 ? 'bg-red-100 text-red-700' : advisor.crossSellScore < 60 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+
+              return (
+                <div key={advisor.id} className={`border rounded-[10px] p-5 ${colorClass}`}>
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <p className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">{advisor.name}</p>
+                      <p className="text-12px text-gray-600">{advisor.company} · {formatCurrency(advisor.mrr)} MRR</p>
+                    </div>
+                    <span className={`px-3 py-1.5 rounded-full text-13px font-bold ${statusBadgeClass}`}>
+                      {advisor.crossSellScore.toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <p className="text-12px font-semibold text-gray-700 mb-2">Products Sold ({advisor.soldProducts.length})</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {advisor.soldProducts.length > 0 ? advisor.soldProducts.map(p => (
+                          <span key={p} className="px-2 py-1 bg-white/70 rounded text-11px font-medium text-gray-700">{p}</span>
+                        )) : <span className="text-11px text-gray-500 italic">None</span>}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-12px font-semibold text-gray-700 mb-2">White Space ({advisor.opportunityProducts.length})</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {advisor.opportunityProducts.slice(0, 4).map(p => (
+                          <span key={p} className="px-2 py-1 bg-white/70 rounded text-10px text-gray-700 font-medium">{p}</span>
+                        ))}
+                        {advisor.opportunityProducts.length > 4 && (
+                          <span className="text-10px text-gray-600 italic">+{advisor.opportunityProducts.length - 4} more</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2 bg-white/50 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-[#157A6E] to-[#0f5550]" style={{ width: `${advisor.crossSellScore}%` }} />
+                    </div>
+                    <span className={`text-11px font-bold ${scoreColor}`}>{advisor.crossSellScore.toFixed(1)}%</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        )}
+
         {/* PartnerModal */}
         <PartnerModal
           isOpen={showPartnerModal}
@@ -700,6 +977,9 @@ export default function LiveManagerPage() {
     );
   };
 
+  // ════════════════════════════════════════════════
+  // PIPELINE (with Quotes vs Sold metrics)
+  // ════════════════════════════════════════════════
   const renderPipeline = () => {
     const filtered = deals.filter(d => {
       if (dealFilter.health !== 'all' && d.health !== dealFilter.health) return false;
@@ -715,6 +995,19 @@ export default function LiveManagerPage() {
           <KPICard label="Stalled" value={`${stalledDeals.length}`} change={formatCurrency(stalledDeals.reduce((s, d) => s + d.mrr, 0))} changeType={stalledDeals.length > 0 ? "negative" : "neutral"} />
         </div>
 
+        {/* Pipeline view toggle */}
+        <div className="flex gap-2 border-b border-[#e8e5e1] pb-2">
+          <button onClick={() => setPipelineMetricsView('deals')}
+            className={`px-4 py-2 text-13px font-medium rounded-t-lg transition-colors ${pipelineMetricsView === 'deals' ? 'bg-[#157A6E] text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+            All Deals
+          </button>
+          <button onClick={() => setPipelineMetricsView('quotes-vs-sold')}
+            className={`px-4 py-2 text-13px font-medium rounded-t-lg transition-colors ${pipelineMetricsView === 'quotes-vs-sold' ? 'bg-[#157A6E] text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+            Quotes vs Sold
+          </button>
+        </div>
+
+        {pipelineMetricsView === 'deals' && (
         <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
           <div className="flex items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-3">
@@ -765,13 +1058,86 @@ export default function LiveManagerPage() {
             })}
           </div>
         </div>
+        )}
+
+        {/* Quotes vs Sold view */}
+        {pipelineMetricsView === 'quotes-vs-sold' && (
+        <div className="space-y-4">
+          {/* Summary stats */}
+          <div className="grid grid-cols-4 gap-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
+              <p className="text-10px text-gray-500 uppercase font-medium">Total Quotes</p>
+              <p className="text-xl font-bold text-gray-800">{deals.length}</p>
+            </div>
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
+              <p className="text-10px text-gray-500 uppercase font-medium">Total Sold</p>
+              <p className="text-xl font-bold text-green-700">{closedWonDeals.length}</p>
+            </div>
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
+              <p className="text-10px text-gray-500 uppercase font-medium">Close Rate</p>
+              <p className="text-xl font-bold text-[#157A6E]">{deals.length > 0 ? (closedWonDeals.length / deals.length * 100).toFixed(1) : 0}%</p>
+            </div>
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
+              <p className="text-10px text-gray-500 uppercase font-medium">Avg Deal Size</p>
+              <p className="text-xl font-bold text-gray-800">{closedWonDeals.length > 0 ? formatCurrency(closedWonMRR / closedWonDeals.length) : '—'}</p>
+            </div>
+          </div>
+
+          {/* Per-partner breakdown */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Quotes vs Sold by Partner</h3>
+            <table className="w-full text-12px">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-2 font-medium text-gray-500">Partner</th>
+                  <th className="text-center py-2 font-medium text-gray-500">Q1 Quotes</th>
+                  <th className="text-center py-2 font-medium text-gray-500">Q1 Sold</th>
+                  <th className="text-center py-2 font-medium text-gray-500">Q2 Quotes</th>
+                  <th className="text-center py-2 font-medium text-gray-500">Q2 Sold</th>
+                  <th className="text-center py-2 font-medium text-gray-500">All-Time Quotes</th>
+                  <th className="text-center py-2 font-medium text-gray-500">All-Time Sold</th>
+                  <th className="text-right py-2 font-medium text-gray-500">Close Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quotesVsSold.map(a => (
+                  <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
+                    onClick={() => { setSelectedAdvisor(a as any); setPanelOpen(true); }}>
+                    <td className="py-2">
+                      <p className="font-medium text-gray-800">{a.name}</p>
+                      <p className="text-10px text-gray-500">{a.company}</p>
+                    </td>
+                    <td className="py-2 text-center text-gray-600">{a.q1.quotes}</td>
+                    <td className="py-2 text-center font-semibold text-green-700">{a.q1.sold}</td>
+                    <td className="py-2 text-center text-gray-600">{a.q2.quotes}</td>
+                    <td className="py-2 text-center font-semibold text-green-700">{a.q2.sold}</td>
+                    <td className="py-2 text-center text-gray-800 font-medium">{a.totalQuotes}</td>
+                    <td className="py-2 text-center font-bold text-green-700">{a.soldDeals}</td>
+                    <td className="py-2 text-right">
+                      <span className={`px-2 py-0.5 rounded-full text-11px font-bold ${
+                        a.closeRate >= 50 ? 'bg-green-100 text-green-700' :
+                        a.closeRate >= 25 ? 'bg-amber-100 text-amber-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {a.closeRate.toFixed(0)}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        )}
       </div>
     );
   };
 
+  // ════════════════════════════════════════════════
+  // INTELLIGENCE HUB
+  // ════════════════════════════════════════════════
   const renderIntelligence = () => (
     <div className="space-y-6">
-      {/* Diagnostics Table */}
       <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
         <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Partner Diagnostics</h3>
         {diagnosticRows.length === 0 ? (
@@ -791,16 +1157,8 @@ export default function LiveManagerPage() {
               {diagnosticRows.map((row, i) => {
                 const advisor = advisors.find(a => a.name === row.advisor);
                 return (
-                  <tr
-                    key={i}
-                    className="border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors"
-                    onClick={() => {
-                      if (advisor) {
-                        setSelectedAdvisor(advisor);
-                        setPanelOpen(true);
-                      }
-                    }}
-                  >
+                  <tr key={i} className="border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => { if (advisor) { setSelectedAdvisor(advisor); setPanelOpen(true); } }}>
                     <td className="py-2 font-medium text-gray-800">{row.advisor}</td>
                     <td className="py-2"><PulseBadge pulse={row.pulse} /></td>
                     <td className="py-2"><DealHealthBadge health={row.dealHealth} /></td>
@@ -814,7 +1172,6 @@ export default function LiveManagerPage() {
         )}
       </div>
 
-      {/* Tier Distribution */}
       <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
         <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Portfolio Distribution</h3>
         <div className="grid grid-cols-3 gap-4">
@@ -835,10 +1192,12 @@ export default function LiveManagerPage() {
     </div>
   );
 
+  // ════════════════════════════════════════════════
+  // STRATEGIC
+  // ════════════════════════════════════════════════
   const renderStrategic = () => {
     const frictionIssues = advisors.filter(a => a.friction === 'High' || a.friction === 'Critical');
 
-    // Heatmap: advisors in a grid, color-coded by health score (composite of pulse, friction, trajectory)
     const healthValue = (a: Advisor): number => {
       const pulseScores: Record<string, number> = { Strong: 90, Steady: 65, Rising: 55, Fading: 30, Flatline: 10 };
       const frictionPenalty: Record<string, number> = { Low: 0, Moderate: -10, High: -25, Critical: -40 };
@@ -857,32 +1216,22 @@ export default function LiveManagerPage() {
       return 'bg-red-600';
     };
 
-    const heatTextColor = (score: number): string => {
-      if (score >= 50) return 'text-white';
-      return 'text-white';
-    };
-
-    // Sort advisors: highest MRR first for visual impact
     const sortedAdvisors = [...advisors].filter(a => a.mrr > 0).sort((a, b) => b.mrr - a.mrr);
-
-    // Group by tier
     const tierGroups = [
       { label: 'Top 10', tier: 'top10', advisors: sortedAdvisors.filter(a => a.tier === 'top10') },
       { label: 'Next 20', tier: 'next20', advisors: sortedAdvisors.filter(a => a.tier === 'next20') },
       { label: 'Other', tier: 'other', advisors: sortedAdvisors.filter(a => a.tier === 'other') },
     ].filter(g => g.advisors.length > 0);
 
-    // Friction timeline data for sparkline effect
     const frictionByLevel = [
-      { level: 'Critical', count: advisors.filter(a => a.friction === 'Critical').length, mrr: advisors.filter(a => a.friction === 'Critical').reduce((s, a) => s + a.mrr, 0), color: 'bg-red-600', textColor: 'text-red-700', bgColor: 'bg-red-50' },
-      { level: 'High', count: advisors.filter(a => a.friction === 'High').length, mrr: advisors.filter(a => a.friction === 'High').reduce((s, a) => s + a.mrr, 0), color: 'bg-red-400', textColor: 'text-red-600', bgColor: 'bg-red-50' },
-      { level: 'Moderate', count: advisors.filter(a => a.friction === 'Moderate').length, mrr: advisors.filter(a => a.friction === 'Moderate').reduce((s, a) => s + a.mrr, 0), color: 'bg-amber-400', textColor: 'text-amber-700', bgColor: 'bg-amber-50' },
-      { level: 'Low', count: advisors.filter(a => a.friction === 'Low').length, mrr: advisors.filter(a => a.friction === 'Low').reduce((s, a) => s + a.mrr, 0), color: 'bg-emerald-400', textColor: 'text-emerald-700', bgColor: 'bg-emerald-50' },
+      { level: 'Critical', count: advisors.filter(a => a.friction === 'Critical').length, mrr: advisors.filter(a => a.friction === 'Critical').reduce((s, a) => s + a.mrr, 0), color: 'bg-red-600' },
+      { level: 'High', count: advisors.filter(a => a.friction === 'High').length, mrr: advisors.filter(a => a.friction === 'High').reduce((s, a) => s + a.mrr, 0), color: 'bg-red-400' },
+      { level: 'Moderate', count: advisors.filter(a => a.friction === 'Moderate').length, mrr: advisors.filter(a => a.friction === 'Moderate').reduce((s, a) => s + a.mrr, 0), color: 'bg-amber-400' },
+      { level: 'Low', count: advisors.filter(a => a.friction === 'Low').length, mrr: advisors.filter(a => a.friction === 'Low').reduce((s, a) => s + a.mrr, 0), color: 'bg-emerald-400' },
     ];
 
     return (
       <div className="space-y-6">
-        {/* KPI Row */}
         <div className="grid grid-cols-4 gap-4">
           <KPICard label="Days to Quarter End" value={`${DAYS_REMAINING}`} change={QUARTER_END} changeType="neutral" />
           <KPICard label="High Friction Partners" value={`${frictionIssues.length}`} change={`${formatCurrency(frictionIssues.reduce((s, a) => s + a.mrr, 0))} at risk`} changeType={frictionIssues.length > 0 ? "negative" : "neutral"} />
@@ -890,7 +1239,7 @@ export default function LiveManagerPage() {
           <KPICard label="Healthy Partners" value={`${advisors.filter(a => a.friction === 'Low' && (a.pulse === 'Strong' || a.pulse === 'Steady')).length}`} change={`of ${advisors.length} total`} changeType="positive" />
         </div>
 
-        {/* Friction Distribution Bar */}
+        {/* Friction Distribution */}
         <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
           <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Friction Distribution</h3>
           <div className="flex h-8 rounded-lg overflow-hidden mb-3">
@@ -911,12 +1260,12 @@ export default function LiveManagerPage() {
           </div>
         </div>
 
-        {/* Partner Health Heatmap */}
+        {/* Heatmap */}
         <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Partner Health Heatmap</h3>
-              <p className="text-11px text-gray-400 mt-0.5">Composite score: Pulse + Trajectory + Friction · Sized by MRR · Click to drill in</p>
+              <p className="text-11px text-gray-400 mt-0.5">Composite score: Pulse + Trajectory + Friction · Sized by MRR</p>
             </div>
             <div className="flex items-center gap-1">
               <div className="flex items-center gap-0.5">
@@ -930,7 +1279,6 @@ export default function LiveManagerPage() {
               <span className="text-10px text-gray-400 ml-1">Critical → Healthy</span>
             </div>
           </div>
-
           {tierGroups.map(group => (
             <div key={group.tier} className="mb-5 last:mb-0">
               <div className="flex items-center gap-2 mb-2">
@@ -942,31 +1290,22 @@ export default function LiveManagerPage() {
                   const score = healthValue(a);
                   const size = Math.max(36, Math.min(72, 36 + (a.mrr / 1000) * 1.2));
                   return (
-                    <div
-                      key={a.id}
-                      className={`${heatColor(score)} rounded-md flex flex-col items-center justify-center cursor-pointer
-                        hover:ring-2 hover:ring-gray-800 hover:ring-offset-1 transition-all group relative`}
+                    <div key={a.id}
+                      className={`${heatColor(score)} rounded-md flex flex-col items-center justify-center cursor-pointer hover:ring-2 hover:ring-gray-800 hover:ring-offset-1 transition-all group relative`}
                       style={{ width: `${size}px`, height: `${size}px`, minWidth: `${size}px` }}
-                      onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}
-                    >
-                      <span className={`text-[9px] font-bold ${heatTextColor(score)} leading-tight text-center px-0.5`}>
+                      onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}>
+                      <span className="text-[9px] font-bold text-white leading-tight text-center px-0.5">
                         {a.name.split(' ').map(n => n[0]).join('')}
                       </span>
-                      <span className={`text-[8px] ${heatTextColor(score)} opacity-80`}>
-                        {score}
-                      </span>
-                      {/* Tooltip */}
+                      <span className="text-[8px] text-white opacity-80">{score}</span>
                       <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-10px rounded-lg px-3 py-2 whitespace-nowrap z-20 shadow-lg">
                         <p className="font-semibold">{a.name}</p>
                         <p className="text-gray-300">{a.company} · {formatCurrency(a.mrr)}</p>
                         <div className="flex items-center gap-2 mt-1 text-[9px]">
-                          <span>Pulse: {a.pulse}</span>
-                          <span>·</span>
-                          <span>Friction: {a.friction}</span>
-                          <span>·</span>
+                          <span>Pulse: {a.pulse}</span><span>·</span>
+                          <span>Friction: {a.friction}</span><span>·</span>
                           <span>Trajectory: {a.trajectory}</span>
                         </div>
-                        {a.diagnosis && <p className="text-gray-400 mt-1 max-w-[250px] text-[9px]">{a.diagnosis.substring(0, 80)}...</p>}
                       </div>
                     </div>
                   );
@@ -976,7 +1315,7 @@ export default function LiveManagerPage() {
           ))}
         </div>
 
-        {/* Friction Detail Cards */}
+        {/* Friction Cases */}
         <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
           <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">
             Friction Cases
@@ -1014,7 +1353,7 @@ export default function LiveManagerPage() {
           )}
         </div>
 
-        {/* Supplier Accountability Section */}
+        {/* Supplier Accountability */}
         {ratings && (
           <div className="space-y-4">
             <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
@@ -1023,12 +1362,8 @@ export default function LiveManagerPage() {
                   <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Supplier Accountability</h3>
                   <p className="text-11px text-gray-400 mt-0.5">Data from The Channel Standard Ratings Platform</p>
                 </div>
-                <a
-                  href="https://www.the-channel-standard.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[#157A6E] text-11px font-semibold hover:underline flex items-center gap-1"
-                >
+                <a href="https://www.the-channel-standard.com" target="_blank" rel="noopener noreferrer"
+                  className="text-[#157A6E] text-11px font-semibold hover:underline flex items-center gap-1">
                   View Full Ratings
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6v12h12v-6m0-6l4-4m0 0l-4 4m4-4v4" />
@@ -1037,8 +1372,6 @@ export default function LiveManagerPage() {
               </div>
               <SupplierAccountabilityCard data={ratings} loading={ratingsLoading} />
             </div>
-
-            {/* Advisor Sentiment Feed */}
             {ratings?.supplier?.recentFeedback && ratings.supplier.recentFeedback.length > 0 && (
               <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
                 <AdvisorSentimentFeed data={ratings} />
@@ -1050,443 +1383,15 @@ export default function LiveManagerPage() {
     );
   };
 
-  // Seeded random for deterministic mock data
-  const seededRandom = (seed: string): number => {
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      const char = seed.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return Math.abs(hash) % 1000 / 1000;
-  };
-
-  const renderWhiteSpace = () => {
-    const advisorsWithDealsFiltered = advisorsWithDeals.filter(a => deals.some(d => d.advisorId === a.id));
-
-    const whiteSpaceData = advisorsWithDealsFiltered.map(advisor => {
-      const advisorDeals = deals.filter(d => d.advisorId === advisor.id);
-      const soldProducts = new Set(advisorDeals.map(d => d.name.split(' ')[0]).filter(p => SERVICE_CATALOG.includes(p)));
-      const opportunityProducts = SERVICE_CATALOG.filter(p => !soldProducts.has(p));
-      const crossSellScore = (soldProducts.size / SERVICE_CATALOG.length) * 100;
-
-      return {
-        ...advisor,
-        soldProducts: Array.from(soldProducts),
-        opportunityProducts,
-        crossSellScore,
-        opportunityMRR: opportunityProducts.reduce((sum, p) => {
-          const seed = `${advisor.id}-${p}`;
-          return sum + (2000 + seededRandom(seed) * 6000);
-        }, 0),
-      };
-    });
-
-    const totalWhiteSpaceMRR = whiteSpaceData.reduce((s, a) => s + a.opportunityMRR, 0);
-    const avgCrossSellScore = whiteSpaceData.reduce((s, a) => s + a.crossSellScore, 0) / whiteSpaceData.length;
-
-    const allOpportunities = whiteSpaceData.flatMap(a => a.opportunityProducts.map(p => ({
-      product: p,
-      advisor: a.name,
-      mrr: 2000 + seededRandom(`${a.id}-${p}`) * 6000,
-    }))).sort((a, b) => b.mrr - a.mrr).slice(0, 5);
-
-    const sorted = [...whiteSpaceData].sort((a, b) => a.crossSellScore - b.crossSellScore);
-
-    return (
-      <div className="space-y-6">
-        {/* Summary Stats */}
-        <div className="grid grid-cols-4 gap-4">
-          <KPICard label="Total White Space MRR" value={formatCurrency(totalWhiteSpaceMRR)} change={`${whiteSpaceData.length} advisors`} changeType="positive" />
-          <KPICard label="Avg Cross-Sell Score" value={`${avgCrossSellScore.toFixed(0)}%`} change="of catalog covered" changeType="neutral" />
-          <KPICard label="Top Opportunity" value={allOpportunities.length > 0 ? allOpportunities[0].product : 'N/A'} change={allOpportunities.length > 0 ? formatCurrency(allOpportunities[0].mrr) : ''} changeType="positive" />
-          <KPICard label="Advisors Assessed" value={`${whiteSpaceData.length}`} change="with active deals" changeType="positive" />
-        </div>
-
-        {/* Account Grid */}
-        <div className="space-y-4">
-          <h2 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Account Analysis</h2>
-          <div className="grid grid-cols-1 gap-4">
-            {sorted.map(advisor => {
-              const colorClass = advisor.crossSellScore < 30 ? 'border-red-200 bg-red-50' : advisor.crossSellScore < 60 ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50';
-              const scoreColor = advisor.crossSellScore < 30 ? 'text-red-700' : advisor.crossSellScore < 60 ? 'text-amber-700' : 'text-emerald-700';
-              const statusBadgeClass = advisor.crossSellScore < 30 ? 'bg-red-100 text-red-700' : advisor.crossSellScore < 60 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
-
-              return (
-                <div key={advisor.id} className={`border rounded-[10px] p-5 ${colorClass}`}>
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <p className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">{advisor.name}</p>
-                      <p className="text-12px text-gray-600">{advisor.company} · {formatCurrency(advisor.mrr)} MRR</p>
-                    </div>
-                    <span className={`px-3 py-1.5 rounded-full text-13px font-bold ${statusBadgeClass}`}>
-                      {advisor.crossSellScore.toFixed(0)}%
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    {/* Products Sold */}
-                    <div>
-                      <p className="text-12px font-semibold text-gray-700 mb-2">Products Sold ({advisor.soldProducts.length})</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {advisor.soldProducts.length > 0 ? advisor.soldProducts.map(p => (
-                          <span key={p} className="px-2 py-1 bg-white/70 rounded text-11px font-medium text-gray-700">
-                            {p}
-                          </span>
-                        )) : (
-                          <span className="text-11px text-gray-500 italic">None</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* White Space Opportunities */}
-                    <div>
-                      <p className="text-12px font-semibold text-gray-700 mb-2">White Space Opportunities ({advisor.opportunityProducts.length})</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {advisor.opportunityProducts.slice(0, 3).map(p => {
-                          const oppMrr = 2000 + seededRandom(`${advisor.id}-${p}`) * 6000;
-                          return (
-                            <div key={p} className="px-2 py-1 bg-white/70 rounded text-10px text-gray-700 flex items-center gap-1">
-                              <span className="font-medium">{p}</span>
-                              <span className="text-gray-500">({formatCurrency(oppMrr)})</span>
-                            </div>
-                          );
-                        })}
-                        {advisor.opportunityProducts.length > 3 && (
-                          <span className="text-10px text-gray-600 italic">+{advisor.opportunityProducts.length - 3} more</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-white/50 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-[#157A6E] to-[#0f5550]" style={{ width: `${advisor.crossSellScore}%` }} />
-                    </div>
-                    <span className={`text-11px font-bold ${scoreColor}`}>{advisor.crossSellScore.toFixed(1)}% of catalog</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Top Opportunities */}
-        {allOpportunities.length > 0 && (
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Top 5 Opportunities</h3>
-            <div className="space-y-2">
-              {allOpportunities.map((opp, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="text-13px font-medium text-gray-800">{opp.product}</p>
-                    <p className="text-11px text-gray-500">{opp.advisor}</p>
-                  </div>
-                  <span className="text-13px font-semibold text-[#157A6E]">{formatCurrency(opp.mrr)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderTerritory = () => {
-    const regionMapping = (location: string): string => {
-      const locationLower = location.toLowerCase();
-      const neastates = ['me', 'nh', 'vt', 'ma', 'ri', 'ct', 'ny', 'nj', 'pa', 'de', 'md', 'dc'];
-      const southeast = ['va', 'wv', 'nc', 'sc', 'ga', 'fl', 'al', 'ms', 'la', 'ar', 'ky', 'tn'];
-      const midwest = ['oh', 'in', 'il', 'mi', 'wi', 'mn', 'ia', 'mo', 'nd', 'sd', 'ne', 'ks'];
-      const southwest = ['tx', 'ok', 'nm', 'az'];
-      const west = ['wa', 'or', 'ca', 'nv', 'id', 'mt', 'wy', 'co', 'ut'];
-
-      for (const state of neastates) if (locationLower.includes(state)) return 'Northeast';
-      for (const state of southeast) if (locationLower.includes(state)) return 'Southeast';
-      for (const state of midwest) if (locationLower.includes(state)) return 'Midwest';
-      for (const state of southwest) if (locationLower.includes(state)) return 'Southwest';
-      for (const state of west) if (locationLower.includes(state)) return 'West';
-
-      return locationLower.includes('international') || locationLower.includes('uk') || locationLower.includes('canada') ? 'International' : 'Unknown';
-    };
-
-    const advisorsByRegion: Record<string, typeof advisorsWithDeals> = {};
-    advisorsWithDeals.forEach(a => {
-      const region = a.location ? regionMapping(a.location) : 'Unknown';
-      if (!advisorsByRegion[region]) advisorsByRegion[region] = [];
-      advisorsByRegion[region].push(a);
-    });
-
-    const filteredAdvisors = searchCity ? advisorsWithDeals.filter(a => a.location?.toLowerCase().includes(searchCity.toLowerCase())) : [];
-    const currentRegion = selectedRegion ? advisorsByRegion[selectedRegion] || [] : [];
-    const displayAdvisors = selectedRegion ? currentRegion : (searchCity ? filteredAdvisors : []);
-    const displayAdvisorsSorted = [...displayAdvisors].sort((a, b) => b.mrr - a.mrr);
-
-    return (
-      <div className="space-y-6">
-        {/* Trip Planner Header */}
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <h2 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-3">Trip Planner</h2>
-          <input
-            type="text"
-            placeholder="Search by city or region..."
-            value={searchCity}
-            onChange={(e) => setSearchCity(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-200 rounded-lg text-13px focus:outline-none focus:ring-2 focus:ring-[#157A6E]"
-          />
-        </div>
-
-        {/* Regions Grid */}
-        {!searchCity && !selectedRegion && (
-          <div className="grid grid-cols-2 gap-4">
-            {Object.entries(advisorsByRegion).map(([region, advs]) => {
-              const regionMRR = advs.reduce((s, a) => s + a.mrr, 0);
-              return (
-                <div
-                  key={region}
-                  onClick={() => setSelectedRegion(region)}
-                  className="bg-white rounded-[10px] border border-[#e8e5e1] p-5 cursor-pointer hover:border-[#157A6E] hover:shadow-sm transition-all"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">{region}</h3>
-                      <p className="text-12px text-gray-500 mt-1">{advs.length} partners · {formatCurrency(regionMRR)} MRR</p>
-                    </div>
-                    <MapPin className="w-5 h-5 text-[#157A6E]" />
-                  </div>
-                  <div className="space-y-1.5 max-h-[120px] overflow-y-auto">
-                    {advs.slice(0, 3).map(a => (
-                      <div key={a.id} className="text-11px text-gray-600">
-                        <span className="font-medium">{a.name}</span> · {formatCurrency(a.mrr)}
-                      </div>
-                    ))}
-                    {advs.length > 3 && <p className="text-10px text-gray-400 italic">+{advs.length - 3} more</p>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Trip Summary - Region Selected */}
-        {selectedRegion && displayAdvisorsSorted.length > 0 && (
-          <>
-            <button
-              onClick={() => setSelectedRegion(null)}
-              className="flex items-center gap-1 text-12px text-[#157A6E] hover:underline"
-            >
-              <ArrowLeft className="w-3 h-3" /> Back to regions
-            </button>
-
-            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-              <h2 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Trip Summary: {selectedRegion}</h2>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <p className="text-11px text-gray-500 mb-1">Total Partners</p>
-                  <p className="text-xl font-bold text-gray-800">{displayAdvisorsSorted.length}</p>
-                </div>
-                <div>
-                  <p className="text-11px text-gray-500 mb-1">Total MRR</p>
-                  <p className="text-xl font-bold text-[#157A6E]">{formatCurrency(displayAdvisorsSorted.reduce((s, a) => s + a.mrr, 0))}</p>
-                </div>
-              </div>
-
-              {displayAdvisorsSorted.length >= 1 && (
-                <div className="bg-[#F7F5F2] rounded-lg p-4 mb-4">
-                  <p className="text-12px font-semibold text-gray-800 mb-2">Suggested Agenda</p>
-                  <ul className="space-y-1 text-11px text-gray-600">
-                    <li>Lunch with <span className="font-medium">{displayAdvisorsSorted[0].name}</span> ({formatCurrency(displayAdvisorsSorted[0].mrr)})</li>
-                    {displayAdvisorsSorted.length >= 2 && <li>Office visit with <span className="font-medium">{displayAdvisorsSorted[1].name}</span> ({formatCurrency(displayAdvisorsSorted[1].mrr)})</li>}
-                    {displayAdvisorsSorted.length >= 3 && <li>Coffee with <span className="font-medium">{displayAdvisorsSorted[2].name}</span> ({formatCurrency(displayAdvisorsSorted[2].mrr)})</li>}
-                  </ul>
-                </div>
-              )}
-
-              <h3 className="text-13px font-semibold text-gray-800 mb-3">Partners to Visit</h3>
-              <div className="space-y-2">
-                {displayAdvisorsSorted.map((a, idx) => (
-                  <div key={a.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex-1">
-                      <p className="text-13px font-medium text-gray-800">#{idx + 1} {a.name}</p>
-                      <p className="text-11px text-gray-500">{a.company} · Last contact: {a.lastContact}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-13px font-bold text-gray-800">{formatCurrency(a.mrr)}</p>
-                      <PulseBadge pulse={a.pulse} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Search Results */}
-        {searchCity && filteredAdvisors.length > 0 && (
-          <>
-            <button
-              onClick={() => setSearchCity('')}
-              className="flex items-center gap-1 text-12px text-[#157A6E] hover:underline"
-            >
-              <ArrowLeft className="w-3 h-3" /> Clear search
-            </button>
-
-            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-              <h2 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Results: {searchCity}</h2>
-              <div className="space-y-2">
-                {displayAdvisorsSorted.map(a => (
-                  <div key={a.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="text-13px font-medium text-gray-800">{a.name}</p>
-                      <p className="text-11px text-gray-500">{a.location} · {a.company}</p>
-                    </div>
-                    <span className="text-13px font-semibold text-gray-800">{formatCurrency(a.mrr)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        {searchCity && filteredAdvisors.length === 0 && (
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
-            <MapPin className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-            <p className="text-13px text-gray-500">No partners found in "{searchCity}"</p>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderCoMarketing = () => {
-
-    const campaigns = [
-      { id: 'cm1', name: 'Cloud Migration Assessment', status: 'active' as const, partners: 8, leadsGenerated: 23, type: 'Email Nurture', startDate: '2026-02-15', endDate: '2026-04-15' },
-      { id: 'cm2', name: 'Security Posture Review', status: 'active' as const, partners: 5, leadsGenerated: 14, type: 'LinkedIn Campaign', startDate: '2026-03-01', endDate: '2026-05-01' },
-      { id: 'cm3', name: 'SD-WAN ROI Calculator', status: 'draft' as const, partners: 0, leadsGenerated: 0, type: 'Landing Page + Email', startDate: '', endDate: '' },
-      { id: 'cm4', name: 'Hybrid Cloud Webinar Series', status: 'completed' as const, partners: 12, leadsGenerated: 47, type: 'Webinar', startDate: '2026-01-10', endDate: '2026-02-28' },
-      { id: 'cm5', name: 'Managed Security Q1 Push', status: 'completed' as const, partners: 6, leadsGenerated: 31, type: 'Multi-Channel', startDate: '2026-01-01', endDate: '2026-03-15' },
-    ];
-
-    const assets = [
-      { name: 'Cloud Migration Email Sequence (3-part)', type: 'Email', format: 'HTML', rebrandable: true },
-      { name: 'Security Assessment LinkedIn Posts (5x)', type: 'Social', format: 'Copy + Graphics', rebrandable: true },
-      { name: 'SD-WAN ROI Calculator', type: 'Tool', format: 'Interactive PDF', rebrandable: true },
-      { name: 'Hybrid Cloud Customer Story — Healthcare', type: 'Case Study', format: 'PDF + Landing Page', rebrandable: true },
-      { name: 'Network Transformation Infographic', type: 'Visual', format: 'PNG + AI Source', rebrandable: true },
-      { name: 'Managed Security Webinar Deck', type: 'Presentation', format: 'PPTX', rebrandable: true },
-    ];
-
-    const statusColor = (s: string) => s === 'active' ? 'bg-green-100 text-green-700' : s === 'draft' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700';
-
-    return (
-      <div className="space-y-6">
-        {/* Stats */}
-        <div className="grid grid-cols-4 gap-4">
-          <KPICard label="Active Campaigns" value={`${campaigns.filter(c => c.status === 'active').length}`} change="running now" changeType="positive" />
-          <KPICard label="Partners Engaged" value={`${campaigns.reduce((s, c) => s + c.partners, 0)}`} change="across campaigns" changeType="positive" />
-          <KPICard label="Leads Generated" value={`${campaigns.reduce((s, c) => s + c.leadsGenerated, 0)}`} change="all time" changeType="positive" />
-          <KPICard label="Asset Library" value={`${assets.length}`} change="rebrandable assets" changeType="neutral" />
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 border-b border-[#e8e5e1] pb-2">
-          {(['campaigns', 'assets', 'results'] as const).map(t => (
-            <button key={t} onClick={() => setCmTab(t)}
-              className={`px-4 py-2 text-13px font-medium rounded-t-lg transition-colors ${cmTab === t ? 'bg-[#157A6E] text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
-              {t === 'campaigns' ? 'Campaigns' : t === 'assets' ? 'Asset Library' : 'Results'}
-            </button>
-          ))}
-        </div>
-
-        {cmTab === 'campaigns' && (
-          <div className="space-y-3">
-            {campaigns.map(c => (
-              <div key={c.id} className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <p className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">{c.name}</p>
-                    <p className="text-12px text-gray-500">{c.type}{c.startDate ? ` · ${c.startDate} → ${c.endDate}` : ''}</p>
-                  </div>
-                  <span className={`px-2.5 py-1 rounded-full text-11px font-semibold ${statusColor(c.status)}`}>{c.status}</span>
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
-                    <p className="text-lg font-bold text-gray-800">{c.partners}</p>
-                    <p className="text-10px text-gray-500">Partners Using</p>
-                  </div>
-                  <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
-                    <p className="text-lg font-bold text-[#157A6E]">{c.leadsGenerated}</p>
-                    <p className="text-10px text-gray-500">Leads Generated</p>
-                  </div>
-                  <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
-                    <p className="text-lg font-bold text-gray-800">{c.partners > 0 ? (c.leadsGenerated / c.partners).toFixed(1) : '—'}</p>
-                    <p className="text-10px text-gray-500">Leads / Partner</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {cmTab === 'assets' && (
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Rebrandable Assets</h3>
-              <button className="px-3 py-1.5 bg-[#157A6E] text-white text-12px rounded-lg hover:bg-[#0f5550]">+ Upload Asset</button>
-            </div>
-            <div className="space-y-2">
-              {assets.map((a, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="text-13px font-medium text-gray-800">{a.name}</p>
-                    <p className="text-11px text-gray-500">{a.type} · {a.format}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {a.rebrandable && <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-10px rounded-full font-medium">Rebrandable</span>}
-                    <button className="text-11px text-[#157A6E] hover:underline">Share</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {cmTab === 'results' && (
-          <div className="space-y-4">
-            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Campaign Performance</h3>
-              {campaigns.filter(c => c.leadsGenerated > 0).sort((a, b) => b.leadsGenerated - a.leadsGenerated).map(c => (
-                <div key={c.id} className="flex items-center gap-4 py-3 border-b border-gray-100 last:border-0">
-                  <div className="flex-1">
-                    <p className="text-13px font-medium text-gray-800">{c.name}</p>
-                    <p className="text-11px text-gray-500">{c.partners} partners · {c.type}</p>
-                  </div>
-                  <div className="w-32">
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${Math.min(100, (c.leadsGenerated / 50) * 100)}%` }} />
-                    </div>
-                  </div>
-                  <span className="text-13px font-bold text-[#157A6E] w-16 text-right">{c.leadsGenerated}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
+  // ════════════════════════════════════════════════
+  // VIEW ROUTING
+  // ════════════════════════════════════════════════
   const viewRenderers: Record<string, () => React.ReactNode> = {
     'command-center': renderCommandCenter,
     'intelligence-hub': renderIntelligence,
     'relationships': renderRelationships,
     'pipeline': renderPipeline,
     'strategic': renderStrategic,
-    'co-marketing': renderCoMarketing,
-    'white-space': renderWhiteSpace,
-    'territory': renderTerritory,
   };
 
   return (

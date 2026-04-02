@@ -7,13 +7,14 @@ import {
   Cloud, Mail, MessageSquare, Calendar, ChevronRight, Check, Edit2,
   Clock, AlertCircle, TrendingDown, BarChart3, MapPin, Globe,
   ArrowLeft, RefreshCw, RefreshCcw, Activity, Database, ArrowRightLeft, CheckCircle, AlertTriangle,
+  FolderOpen, FileText, Download,
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { SupplierProfile } from '@/components/shared/SupplierProfile';
 import { NAV_ITEMS_MANAGER } from '@/lib/constants';
 
-type Tab = 'profile' | 'notifications' | 'connectors' | 'team' | 'organization' | 'supplier';
+type Tab = 'profile' | 'notifications' | 'connectors' | 'team' | 'organization' | 'supplier' | 'resources';
 
 interface Teammate {
   id: string;
@@ -154,6 +155,7 @@ export default function SettingsPage() {
                 { id: 'team', label: 'Team', icon: Users },
                 { id: 'organization', label: 'Organization', icon: Building2 },
                 { id: 'supplier', label: 'Supplier Profile', icon: Cloud },
+                { id: 'resources', label: 'Company Resources', icon: FolderOpen },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -170,6 +172,7 @@ export default function SettingsPage() {
                   {tab.id === 'team' && <Users className="w-4 h-4" />}
                   {tab.id === 'organization' && <Building2 className="w-4 h-4" />}
                   {tab.id === 'supplier' && <Cloud className="w-4 h-4" />}
+                  {tab.id === 'resources' && <FolderOpen className="w-4 h-4" />}
                   {tab.label}
                 </button>
               ))}
@@ -818,6 +821,92 @@ export default function SettingsPage() {
                 <SupplierProfile editable={true} onSave={(data) => {
                   console.log('Supplier profile saved:', data);
                 }} />
+              </div>
+            )}
+
+            {/* Company Resources Tab */}
+            {activeTab === 'resources' && (
+              <div>
+                <div className="mb-6">
+                  <h3 className="font-newsreader text-lg font-bold text-gray-900 mb-1">
+                    Company Resources
+                  </h3>
+                  <p className="text-[12px] text-gray-600">
+                    Rebrandable assets, collateral, and co-marketing materials your partners can use
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex gap-2">
+                    <span className="px-3 py-1.5 bg-[#157A6E] text-white text-12px rounded-full font-medium">All Assets</span>
+                    <span className="px-3 py-1.5 bg-gray-100 text-gray-700 text-12px rounded-full font-medium hover:bg-gray-200 cursor-pointer">Email</span>
+                    <span className="px-3 py-1.5 bg-gray-100 text-gray-700 text-12px rounded-full font-medium hover:bg-gray-200 cursor-pointer">Social</span>
+                    <span className="px-3 py-1.5 bg-gray-100 text-gray-700 text-12px rounded-full font-medium hover:bg-gray-200 cursor-pointer">Presentations</span>
+                    <span className="px-3 py-1.5 bg-gray-100 text-gray-700 text-12px rounded-full font-medium hover:bg-gray-200 cursor-pointer">Case Studies</span>
+                    <span className="px-3 py-1.5 bg-gray-100 text-gray-700 text-12px rounded-full font-medium hover:bg-gray-200 cursor-pointer">Tools</span>
+                  </div>
+                  <button className="px-4 py-2 bg-[#157A6E] text-white text-[13px] rounded-[8px] hover:bg-[#0f6960] transition-colors font-medium flex items-center gap-2">
+                    <Upload className="w-4 h-4" />
+                    Upload Asset
+                  </button>
+                </div>
+
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
+                  <table className="w-full text-[13px]">
+                    <thead>
+                      <tr className="border-b border-[#e8e5e1] bg-[#F7F5F2]">
+                        <th className="text-left py-3 px-4 font-medium text-gray-500 text-[12px]">Asset Name</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-500 text-[12px]">Type</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-500 text-[12px]">Format</th>
+                        <th className="text-center py-3 px-4 font-medium text-gray-500 text-[12px]">Rebrandable</th>
+                        <th className="text-right py-3 px-4 font-medium text-gray-500 text-[12px]">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { name: 'Cloud Migration Email Sequence (3-part)', type: 'Email', format: 'HTML', rebrandable: true },
+                        { name: 'Security Assessment LinkedIn Posts (5x)', type: 'Social', format: 'Copy + Graphics', rebrandable: true },
+                        { name: 'SD-WAN ROI Calculator', type: 'Tool', format: 'Interactive PDF', rebrandable: true },
+                        { name: 'Hybrid Cloud Customer Story — Healthcare', type: 'Case Study', format: 'PDF + Landing Page', rebrandable: true },
+                        { name: 'Network Transformation Infographic', type: 'Visual', format: 'PNG + AI Source', rebrandable: true },
+                        { name: 'Managed Security Webinar Deck', type: 'Presentation', format: 'PPTX', rebrandable: true },
+                        { name: 'UCaaS Migration Checklist', type: 'Tool', format: 'PDF', rebrandable: true },
+                        { name: 'Channel Partner Onboarding Kit', type: 'Guide', format: 'DOCX + PDF', rebrandable: false },
+                        { name: 'Quarterly Business Review Template', type: 'Presentation', format: 'PPTX', rebrandable: true },
+                        { name: 'SASE/SSE Architecture Overview', type: 'Technical', format: 'PDF', rebrandable: true },
+                      ].map((asset, i) => (
+                        <tr key={i} className="border-b border-[#e8e5e1] last:border-0 hover:bg-gray-50 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-gray-400 shrink-0" />
+                              <span className="font-medium text-gray-800">{asset.name}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[11px] rounded font-medium">{asset.type}</span>
+                          </td>
+                          <td className="py-3 px-4 text-gray-600">{asset.format}</td>
+                          <td className="py-3 px-4 text-center">
+                            {asset.rebrandable ? (
+                              <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[11px] rounded-full font-medium">Rebrandable</span>
+                            ) : (
+                              <span className="text-gray-400 text-[11px]">Fixed</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button className="text-[11px] text-[#157A6E] hover:underline font-medium">Share</button>
+                              <button className="text-[11px] text-gray-500 hover:text-gray-700 font-medium flex items-center gap-1">
+                                <Download className="w-3 h-3" />
+                                Download
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
