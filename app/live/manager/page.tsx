@@ -7,7 +7,7 @@ import {
   ArrowLeft, MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays,
   Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle, RefreshCw,
   Megaphone, Star, TrendingUp as TrendingUpIcon, CheckCircle, AlertCircle as AlertCircleIcon, Edit, Plus,
-  LayoutGrid, Map, FileText, Mail, Building2, ArrowUpRight, BarChart3, UserPlus,
+  LayoutGrid, Map, FileText, Mail, Building2, ArrowUpRight, BarChart3, UserPlus, Calendar, Shield, PlayCircle, ChevronRight,
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -67,6 +67,7 @@ export default function LiveManagerPage() {
   const [pipelineMetricsView, setPipelineMetricsView] = useState<'deals' | 'quotes-vs-sold'>('deals');
   const [selectedTsdAdvisors, setSelectedTsdAdvisors] = useState<Advisor[]>([]);
   const [expandedTsdCompany, setExpandedTsdCompany] = useState<string | null>(null);
+  const [intelligenceSubTab, setIntelligenceSubTab] = useState<'overview' | 'signals' | 'playbooks' | 'suppliers' | 'diagnostics'>('overview');
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -1324,249 +1325,436 @@ export default function LiveManagerPage() {
   };
 
   // ════════════════════════════════════════════════
-  // INTELLIGENCE HUB
   // ════════════════════════════════════════════════
-  const renderIntelligence = () => (
-    <div className="space-y-6">
-      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-        <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Partner Diagnostics</h3>
-        {diagnosticRows.length === 0 ? (
-          <p className="text-12px text-gray-400 italic">All partners healthy — no diagnostics needed</p>
-        ) : (
-          <table className="w-full text-12px">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left py-2 font-medium text-gray-500">Partner</th>
-                <th className="text-left py-2 font-medium text-gray-500">Pulse</th>
-                <th className="text-left py-2 font-medium text-gray-500">Deal Health</th>
-                <th className="text-left py-2 font-medium text-gray-500">Friction</th>
-                <th className="text-left py-2 font-medium text-gray-500">Diagnosis</th>
-              </tr>
-            </thead>
-            <tbody>
-              {diagnosticRows.map((row, i) => {
-                const advisor = advisors.find(a => a.name === row.advisor);
-                return (
-                  <tr key={i} className="border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors"
-                    onClick={() => { if (advisor) { setSelectedAdvisor(advisor); setPanelOpen(true); } }}>
-                    <td className="py-2 font-medium text-gray-800">{row.advisor}</td>
-                    <td className="py-2"><PulseBadge pulse={row.pulse} /></td>
-                    <td className="py-2"><DealHealthBadge health={row.dealHealth} /></td>
-                    <td className="py-2"><FrictionBadge level={row.friction} /></td>
-                    <td className="py-2 text-gray-600 max-w-[300px] truncate">{row.diagnosis}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-        <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Portfolio Distribution</h3>
-        <div className="grid grid-cols-3 gap-4">
-          {(['top10', 'next20', 'other'] as const).map(tier => {
-            const tierAdvisors = advisors.filter(a => a.tier === tier);
-            const tierMRR = tierAdvisors.reduce((s, a) => s + a.mrr, 0);
-            const label = tier === 'top10' ? 'Top 10' : tier === 'next20' ? 'Next 20' : 'Other';
-            return (
-              <div key={tier} className="text-center p-4 bg-gray-50 rounded-lg">
-                <p className="text-11px text-gray-500 mb-1">{label}</p>
-                <p className="text-xl font-semibold text-gray-800">{tierAdvisors.length}</p>
-                <p className="text-12px text-gray-500">{formatCurrency(tierMRR)} MRR</p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-
+  // INTELLIGENCE
   // ════════════════════════════════════════════════
-  // STRATEGIC
-  // ════════════════════════════════════════════════
-  const renderStrategic = () => {
+  const renderIntelligence = () => {
+    // Compute intelligence-specific data
     const frictionIssues = advisors.filter(a => a.friction === 'High' || a.friction === 'Critical');
+    const healthyPartners = advisors.filter(a => a.friction === 'Low' && (a.pulse === 'Strong' || a.pulse === 'Steady'));
 
-    const healthValue = (a: Advisor): number => {
-      const pulseScores: Record<string, number> = { Strong: 90, Steady: 65, Rising: 55, Fading: 30, Flatline: 10 };
-      const frictionPenalty: Record<string, number> = { Low: 0, Moderate: -10, High: -25, Critical: -40 };
-      const trajectoryMod: Record<string, number> = { Accelerating: 10, Climbing: 5, Stable: 0, Slipping: -10, Freefall: -20 };
-      return Math.max(0, Math.min(100,
-        (pulseScores[a.pulse] || 50) + (frictionPenalty[a.friction] || 0) + (trajectoryMod[a.trajectory] || 0)
-      ));
-    };
-
-    const heatColor = (score: number): string => {
-      if (score >= 80) return 'bg-emerald-500';
-      if (score >= 65) return 'bg-emerald-400';
-      if (score >= 50) return 'bg-yellow-400';
-      if (score >= 35) return 'bg-orange-400';
-      if (score >= 20) return 'bg-red-400';
-      return 'bg-red-600';
-    };
-
-    const sortedAdvisors = [...advisors].filter(a => a.mrr > 0).sort((a, b) => b.mrr - a.mrr);
-    const tierGroups = [
-      { label: 'Top 10', tier: 'top10', advisors: sortedAdvisors.filter(a => a.tier === 'top10') },
-      { label: 'Next 20', tier: 'next20', advisors: sortedAdvisors.filter(a => a.tier === 'next20') },
-      { label: 'Other', tier: 'other', advisors: sortedAdvisors.filter(a => a.tier === 'other') },
-    ].filter(g => g.advisors.length > 0);
-
-    const frictionByLevel = [
-      { level: 'Critical', count: advisors.filter(a => a.friction === 'Critical').length, mrr: advisors.filter(a => a.friction === 'Critical').reduce((s, a) => s + a.mrr, 0), color: 'bg-red-600' },
-      { level: 'High', count: advisors.filter(a => a.friction === 'High').length, mrr: advisors.filter(a => a.friction === 'High').reduce((s, a) => s + a.mrr, 0), color: 'bg-red-400' },
-      { level: 'Moderate', count: advisors.filter(a => a.friction === 'Moderate').length, mrr: advisors.filter(a => a.friction === 'Moderate').reduce((s, a) => s + a.mrr, 0), color: 'bg-amber-400' },
-      { level: 'Low', count: advisors.filter(a => a.friction === 'Low').length, mrr: advisors.filter(a => a.friction === 'Low').reduce((s, a) => s + a.mrr, 0), color: 'bg-emerald-400' },
+    // Supplier accountability scores (mock data derived from ratings or TSD companies)
+    const supplierScores = [
+      { name: 'Avant', score: 88, color: '#157A6E' },
+      { name: 'Telarus', score: 82, color: '#157A6E' },
+      { name: 'Bridgepointe', score: 76, color: '#157A6E' },
+      { name: 'Intelisys', score: 71, color: '#ECC94B' },
+      { name: 'AppDirect', score: 68, color: '#ECC94B' },
     ];
 
+    // Generate signals from real data
+    const signals: Array<{type: 'churn' | 'growth' | 'stall' | 'intel'; title: string; desc: string; time: string; source: string}> = [];
+
+    // Churn risk signals from at-risk advisors
+    atRiskAdvisors.forEach(a => {
+      signals.push({
+        type: 'churn',
+        title: `Churn Risk — ${a.name}`,
+        desc: `${a.trajectory} trajectory. Pulse: ${a.pulse}. Friction: ${a.friction}. ${a.diagnosis || 'Engagement declining.'}`,
+        time: 'Today',
+        source: 'CRM + Engagement'
+      });
+    });
+
+    // Stalled deal signals
+    stalledDeals.slice(0, 3).forEach(d => {
+      const adv = advisors.find(a => a.id === d.advisorId);
+      signals.push({
+        type: 'stall',
+        title: `Pipeline Stall — ${d.name}`,
+        desc: `Stuck in ${d.stage} for ${d.daysInStage} days. ${adv?.name || 'Unknown partner'} · ${formatCurrency(d.mrr)} MRR.`,
+        time: `${d.daysInStage}d stalled`,
+        source: 'CRM pipeline'
+      });
+    });
+
+    // Growth/expansion signals from strong advisors
+    advisors.filter(a => a.trajectory === 'Accelerating' || a.trajectory === 'Climbing').slice(0, 3).forEach(a => {
+      signals.push({
+        type: 'growth',
+        title: `Expansion — ${a.name} (${a.company})`,
+        desc: `${a.trajectory} trajectory with ${a.pulse} pulse. Strong growth potential — cross-sell opportunity.`,
+        time: 'This week',
+        source: 'Engagement data'
+      });
+    });
+
+    // Co-marketing intel signals
+    coMarketingOpportunities.slice(0, 2).forEach(opp => {
+      signals.push({
+        type: 'intel',
+        title: `Co-Marketing — ${opp.advisor.name}`,
+        desc: opp.reason,
+        time: 'This week',
+        source: 'CRM + LinkedIn'
+      });
+    });
+
+    // Playbook data (generated from signals)
+    const playbooks = [
+      ...atRiskAdvisors.slice(0, 2).map(a => ({
+        priority: 'critical' as const,
+        title: `Win-Back: ${a.name}`,
+        desc: `${a.diagnosis || 'Custom retention strategy needed'}. ${formatCurrency(a.mrr)} at risk.`,
+        amount: formatCurrency(a.mrr),
+        days: 7,
+      })),
+      ...advisors.filter(a => a.trajectory === 'Accelerating' || a.trajectory === 'Climbing').slice(0, 1).map(a => ({
+        priority: 'high' as const,
+        title: `Growth: ${a.name} → Cross-Sell`,
+        desc: `${a.trajectory} trajectory. Expand product footprint.`,
+        amount: `+${formatCurrency(Math.round(a.mrr * 0.6))}`,
+        days: 14,
+      })),
+      ...frictionIssues.slice(0, 1).map(a => ({
+        priority: 'medium' as const,
+        title: `Retention: ${a.name}`,
+        desc: `${a.friction} friction. QBR + service review needed.`,
+        amount: formatCurrency(a.mrr),
+        days: 10,
+      })),
+    ];
+
+    // Partner health matrix
+    const healthPartners = [...advisors].sort((a, b) => b.mrr - a.mrr).slice(0, 8);
+
+    // Roadmap items
+    const roadmapItems = [
+      ...playbooks.slice(0, 2).map(p => ({ phase: 'active' as const, title: p.title, desc: `${p.days} days remaining` })),
+      ...coMarketingOpportunities.slice(0, 2).map(o => ({ phase: 'next' as const, title: `Co-Marketing: ${o.advisor.name}`, desc: o.type })),
+      { phase: 'planned' as const, title: 'Mid-Quarter Pipeline Review', desc: 'End of April' },
+    ];
+
+    // Calendar events (April 2026)
+    const calEvents = [
+      { day: 9, label: playbooks[0]?.title || 'Retention deadline' },
+      { day: 15, label: 'Campaign launch' },
+      { day: 30, label: 'Mid-quarter pipeline review' },
+    ];
+    const eventDays = calEvents.map(e => e.day);
+    // April 2026 starts on Wednesday (day index 3)
+    const aprilDays = Array.from({length: 30}, (_, i) => i + 1);
+    const startPad = 2; // Wednesday start = 2 empty cells (Mon, Tue)
+    const today = 2; // April 2
+
+    const signalDotColor = (type: string) => {
+      switch(type) {
+        case 'churn': return 'bg-red-500';
+        case 'growth': return 'bg-[#157A6E]';
+        case 'stall': return 'bg-amber-400';
+        case 'intel': return 'bg-blue-500';
+        default: return 'bg-gray-400';
+      }
+    };
+
     return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-4 gap-4">
-          <KPICard label="Days to Quarter End" value={`${DAYS_REMAINING}`} change={QUARTER_END} changeType="neutral" />
-          <KPICard label="High Friction Partners" value={`${frictionIssues.length}`} change={`${formatCurrency(frictionIssues.reduce((s, a) => s + a.mrr, 0))} at risk`} changeType={frictionIssues.length > 0 ? "negative" : "neutral"} />
-          <KPICard label="Critical Friction" value={`${advisors.filter(a => a.friction === 'Critical').length}`} change={advisors.filter(a => a.friction === 'Critical').length > 0 ? 'Immediate action needed' : 'None'} changeType={advisors.filter(a => a.friction === 'Critical').length > 0 ? "negative" : "positive"} />
-          <KPICard label="Healthy Partners" value={`${advisors.filter(a => a.friction === 'Low' && (a.pulse === 'Strong' || a.pulse === 'Steady')).length}`} change={`of ${advisors.length} total`} changeType="positive" />
-        </div>
-
-        {/* Friction Distribution */}
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Friction Distribution</h3>
-          <div className="flex h-8 rounded-lg overflow-hidden mb-3">
-            {frictionByLevel.filter(f => f.count > 0).map(f => (
-              <div key={f.level} className={`${f.color} flex items-center justify-center transition-all`}
-                   style={{ width: `${(f.count / advisors.length) * 100}%` }}>
-                <span className="text-[10px] font-bold text-white">{f.count}</span>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-4">
-            {frictionByLevel.filter(f => f.count > 0).map(f => (
-              <div key={f.level} className="flex items-center gap-1.5">
-                <div className={`w-2.5 h-2.5 rounded-sm ${f.color}`} />
-                <span className="text-11px text-gray-600">{f.level}: {f.count} ({formatCurrency(f.mrr)})</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Heatmap */}
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Partner Health Heatmap</h3>
-              <p className="text-11px text-gray-400 mt-0.5">Composite score: Pulse + Trajectory + Friction · Sized by MRR</p>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="flex items-center gap-0.5">
-                <div className="w-3 h-2 rounded-sm bg-red-600" />
-                <div className="w-3 h-2 rounded-sm bg-red-400" />
-                <div className="w-3 h-2 rounded-sm bg-orange-400" />
-                <div className="w-3 h-2 rounded-sm bg-yellow-400" />
-                <div className="w-3 h-2 rounded-sm bg-emerald-400" />
-                <div className="w-3 h-2 rounded-sm bg-emerald-500" />
-              </div>
-              <span className="text-10px text-gray-400 ml-1">Critical → Healthy</span>
-            </div>
-          </div>
-          {tierGroups.map(group => (
-            <div key={group.tier} className="mb-5 last:mb-0">
-              <div className="flex items-center gap-2 mb-2">
-                <TierBadge tier={group.tier as PartnerTier} />
-                <span className="text-11px text-gray-400">{group.advisors.length} partners · {formatCurrency(group.advisors.reduce((s, a) => s + a.mrr, 0))} MRR</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {group.advisors.map(a => {
-                  const score = healthValue(a);
-                  const size = Math.max(36, Math.min(72, 36 + (a.mrr / 1000) * 1.2));
-                  return (
-                    <div key={a.id}
-                      className={`${heatColor(score)} rounded-md flex flex-col items-center justify-center cursor-pointer hover:ring-2 hover:ring-gray-800 hover:ring-offset-1 transition-all group relative`}
-                      style={{ width: `${size}px`, height: `${size}px`, minWidth: `${size}px` }}
-                      onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}>
-                      <span className="text-[9px] font-bold text-white leading-tight text-center px-0.5">
-                        {a.name.split(' ').map(n => n[0]).join('')}
-                      </span>
-                      <span className="text-[8px] text-white opacity-80">{score}</span>
-                      <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-gray-900 text-white text-10px rounded-lg px-3 py-2 whitespace-nowrap z-20 shadow-lg">
-                        <p className="font-semibold">{a.name}</p>
-                        <p className="text-gray-300">{a.company} · {formatCurrency(a.mrr)}</p>
-                        <div className="flex items-center gap-2 mt-1 text-[9px]">
-                          <span>Pulse: {a.pulse}</span><span>·</span>
-                          <span>Friction: {a.friction}</span><span>·</span>
-                          <span>Trajectory: {a.trajectory}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+      <div className="space-y-5">
+        {/* Sub-tab bar */}
+        <div className="flex gap-0 border-b border-[#e8e5e1] -mx-6 px-6 mb-2">
+          {([
+            { id: 'overview', label: 'Overview' },
+            { id: 'signals', label: 'Signals', count: signals.length },
+            { id: 'playbooks', label: 'Playbooks', count: playbooks.length },
+            { id: 'suppliers', label: 'Supplier Scores' },
+            { id: 'diagnostics', label: 'Diagnostics' },
+          ] as const).map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setIntelligenceSubTab(tab.id)}
+              className={`px-4 py-2.5 text-12px font-medium border-b-2 transition-colors ${
+                intelligenceSubTab === tab.id
+                  ? 'text-[#157A6E] border-[#157A6E] font-semibold'
+                  : 'text-gray-400 border-transparent hover:text-gray-600'
+              }`}
+            >
+              {tab.label}
+              {'count' in tab && tab.count !== undefined && (
+                <span className="ml-1.5 px-1.5 py-0.5 bg-[#F0FAF8] text-[#157A6E] text-10px font-bold rounded-full">{tab.count}</span>
+              )}
+            </button>
           ))}
         </div>
 
-        {/* Friction Cases */}
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">
-            Friction Cases
-            {frictionIssues.length > 0 && <span className="ml-2 text-12px font-normal text-red-500">({frictionIssues.length} requiring attention · {formatCurrency(frictionIssues.reduce((s, a) => s + a.mrr, 0))} MRR at risk)</span>}
-          </h3>
-          {frictionIssues.length === 0 ? (
-            <p className="text-12px text-gray-400 italic">No high-friction partners</p>
-          ) : (
-            <div className="space-y-3">
-              {frictionIssues.sort((a, b) => {
-                const order: Record<string, number> = { Critical: 0, High: 1 };
-                return (order[a.friction] ?? 2) - (order[b.friction] ?? 2) || b.mrr - a.mrr;
-              }).map(a => (
-                <div key={a.id} className={`p-4 rounded-lg cursor-pointer transition-colors ${a.friction === 'Critical' ? 'bg-red-50 border border-red-200 hover:bg-red-100' : 'bg-amber-50 border border-amber-200 hover:bg-amber-100'}`}
-                     onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="text-13px font-semibold text-gray-800">{a.name}</p>
-                        <FrictionBadge level={a.friction} />
-                        <PulseBadge pulse={a.pulse} />
-                        <TrajectoryBadge trajectory={a.trajectory} />
-                      </div>
-                      <p className="text-12px text-gray-600">{a.company} · {a.location || 'Unknown'}</p>
-                      <p className="text-11px text-gray-500 mt-1.5 leading-relaxed">{a.diagnosis}</p>
+        {/* KPI Row */}
+        <div className="grid grid-cols-4 gap-4">
+          <KPICard label="Live Signals (7d)" value={`${signals.length}`} change="Today" changeType="neutral" />
+          <KPICard label="Revenue at Risk" value={formatCurrency(atRiskMRR)} change={`${atRiskAdvisors.length} partners flagged`} changeType={atRiskAdvisors.length > 0 ? "negative" : "neutral"} />
+          <KPICard label="Expansion Signals" value={`${advisors.filter(a => a.trajectory === 'Accelerating' || a.trajectory === 'Climbing').length}`} change="Cross-sell potential" changeType="positive" />
+          <KPICard label="Q2 MRR Progress" value={`${Math.round((totalMRR / 85000) * 100)}%`} change={`${formatCurrency(totalMRR)} / $85K target`} changeType="positive" />
+        </div>
+
+        {/* ── SECTION: What's Happening ── */}
+        <div className="flex items-center gap-3 pt-2">
+          <span className="text-10px font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">What&apos;s Happening</span>
+          <div className="flex-1 h-px bg-[#e8e5e1]" />
+        </div>
+
+        <div className="grid grid-cols-[2fr_1fr] gap-4">
+          {/* Signal Feed */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400">Signal Feed</h3>
+              <span className="text-10px text-[#157A6E] font-semibold cursor-pointer">View all {signals.length} →</span>
+            </div>
+            <div className="space-y-0 divide-y divide-gray-50">
+              {signals.slice(0, 6).map((sig, i) => (
+                <div key={i} className="flex gap-3 py-3 first:pt-0">
+                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${signalDotColor(sig.type)}`} />
+                  <div className="min-w-0">
+                    <h4 className="text-12px font-semibold text-gray-800">{sig.title}</h4>
+                    <p className="text-11px text-gray-500 mt-0.5 line-clamp-2">{sig.desc}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-10px text-gray-400">{sig.time} · {sig.source}</span>
                     </div>
-                    <div className="text-right ml-4 shrink-0">
-                      <p className="text-[15px] font-bold text-gray-800">{formatCurrency(a.mrr)}</p>
-                      <p className="text-10px text-gray-400">monthly</p>
-                    </div>
+                    <button className="text-10px text-[#157A6E] font-semibold mt-1">→ Create Playbook</button>
                   </div>
                 </div>
               ))}
             </div>
-          )}
+          </div>
+
+          {/* Q2 Goals + Calendar */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400">Q2 2026 Goals</h3>
+              <span className="text-10px text-[#157A6E] font-semibold cursor-pointer">Edit →</span>
+            </div>
+
+            {/* MRR Goal */}
+            <div className="mb-3">
+              <div className="flex justify-between items-baseline mb-1">
+                <span className="text-12px font-semibold text-gray-800">MRR Target</span>
+                <span className="text-11px font-bold text-[#157A6E]">{Math.round((totalMRR / 85000) * 100)}%</span>
+              </div>
+              <p className="text-10px text-gray-400 mb-1">{formatCurrency(totalMRR)} of $85K</p>
+              <div className="h-[5px] bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${Math.min(100, (totalMRR / 85000) * 100)}%` }} />
+              </div>
+            </div>
+
+            {/* Partners Goal */}
+            <div className="mb-3">
+              <div className="flex justify-between items-baseline mb-1">
+                <span className="text-12px font-semibold text-gray-800">Partners Activated</span>
+                <span className="text-11px font-bold text-[#157A6E]">{Math.round((advisors.filter(a => a.mrr > 0).length / 15) * 100)}%</span>
+              </div>
+              <p className="text-10px text-gray-400 mb-1">{advisors.filter(a => a.mrr > 0).length} of 15 target</p>
+              <div className="h-[5px] bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${Math.min(100, (advisors.filter(a => a.mrr > 0).length / 15) * 100)}%` }} />
+              </div>
+            </div>
+
+            {/* Close Rate Goal */}
+            <div className="mb-4">
+              <div className="flex justify-between items-baseline mb-1">
+                <span className="text-12px font-semibold text-gray-800">Close Rate</span>
+                <span className="text-11px font-bold text-amber-600">{deals.length > 0 ? Math.round((closedWonDeals.length / deals.length) * 100) : 0}%</span>
+              </div>
+              <p className="text-10px text-gray-400 mb-1">{deals.length > 0 ? Math.round((closedWonDeals.length / deals.length) * 100) : 0}% of 35% target</p>
+              <div className="h-[5px] bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.min(100, (deals.length > 0 ? (closedWonDeals.length / deals.length) * 100 : 0) / 35 * 100)}%` }} />
+              </div>
+            </div>
+
+            {/* Mini Calendar */}
+            <div className="border-t border-gray-100 pt-3">
+              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400 mb-2">April 2026</h3>
+              <div className="grid grid-cols-7 gap-[2px] text-center text-[10px]">
+                {['M','T','W','T','F','S','S'].map((d, i) => (
+                  <div key={i} className="font-semibold text-gray-400 py-1">{d}</div>
+                ))}
+                {Array.from({length: startPad}).map((_, i) => (
+                  <div key={`pad-${i}`} className="py-1 text-transparent">.</div>
+                ))}
+                {aprilDays.map(d => (
+                  <div key={d} className={`py-1 rounded ${
+                    d === today ? 'bg-[#157A6E] text-white font-bold' :
+                    eventDays.includes(d) ? 'bg-[#F0FAF8] text-[#157A6E] font-semibold' :
+                    'text-gray-500'
+                  }`}>{d}</div>
+                ))}
+              </div>
+              <div className="mt-2 space-y-1">
+                {calEvents.map((ev, i) => (
+                  <div key={i} className="flex gap-2 text-10px">
+                    <span className="text-[#157A6E] font-semibold min-w-[38px]">Apr {ev.day}</span>
+                    <span className="text-gray-600 truncate">{ev.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Supplier Accountability */}
-        {ratings && (
-          <div className="space-y-4">
-            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Supplier Accountability</h3>
-                  <p className="text-11px text-gray-400 mt-0.5">Data from The Channel Standard Ratings Platform</p>
-                </div>
-                <a href="https://www.the-channel-standard.com" target="_blank" rel="noopener noreferrer"
-                  className="text-[#157A6E] text-11px font-semibold hover:underline flex items-center gap-1">
-                  View Full Ratings
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6v12h12v-6m0-6l4-4m0 0l-4 4m4-4v4" />
-                  </svg>
-                </a>
-              </div>
-              <SupplierAccountabilityCard data={ratings} loading={ratingsLoading} />
+        {/* ── SECTION: What You're Doing About It ── */}
+        <div className="flex items-center gap-3 pt-2">
+          <span className="text-10px font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">What You&apos;re Doing About It</span>
+          <div className="flex-1 h-px bg-[#e8e5e1]" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {/* Active Playbooks */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400">Active Playbooks</h3>
+              <span className="text-10px text-[#157A6E] font-semibold cursor-pointer">View all →</span>
             </div>
-            {ratings?.supplier?.recentFeedback && ratings.supplier.recentFeedback.length > 0 && (
-              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-                <AdvisorSentimentFeed data={ratings} />
+            <div className="space-y-2">
+              {playbooks.map((pb, i) => (
+                <div key={i} className={`border-l-[3px] rounded-r-md bg-gray-50 p-3 ${
+                  pb.priority === 'critical' ? 'border-red-500' :
+                  pb.priority === 'high' ? 'border-amber-400' :
+                  'border-[#157A6E]'
+                }`}>
+                  <h4 className="text-12px font-semibold text-gray-800">{pb.title}</h4>
+                  <p className="text-11px text-gray-500 mt-0.5">{pb.desc}</p>
+                  <div className="flex items-center gap-3 mt-1.5 text-10px text-gray-400">
+                    <span className={pb.priority === 'critical' ? 'text-red-500 font-semibold' : pb.priority === 'high' ? 'text-amber-600 font-semibold' : ''}>
+                      {pb.priority.charAt(0).toUpperCase() + pb.priority.slice(1)}
+                    </span>
+                    <span className="text-[#157A6E] font-semibold">{pb.amount}</span>
+                    <span>{pb.days} days</span>
+                  </div>
+                </div>
+              ))}
+              <div className="text-center py-2 text-11px text-[#157A6E] font-semibold cursor-pointer hover:underline">
+                + Create New Playbook from Signal
+              </div>
+            </div>
+          </div>
+
+          {/* Partner Health Matrix */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400">Partner Health Matrix</h3>
+              <span className="text-10px text-[#157A6E] font-semibold cursor-pointer">Expand →</span>
+            </div>
+            <table className="w-full text-11px">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left py-2 font-medium text-gray-400 text-10px uppercase tracking-wide">Partner</th>
+                  <th className="text-center py-2 font-medium text-gray-400 text-10px uppercase tracking-wide">Pulse</th>
+                  <th className="text-center py-2 font-medium text-gray-400 text-10px uppercase tracking-wide">Friction</th>
+                  <th className="text-center py-2 font-medium text-gray-400 text-10px uppercase tracking-wide">Trend</th>
+                  <th className="text-right py-2 font-medium text-gray-400 text-10px uppercase tracking-wide">MRR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {healthPartners.map(a => (
+                  <tr key={a.id} className="border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors"
+                      onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}>
+                    <td className="py-2 font-medium text-gray-800">{a.name}</td>
+                    <td className="py-2 text-center"><PulseBadge pulse={a.pulse} /></td>
+                    <td className="py-2 text-center"><FrictionBadge level={a.friction} /></td>
+                    <td className="py-2 text-center">
+                      <span className={`text-12px ${
+                        a.trajectory === 'Accelerating' || a.trajectory === 'Climbing' ? 'text-[#157A6E]' :
+                        a.trajectory === 'Slipping' || a.trajectory === 'Freefall' ? 'text-red-500' :
+                        'text-amber-500'
+                      }`}>
+                        {a.trajectory === 'Accelerating' || a.trajectory === 'Climbing' ? '↑' :
+                         a.trajectory === 'Slipping' || a.trajectory === 'Freefall' ? '↓' : '→'}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right text-gray-700 font-medium">{formatCurrency(a.mrr)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── SECTION: Supplier & Portfolio Diagnostics ── */}
+        <div className="flex items-center gap-3 pt-2">
+          <span className="text-10px font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Supplier &amp; Portfolio Diagnostics</span>
+          <div className="flex-1 h-px bg-[#e8e5e1]" />
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          {/* Supplier Accountability Scores */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400">Supplier Accountability</h3>
+              <span className="text-10px text-[#157A6E] font-semibold cursor-pointer">Details →</span>
+            </div>
+            <div className="space-y-2">
+              {supplierScores.map((s, i) => (
+                <div key={i} className="flex items-center gap-2.5">
+                  <span className="text-11px font-medium text-gray-700 w-[80px] shrink-0">{s.name}</span>
+                  <div className="flex-1 h-[7px] bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${s.score}%`, backgroundColor: s.color }} />
+                  </div>
+                  <span className="text-11px font-bold w-[28px] text-right" style={{ color: s.color }}>{s.score}</span>
+                </div>
+              ))}
+            </div>
+            {ratings && (
+              <div className="mt-4 pt-3 border-t border-gray-100">
+                <SupplierAccountabilityCard data={ratings} loading={ratingsLoading} />
               </div>
             )}
+          </div>
+
+          {/* Partner Diagnostics Table */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400">Diagnostics</h3>
+              <span className="text-10px text-[#157A6E] font-semibold cursor-pointer">Full view →</span>
+            </div>
+            {diagnosticRows.length === 0 ? (
+              <p className="text-11px text-gray-400 italic">All partners healthy</p>
+            ) : (
+              <div className="space-y-2">
+                {diagnosticRows.slice(0, 5).map((row, i) => {
+                  const advisor = advisors.find(a => a.name === row.advisor);
+                  return (
+                    <div key={i} className={`p-2.5 rounded-lg cursor-pointer transition-colors ${
+                      row.friction === 'Critical' ? 'bg-red-50 hover:bg-red-100' :
+                      row.friction === 'High' ? 'bg-amber-50 hover:bg-amber-100' :
+                      'bg-gray-50 hover:bg-gray-100'
+                    }`}
+                    onClick={() => { if (advisor) { setSelectedAdvisor(advisor); setPanelOpen(true); } }}>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-11px font-semibold text-gray-800">{row.advisor}</span>
+                        <PulseBadge pulse={row.pulse} />
+                        <FrictionBadge level={row.friction} />
+                      </div>
+                      <p className="text-10px text-gray-500 line-clamp-1">{row.diagnosis}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Partner Roadmaps */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400">Partner Roadmaps</h3>
+              <span className="text-10px text-[#157A6E] font-semibold cursor-pointer">Plan →</span>
+            </div>
+            <div className="space-y-0 divide-y divide-gray-100">
+              {roadmapItems.slice(0, 5).map((item, i) => (
+                <div key={i} className="flex items-center gap-3 py-2.5 first:pt-0">
+                  <span className={`text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded ${
+                    item.phase === 'active' ? 'bg-green-100 text-green-700' :
+                    item.phase === 'next' ? 'bg-blue-100 text-blue-700' :
+                    'bg-gray-100 text-gray-500'
+                  }`}>{item.phase}</span>
+                  <div className="min-w-0">
+                    <h5 className="text-12px font-semibold text-gray-800 truncate">{item.title}</h5>
+                    <p className="text-10px text-gray-400">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Supplier Sentiment Feed (from ratings) */}
+        {ratings?.supplier?.recentFeedback && ratings.supplier.recentFeedback.length > 0 && (
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <AdvisorSentimentFeed data={ratings} />
           </div>
         )}
       </div>
@@ -1578,10 +1766,9 @@ export default function LiveManagerPage() {
   // ════════════════════════════════════════════════
   const viewRenderers: Record<string, () => React.ReactNode> = {
     'command-center': renderCommandCenter,
-    'intelligence-hub': renderIntelligence,
+    'intelligence': renderIntelligence,
     'relationships': renderRelationships,
     'pipeline': renderPipeline,
-    'strategic': renderStrategic,
   };
 
   return (
