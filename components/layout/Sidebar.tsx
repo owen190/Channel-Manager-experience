@@ -35,14 +35,7 @@ interface SidebarProps {
   userInitials: string;
 }
 
-export function Sidebar({
-  items,
-  activeView,
-  onViewChange,
-  role,
-  userName,
-  userInitials,
-}: SidebarProps) {
+export function Sidebar({ items, activeView, onViewChange, role, userName, userInitials }: SidebarProps) {
   const router = useRouter();
   return (
     <div className="hidden md:flex w-56 h-screen bg-white border-r border-solid border-[#e8e5e1] flex-col">
