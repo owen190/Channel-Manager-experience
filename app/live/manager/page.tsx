@@ -69,6 +69,11 @@ export default function LiveManagerPage() {
   const [expandedTsdCompany, setExpandedTsdCompany] = useState<string | null>(null);
   const [intelligenceSubTab, setIntelligenceSubTab] = useState<'overview' | 'signals' | 'playbooks' | 'diagnostics'>('overview');
   const [signalFilter, setSignalFilter] = useState<'all' | 'churn' | 'growth' | 'stall' | 'intel'>('all');
+  const [showPlaybookModal, setShowPlaybookModal] = useState(false);
+  const [playbookModalSignal, setPlaybookModalSignal] = useState<{type: string; title: string; desc: string; partnerName?: string; mrr?: number} | null>(null);
+  const [playbookSteps, setPlaybookSteps] = useState<string[]>(['', '', '']);
+  const [playbookPriority, setPlaybookPriority] = useState<'critical' | 'high' | 'medium'>('high');
+  const [playbookDeadline, setPlaybookDeadline] = useState(14);
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -1568,7 +1573,7 @@ export default function LiveManagerPage() {
                       <h4 className="text-[12px] font-semibold text-gray-800">{sig.title}</h4>
                       <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{sig.desc}</p>
                       <span className="text-[10px] text-gray-400">{sig.time} · {sig.source}</span>
-                      <button className="block text-[10px] text-[#157A6E] font-semibold mt-1">→ Create Playbook</button>
+                      <button onClick={() => { setPlaybookModalSignal({ type: sig.type, title: sig.title, desc: sig.desc, partnerName: sig.partnerName, mrr: sig.mrr }); setShowPlaybookModal(true); }} className="block text-[10px] text-[#157A6E] font-semibold mt-1 hover:underline cursor-pointer">→ Create Playbook</button>
                     </div>
                   </div>
                 ))}
@@ -1766,7 +1771,7 @@ export default function LiveManagerPage() {
                         {sig.type === 'growth' ? '+' : ''}{formatCurrency(sig.mrr)}
                       </div>
                     )}
-                    <button className="mt-2 px-3 py-1.5 bg-[#157A6E] text-white text-[11px] font-semibold rounded-md hover:bg-[#126a5f] transition-colors">→ Create Playbook</button>
+                    <button onClick={() => { setPlaybookModalSignal({ type: sig.type, title: sig.title, desc: sig.desc, partnerName: sig.partnerName, mrr: sig.mrr }); setShowPlaybookModal(true); }} className="mt-2 px-3 py-1.5 bg-[#157A6E] text-white text-[11px] font-semibold rounded-md hover:bg-[#126a5f] transition-colors">→ Create Playbook</button>
                   </div>
                 </div>
               ))}
@@ -1872,7 +1877,7 @@ export default function LiveManagerPage() {
                   </div>
                 );
               })}
-              <div className="bg-white rounded-[10px] border-2 border-dashed border-gray-200 p-6 text-center cursor-pointer hover:border-[#157A6E] transition-colors">
+              <div onClick={() => { setPlaybookModalSignal(null); setShowPlaybookModal(true); }} className="bg-white rounded-[10px] border-2 border-dashed border-gray-200 p-6 text-center cursor-pointer hover:border-[#157A6E] transition-colors">
                 <div className="text-[20px] text-gray-300 mb-1">+</div>
                 <div className="text-[12px] font-semibold text-[#157A6E]">Create New Playbook</div>
                 <div className="text-[10px] text-gray-400 mt-0.5">Build from a signal or start from scratch</div>
@@ -2099,7 +2104,7 @@ export default function LiveManagerPage() {
 
               {/* Actions */}
               <div className="flex gap-2">
-                <button className="px-3 py-1.5 bg-[#157A6E] text-white text-[11px] font-semibold rounded-md hover:bg-[#126a5f]">
+                <button onClick={() => { const linkedSigs = signals.filter(s => s.partnerName === a.name); const topSig = linkedSigs[0]; setPlaybookModalSignal(topSig ? { type: topSig.type, title: topSig.title, desc: topSig.desc, partnerName: a.name, mrr: a.mrr } : { type: 'intel', title: `${a.name} Engagement Plan`, desc: `Strategic playbook for ${a.name}`, partnerName: a.name, mrr: a.mrr }); setShowPlaybookModal(true); }} className="px-3 py-1.5 bg-[#157A6E] text-white text-[11px] font-semibold rounded-md hover:bg-[#126a5f]">
                   {playbooks.find(p => p.title.includes(a.name)) ? 'View Playbook →' : 'Create Playbook →'}
                 </button>
                 <button className="px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-medium rounded-md hover:bg-gray-200" onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}>
@@ -2185,6 +2190,92 @@ export default function LiveManagerPage() {
           </div>
         </main>
       </div>
+      {/* Playbook Creation Modal */}
+      {showPlaybookModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowPlaybookModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-[560px] max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[17px] font-bold font-['Newsreader'] text-gray-800">Create Playbook</h2>
+                <button onClick={() => setShowPlaybookModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              </div>
+              {playbookModalSignal && (
+                <div className="flex items-center gap-2 mt-3 bg-gray-50 rounded-lg px-3 py-2">
+                  <div className={`w-2 h-2 rounded-full ${playbookModalSignal.type === 'churn' ? 'bg-red-500' : playbookModalSignal.type === 'growth' ? 'bg-[#157A6E]' : playbookModalSignal.type === 'stall' ? 'bg-amber-400' : 'bg-blue-500'}`} />
+                  <span className="text-[11px] text-gray-600">From signal: <strong>{playbookModalSignal.title}</strong></span>
+                </div>
+              )}
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Playbook Name</label>
+                <input type="text" className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:outline-none focus:border-[#157A6E]"
+                  defaultValue={playbookModalSignal ? (playbookModalSignal.type === 'churn' ? `Win-Back: ${playbookModalSignal.partnerName || ''}` : playbookModalSignal.type === 'growth' ? `Growth: ${playbookModalSignal.partnerName || ''}` : playbookModalSignal.title) : ''} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Priority</label>
+                  <div className="flex gap-2 mt-1">
+                    {(['critical', 'high', 'medium'] as const).map(p => (
+                      <button key={p} onClick={() => setPlaybookPriority(p)}
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${playbookPriority === p
+                          ? p === 'critical' ? 'bg-red-100 text-red-800 border border-red-200' : p === 'high' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'
+                          : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+                        {p.charAt(0).toUpperCase() + p.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Deadline (days)</label>
+                  <div className="flex gap-2 mt-1">
+                    {[7, 14, 21, 30].map(d => (
+                      <button key={d} onClick={() => setPlaybookDeadline(d)}
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${playbookDeadline === d ? 'bg-[#157A6E] text-white' : 'bg-gray-100 text-gray-500'}`}>
+                        {d}d
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {playbookModalSignal?.mrr && (
+                <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
+                  <span className="text-[11px] text-gray-500">{playbookModalSignal.type === 'growth' ? 'Expansion Potential' : 'MRR at Risk'}</span>
+                  <span className={`text-[16px] font-bold ${playbookModalSignal.type === 'growth' ? 'text-[#157A6E]' : 'text-red-500'}`}>
+                    {playbookModalSignal.type === 'growth' ? '+' : ''}{formatCurrency(playbookModalSignal.mrr)}
+                  </span>
+                </div>
+              )}
+              <div>
+                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Action Steps</label>
+                <div className="space-y-2 mt-1">
+                  {playbookSteps.map((step, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-400 shrink-0">{i + 1}</div>
+                      <input type="text" value={step} onChange={e => { const ns = [...playbookSteps]; ns[i] = e.target.value; setPlaybookSteps(ns); }}
+                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-[12px] focus:outline-none focus:border-[#157A6E]"
+                        placeholder={i === 0 ? 'First action step...' : i === 1 ? 'Second step...' : 'Additional step...'} />
+                      {playbookSteps.length > 1 && (
+                        <button onClick={() => setPlaybookSteps(playbookSteps.filter((_, j) => j !== i))} className="text-gray-300 hover:text-red-400"><X className="w-3.5 h-3.5" /></button>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={() => setPlaybookSteps([...playbookSteps, ''])} className="text-[11px] text-[#157A6E] font-semibold hover:underline">+ Add step</button>
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Owner</label>
+                <input type="text" className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:outline-none focus:border-[#157A6E]" defaultValue="Jordan R." />
+              </div>
+            </div>
+            <div className="p-5 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setShowPlaybookModal(false)} className="px-4 py-2 text-[12px] font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+              <button onClick={() => { setShowPlaybookModal(false); setIntelligenceSubTab('playbooks'); }}
+                className="px-4 py-2 text-[12px] font-semibold text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f]">Create Playbook</button>
+            </div>
+          </div>
+        </div>
+      )}
       <DealModal
         isOpen={showDealModal}
         onClose={() => { setShowDealModal(false); setEditingDeal(null); }}
