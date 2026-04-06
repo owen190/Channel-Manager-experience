@@ -405,64 +405,155 @@ export default function LiveManagerPage() {
   // ════════════════════════════════════════════════
   // COMMAND CENTER
   // ════════════════════════════════════════════════
+  const [ccKpiDrill, setCcKpiDrill] = useState<string | null>(null);
+  const [showCoMarketingNotif, setShowCoMarketingNotif] = useState(true);
+
   const renderCommandCenter = () => (
-    <div className="space-y-6">
-      {/* KPI Row */}
+    <div className="space-y-5">
+      {/* Co-Marketing Notification Banner (dismissible) */}
+      {showCoMarketingNotif && coMarketingOpportunities.length > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-[#F0FAF8] border border-[#157A6E]/20 rounded-lg">
+          <Megaphone className="w-4 h-4 text-[#157A6E] shrink-0" />
+          <p className="text-[12px] text-gray-700 flex-1">
+            <span className="font-semibold text-[#157A6E]">{coMarketingOpportunities.length} co-marketing opportunities</span> identified —{' '}
+            {coMarketingOpportunities.slice(0, 2).map(o => o.advisor.name).join(', ')}{coMarketingOpportunities.length > 2 ? ` +${coMarketingOpportunities.length - 2} more` : ''}
+          </p>
+          <button onClick={() => { setActiveView('relationships'); }} className="text-[11px] font-semibold text-[#157A6E] hover:underline whitespace-nowrap">View in profiles →</button>
+          <button onClick={() => setShowCoMarketingNotif(false)} className="text-gray-400 hover:text-gray-600 shrink-0"><X className="w-3.5 h-3.5" /></button>
+        </div>
+      )}
+
+      {/* KPI Row — Clickable */}
       <div className="grid grid-cols-4 gap-4">
-        <KPICard label="Portfolio MRR" value={formatCurrency(totalMRR)} change={`${advisors.length} partners`} changeType="positive" />
-        <KPICard label="Active Pipeline" value={formatCurrency(pipelineMRR)} change={`${activePipeline.length} deals`} changeType="positive" />
-        <KPICard label="At-Risk MRR" value={formatCurrency(atRiskMRR)} change={`${atRiskAdvisors.length} partners`} changeType={atRiskAdvisors.length > 0 ? "negative" : "neutral"} />
-        <KPICard label="Closed Won QTD" value={formatCurrency(closedWonMRR)} change={`${closedWonDeals.length} deals`} changeType="positive" />
+        {[
+          { key: 'mrr', label: 'Portfolio MRR', value: formatCurrency(totalMRR), change: `${advisors.length} partners`, changeType: 'positive' as const },
+          { key: 'pipeline', label: 'Active Pipeline', value: formatCurrency(pipelineMRR), change: `${activePipeline.length} deals`, changeType: 'positive' as const },
+          { key: 'atrisk', label: 'At-Risk MRR', value: formatCurrency(atRiskMRR), change: `${atRiskAdvisors.length} partners`, changeType: (atRiskAdvisors.length > 0 ? 'negative' : 'neutral') as 'negative' | 'neutral' },
+          { key: 'won', label: 'Closed Won QTD', value: formatCurrency(closedWonMRR), change: `${closedWonDeals.length} deals`, changeType: 'positive' as const },
+        ].map(kpi => (
+          <div key={kpi.key} className="cursor-pointer" onClick={() => setCcKpiDrill(ccKpiDrill === kpi.key ? null : kpi.key)}>
+            <KPICard label={kpi.label} value={kpi.value} change={kpi.change} changeType={kpi.changeType} />
+          </div>
+        ))}
       </div>
 
-      {/* Co-Marketing Opportunity Alert (conditional) */}
-      {coMarketingOpportunities.length > 0 && (
-        <div className="bg-gradient-to-r from-[#157A6E]/5 to-[#157A6E]/10 rounded-[10px] border border-[#157A6E]/20 p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Megaphone className="w-4 h-4 text-[#157A6E]" />
-            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-[#157A6E]">Co-Marketing Opportunities</h3>
-            <span className="px-2 py-0.5 bg-[#157A6E] text-white text-10px rounded-full font-bold">{coMarketingOpportunities.length} primed</span>
+      {/* KPI Drill-Down (conditional) */}
+      {ccKpiDrill === 'mrr' && (
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 animate-in">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-[12px] font-semibold text-gray-700">MRR by Tier</h4>
+            <button onClick={() => setCcKpiDrill(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
           </div>
-          <div className="space-y-2">
-            {coMarketingOpportunities.slice(0, 3).map((opp, i) => (
-              <div key={i} className="flex items-center justify-between p-3 bg-white/70 rounded-lg">
-                <div>
-                  <p className="text-13px font-medium text-gray-800">{opp.advisor.name} — {opp.type}</p>
-                  <p className="text-11px text-gray-500">{opp.reason}</p>
+          <div className="grid grid-cols-4 gap-3">
+            {['top10', 'next20', 'developing', 'new'].map(tier => {
+              const tierAdvisors = advisors.filter(a => a.tier === tier);
+              const tierMRR = tierAdvisors.reduce((s, a) => s + a.mrr, 0);
+              return (
+                <div key={tier} className="bg-gray-50 rounded-lg p-3">
+                  <div className="text-[10px] text-gray-400 uppercase font-medium">{tier === 'top10' ? 'Top 10' : tier === 'next20' ? 'Next 20' : tier === 'developing' ? 'Developing' : 'New'}</div>
+                  <div className="text-[16px] font-bold text-gray-800 mt-1">{formatCurrency(tierMRR)}</div>
+                  <div className="text-[10px] text-gray-500">{tierAdvisors.length} partners</div>
                 </div>
-                <span className="text-12px font-semibold text-[#157A6E]">{formatCurrency(opp.advisor.mrr)}</span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {ccKpiDrill === 'pipeline' && (
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-[12px] font-semibold text-gray-700">Pipeline Breakdown</h4>
+            <button onClick={() => setCcKpiDrill(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
+          </div>
+          <div className="flex h-5 rounded-md overflow-hidden gap-[2px]">
+            {stageDistribution.filter(s => s.count > 0 && s.stage !== 'Closed Won' && s.stage !== 'Stalled').map(s => {
+              const colors: Record<string, string> = { Discovery: '#3B82F6', Qualifying: '#06B6D4', Proposal: '#8B5CF6', Negotiating: '#F59E0B' };
+              return <div key={s.stage} className="flex items-center justify-center text-[9px] font-bold text-white" style={{ width: `${(s.mrr / pipelineMRR) * 100}%`, backgroundColor: colors[s.stage] || '#9CA3AF', minWidth: 30 }}>{s.count}</div>;
+            })}
+          </div>
+          <div className="flex gap-3 mt-2 flex-wrap">
+            {stageDistribution.filter(s => s.count > 0 && s.stage !== 'Closed Won' && s.stage !== 'Stalled').map(s => {
+              const colors: Record<string, string> = { Discovery: '#3B82F6', Qualifying: '#06B6D4', Proposal: '#8B5CF6', Negotiating: '#F59E0B' };
+              return <div key={s.stage} className="flex items-center gap-1.5 text-[10px] text-gray-500"><div className="w-2 h-2 rounded-sm" style={{backgroundColor: colors[s.stage]}} />{s.stage}: {s.count} · {formatCurrency(s.mrr)}</div>;
+            })}
+          </div>
+        </div>
+      )}
+      {ccKpiDrill === 'atrisk' && atRiskAdvisors.length > 0 && (
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-[12px] font-semibold text-gray-700">At-Risk Partners</h4>
+            <button onClick={() => setCcKpiDrill(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {atRiskAdvisors.map(a => (
+              <div key={a.id} className="bg-red-50 rounded-lg p-3 cursor-pointer hover:bg-red-100" onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
+                <div className="text-[12px] font-semibold text-gray-800">{a.name}</div>
+                <div className="text-[11px] font-bold text-red-500 mt-0.5">{formatCurrency(a.mrr)}</div>
+                <div className="text-[10px] text-gray-500 mt-0.5">{a.trajectory} · {a.friction} friction</div>
               </div>
             ))}
           </div>
         </div>
       )}
+      {ccKpiDrill === 'won' && closedWonDeals.length > 0 && (
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-[12px] font-semibold text-gray-700">Closed Won This Quarter</h4>
+            <button onClick={() => setCcKpiDrill(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
+          </div>
+          {closedWonDeals.map(d => {
+            const adv = advisors.find(a => a.id === d.advisorId);
+            return (
+              <div key={d.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-b-0">
+                <div><div className="text-[12px] font-medium text-gray-800">{d.name}</div><div className="text-[10px] text-gray-500">{adv?.name || 'Unknown'}</div></div>
+                <span className="text-[13px] font-bold text-green-600">{formatCurrency(d.mrr)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Two Column Layout */}
-      <div className="grid grid-cols-2 gap-6">
-        {/* Signal Alerts */}
+      <div className="grid grid-cols-2 gap-5">
+        {/* Signal Alerts — Now shows diagnosis/reason */}
         <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Signal Alerts</h3>
-          <div className="space-y-3">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Signal Alerts</h3>
+            <button onClick={() => { setActiveView('intelligence'); setIntelligenceSubTab('signals'); }} className="text-[10px] text-[#157A6E] font-semibold hover:underline">View all →</button>
+          </div>
+          <div className="space-y-2">
             {atRiskAdvisors.length > 0 ? atRiskAdvisors.map(a => (
-              <div key={a.id} className="flex items-start gap-3 p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100"
+              <div key={a.id} className="p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100 transition-colors"
                    onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
-                <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-13px font-medium text-gray-800">{a.name} — {a.trajectory}</p>
-                  <p className="text-12px text-gray-500">{a.company} · {formatCurrency(a.mrr)} MRR · Friction: {a.friction}</p>
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[12px] font-semibold text-gray-800">{a.name}</p>
+                      <span className="text-[11px] font-bold text-red-500">{formatCurrency(a.mrr)}</span>
+                    </div>
+                    <p className="text-[11px] text-gray-600 mt-0.5 line-clamp-2">{a.diagnosis || `${a.trajectory} trajectory with ${a.friction.toLowerCase()} friction. Engagement declining.`}</p>
+                  </div>
                 </div>
               </div>
             )) : (
-              <p className="text-12px text-gray-400 italic">No at-risk partners currently</p>
+              <p className="text-[12px] text-gray-400 italic">No at-risk partners currently</p>
             )}
             {stalledDeals.length > 0 && stalledDeals.slice(0, 3).map(d => {
               const adv = advisors.find(a => a.id === d.advisorId);
               return (
-                <div key={d.id} className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg">
-                  <Clock className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-13px font-medium text-gray-800">{d.name} — Stalled {d.daysInStage}d</p>
-                    <p className="text-12px text-gray-500">{adv?.name || 'Unknown'} · {formatCurrency(d.mrr)}</p>
+                <div key={d.id} className="p-3 bg-amber-50 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors"
+                     onClick={() => { if (adv) { setSelectedAdvisor(adv); setPanelOpen(true); } }}>
+                  <div className="flex items-start gap-2.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[12px] font-semibold text-gray-800">{d.name}</p>
+                        <span className="text-[11px] font-bold text-amber-600">{formatCurrency(d.mrr)}</span>
+                      </div>
+                      <p className="text-[11px] text-gray-600 mt-0.5">{adv?.name || 'Unknown'} · Stuck in {d.stage} for {d.daysInStage} days</p>
+                    </div>
                   </div>
                 </div>
               );
@@ -470,32 +561,56 @@ export default function LiveManagerPage() {
           </div>
         </div>
 
-        {/* Pipeline by Stage */}
+        {/* Pipeline by Stage — Friendlier expand */}
         <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Pipeline by Stage</h3>
-          <div className="space-y-2">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Pipeline by Stage</h3>
+            <button onClick={() => setActiveView('pipeline')} className="text-[10px] text-[#157A6E] font-semibold hover:underline">Full pipeline →</button>
+          </div>
+          <div className="space-y-2.5">
             {stageDistribution.filter(s => s.count > 0).map(s => {
               const colors: Record<string, string> = {
-                Discovery: 'bg-blue-400', Qualifying: 'bg-cyan-400', Proposal: 'bg-violet-400',
-                Negotiating: 'bg-amber-400', 'Closed Won': 'bg-green-400', Stalled: 'bg-red-400',
+                Discovery: '#3B82F6', Qualifying: '#06B6D4', Proposal: '#8B5CF6',
+                Negotiating: '#F59E0B', 'Closed Won': '#10B981', Stalled: '#EF4444',
               };
+              const bgColors: Record<string, string> = {
+                Discovery: 'bg-blue-50', Qualifying: 'bg-cyan-50', Proposal: 'bg-violet-50',
+                Negotiating: 'bg-amber-50', 'Closed Won': 'bg-green-50', Stalled: 'bg-red-50',
+              };
+              const isExpanded = expandedStage === s.stage;
               return (
-                <div key={s.stage} className="cursor-pointer" onClick={() => setExpandedStage(expandedStage === s.stage as DealStage ? null : s.stage as DealStage)}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-12px font-medium text-gray-700">{s.stage}</span>
-                    <span className="text-11px text-gray-500">{s.count} · {formatCurrency(s.mrr)}</span>
+                <div key={s.stage}>
+                  <div className="cursor-pointer rounded-lg p-2.5 hover:bg-gray-50 transition-colors" onClick={() => setExpandedStage(isExpanded ? null : s.stage as DealStage)}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: colors[s.stage] || '#9CA3AF' }} />
+                        <span className="text-[12px] font-semibold text-gray-700">{s.stage}</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: colors[s.stage] + '18', color: colors[s.stage] }}>{s.count}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[12px] font-bold text-gray-700">{formatCurrency(s.mrr)}</span>
+                        {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                      </div>
+                    </div>
+                    <div className="h-[6px] bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${(s.mrr / maxStageMRR) * 100}%`, backgroundColor: colors[s.stage] || '#9CA3AF' }} />
+                    </div>
                   </div>
-                  <div className="h-5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className={`h-full ${colors[s.stage] || 'bg-gray-400'} rounded-full`} style={{ width: `${(s.mrr / maxStageMRR) * 100}%` }} />
-                  </div>
-                  {expandedStage === s.stage && (
-                    <div className="mt-2 ml-2 space-y-1">
+                  {isExpanded && (
+                    <div className={`mt-1 ml-2 mr-2 mb-1 rounded-lg p-3 ${bgColors[s.stage] || 'bg-gray-50'}`}>
                       {deals.filter(d => d.stage === s.stage).map(d => {
                         const adv = advisors.find(a => a.id === d.advisorId);
                         return (
-                          <div key={d.id} className="text-11px text-gray-600 flex justify-between">
-                            <span>{d.name} ({adv?.name || '?'})</span>
-                            <span>{formatCurrency(d.mrr)}</span>
+                          <div key={d.id} className="flex items-center justify-between py-2 border-b border-white/50 last:border-b-0 cursor-pointer hover:opacity-80"
+                               onClick={() => { if (adv) { setSelectedAdvisor(adv); setPanelOpen(true); setActiveViewRaw('relationships'); } }}>
+                            <div>
+                              <p className="text-[11px] font-semibold text-gray-700">{d.name}</p>
+                              <p className="text-[10px] text-gray-500">{adv?.name || 'Unassigned'} · {d.daysInStage}d in stage</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <DealHealthBadge health={d.health} />
+                              <span className="text-[12px] font-bold text-gray-700">{formatCurrency(d.mrr)}</span>
+                            </div>
                           </div>
                         );
                       })}
