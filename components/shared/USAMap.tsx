@@ -18,6 +18,15 @@ interface CityData {
   advisors: Array<{ id: string; name: string; mrr: number }>;
 }
 
+interface HeatData {
+  /** Score from 0-1 where 1 = best performance */
+  score: number;
+  partners: number;
+  mrr: number;
+  pipeline: number;
+  deals: number;
+}
+
 interface USAMapProps {
   advisorsByCity: Record<string, CityData>;
   onCityClick: (city: string) => void;
@@ -29,6 +38,14 @@ interface USAMapProps {
   /** Called when a state marker is clicked */
   onStateClick?: (stateAbbr: string) => void;
   selectedState?: string | null;
+  /** Weather-map style heat map mode — colors state fills by performance */
+  heatMode?: boolean;
+  /** Per-state heat data for coloring (keyed by state abbreviation) */
+  heatData?: Record<string, HeatData>;
+  /** Title override */
+  title?: string;
+  /** Subtitle override */
+  subtitle?: string;
 }
 
 const formatMRR = (value: number): string => {
@@ -145,6 +162,36 @@ const STATE_CENTERS: Record<string, { coords: [number, number]; name: string }> 
   DC: { coords: [-77.01, 38.91], name: 'District of Columbia' },
 };
 
+// State name to abbreviation mapping for TopoJSON
+const STATE_NAME_TO_ABBR: Record<string, string> = {
+  'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR', 'California': 'CA',
+  'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE', 'Florida': 'FL', 'Georgia': 'GA',
+  'Hawaii': 'HI', 'Idaho': 'ID', 'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA',
+  'Kansas': 'KS', 'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+  'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS', 'Missouri': 'MO',
+  'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV', 'New Hampshire': 'NH', 'New Jersey': 'NJ',
+  'New Mexico': 'NM', 'New York': 'NY', 'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH',
+  'Oklahoma': 'OK', 'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+  'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT', 'Vermont': 'VT',
+  'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV', 'Wisconsin': 'WI', 'Wyoming': 'WY',
+  'District of Columbia': 'DC',
+};
+
+// Weather-map style heat color interpolation
+// 0 = no data (gray), then gradient: blue → green → yellow → orange → red for intensity
+const getHeatColor = (score: number, hasData: boolean): string => {
+  if (!hasData) return '#e8e5e1';
+  // Score 0-1, map through a warm gradient like a weather forecast
+  if (score >= 0.85) return '#157A6E';  // Deep teal (excellent)
+  if (score >= 0.7) return '#22A699';   // Teal-green
+  if (score >= 0.55) return '#4CC9A0';  // Green
+  if (score >= 0.4) return '#8BD87A';   // Light green
+  if (score >= 0.3) return '#C5E063';   // Yellow-green
+  if (score >= 0.2) return '#F3D44E';   // Yellow
+  if (score >= 0.1) return '#F5A623';   // Orange
+  return '#EF4444';                     // Red (poor)
+};
+
 // Memoize the map background to avoid re-rendering on every state change
 const MapBackground = memo(({ solidOutline }: { solidOutline?: boolean }) => (
   <Geographies geography={GEO_URL}>
@@ -168,6 +215,61 @@ const MapBackground = memo(({ solidOutline }: { solidOutline?: boolean }) => (
 ));
 MapBackground.displayName = 'MapBackground';
 
+// Heat map colored state fills
+const HeatMapGeographies = memo(({
+  heatData,
+  onStateClick,
+  selectedState,
+  onHover,
+}: {
+  heatData: Record<string, HeatData>;
+  onStateClick?: (abbr: string) => void;
+  selectedState?: string | null;
+  onHover: (abbr: string | null) => void;
+}) => (
+  <Geographies geography={GEO_URL}>
+    {({ geographies }) =>
+      geographies.map((geo) => {
+        const stateName = geo.properties?.name;
+        const abbr = STATE_NAME_TO_ABBR[stateName] || '';
+        const data = heatData[abbr];
+        const hasData = !!data && data.partners > 0;
+        const fillColor = getHeatColor(data?.score || 0, hasData);
+        const isSelected = selectedState === abbr;
+
+        return (
+          <Geography
+            key={geo.rpid || geo.id || stateName}
+            geography={geo}
+            fill={fillColor}
+            stroke={isSelected ? '#0d5a51' : '#ffffff'}
+            strokeWidth={isSelected ? 2 : 0.8}
+            onClick={() => abbr && onStateClick?.(abbr)}
+            onMouseEnter={() => onHover(abbr)}
+            onMouseLeave={() => onHover(null)}
+            style={{
+              default: {
+                outline: 'none',
+                fill: fillColor,
+                filter: isSelected ? 'brightness(0.85) drop-shadow(0 0 4px rgba(21,122,110,0.5))' : 'none',
+                transition: 'all 0.2s ease',
+              },
+              hover: {
+                outline: 'none',
+                fill: fillColor,
+                filter: 'brightness(0.9)',
+                cursor: hasData ? 'pointer' : 'default',
+              },
+              pressed: { outline: 'none' },
+            }}
+          />
+        );
+      })
+    }
+  </Geographies>
+));
+HeatMapGeographies.displayName = 'HeatMapGeographies';
+
 export const USAMap: React.FC<USAMapProps> = ({
   advisorsByCity,
   onCityClick,
@@ -176,6 +278,10 @@ export const USAMap: React.FC<USAMapProps> = ({
   stateData,
   onStateClick,
   selectedState,
+  heatMode = false,
+  heatData,
+  title,
+  subtitle,
 }) => {
   const [hoveredCity, setHoveredCity] = useState<string | null>(null);
   const [hoveredState, setHoveredState] = useState<string | null>(null);
@@ -226,9 +332,9 @@ export const USAMap: React.FC<USAMapProps> = ({
   return (
     <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Territory Map</h3>
+        <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">{title || (heatMode ? 'Performance Heat Map' : 'Territory Map')}</h3>
         <div className="flex items-center gap-3">
-          {selectedCity && (
+          {selectedCity && !heatMode && (
             <button
               onClick={() => onCityClick(selectedCity)}
               className="text-[11px] text-[#157A6E] hover:underline"
@@ -246,12 +352,30 @@ export const USAMap: React.FC<USAMapProps> = ({
           )}
         </div>
       </div>
-      <p className="text-[10px] text-gray-400 mb-3 flex items-center gap-1">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <path d="M16 8a6 6 0 0 1-12 0 6 6 0 0 1 12 0Z" /><path d="M2 21c0-3.3 2.7-6 6-6h8c3.3 0 6 2.7 6 6" />
-        </svg>
-        {showAllStates ? 'All 50 states · Click a state for details' : 'Location via LinkedIn profiles'}
-      </p>
+      {/* Heat map legend bar */}
+      {heatMode && (
+        <div className="mb-3">
+          <p className="text-[10px] text-gray-400 mb-2">{subtitle || 'Partner performance by state · Click a state for details'}</p>
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] text-gray-400 mr-1">Low</span>
+            {['#EF4444', '#F5A623', '#F3D44E', '#C5E063', '#8BD87A', '#4CC9A0', '#22A699', '#157A6E'].map((c, i) => (
+              <div key={i} className="h-3 flex-1 first:rounded-l last:rounded-r" style={{ backgroundColor: c }} />
+            ))}
+            <span className="text-[9px] text-gray-400 ml-1">High</span>
+            <span className="text-[9px] text-gray-300 ml-3">|</span>
+            <div className="w-3 h-3 rounded-sm ml-1" style={{ backgroundColor: '#e8e5e1' }} />
+            <span className="text-[9px] text-gray-400 ml-1">No data</span>
+          </div>
+        </div>
+      )}
+      {!heatMode && (
+        <p className="text-[10px] text-gray-400 mb-3 flex items-center gap-1">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M16 8a6 6 0 0 1-12 0 6 6 0 0 1 12 0Z" /><path d="M2 21c0-3.3 2.7-6 6-6h8c3.3 0 6 2.7 6 6" />
+          </svg>
+          {showAllStates ? 'All 50 states · Click a state for details' : 'Location via LinkedIn profiles'}
+        </p>
+      )}
 
       {/* Map */}
       <div className="relative rounded-lg overflow-hidden bg-[#f9f7f5]">
@@ -262,8 +386,18 @@ export const USAMap: React.FC<USAMapProps> = ({
           height={500}
           style={{ width: '100%', height: 'auto' }}
         >
-          {/* State boundaries with solid outline */}
-          <MapBackground solidOutline={showAllStates} />
+          {/* Heat mode: colored state fills */}
+          {heatMode && heatData && (
+            <HeatMapGeographies
+              heatData={heatData}
+              onStateClick={onStateClick}
+              selectedState={selectedState}
+              onHover={setHoveredState}
+            />
+          )}
+
+          {/* Normal mode: State boundaries with solid outline */}
+          {!heatMode && <MapBackground solidOutline={showAllStates} />}
 
           {/* State-level markers (all 50 states) */}
           {showAllStates && Object.entries(STATE_CENTERS).map(([abbr, { coords, name }]) => {
@@ -390,8 +524,32 @@ export const USAMap: React.FC<USAMapProps> = ({
           </div>
         )}
 
-        {/* Hover Tooltip for states */}
-        {hoveredState && showAllStates && (
+        {/* Hover Tooltip for states (heat mode) */}
+        {hoveredState && heatMode && heatData && (
+          <div className="absolute bottom-3 left-3 bg-gray-900 text-white text-xs rounded-md px-3 py-2 pointer-events-none z-10 shadow-lg">
+            <div className="font-semibold mb-0.5">{STATE_CENTERS[hoveredState]?.name || hoveredState}</div>
+            {heatData[hoveredState] && heatData[hoveredState].partners > 0 ? (
+              <>
+                <div className="text-gray-300">{heatData[hoveredState].partners} partner{heatData[hoveredState].partners !== 1 ? 's' : ''}</div>
+                <div className="text-gray-300">{formatMRR(heatData[hoveredState].mrr)} MRR</div>
+                <div className="text-gray-300">{formatMRR(heatData[hoveredState].pipeline)} pipeline</div>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-gray-400">Performance:</span>
+                  <div className="w-12 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${Math.round(heatData[hoveredState].score * 100)}%`, backgroundColor: getHeatColor(heatData[hoveredState].score, true) }} />
+                  </div>
+                  <span className="text-gray-300 font-bold">{Math.round(heatData[hoveredState].score * 100)}%</span>
+                </div>
+              </>
+            ) : (
+              <div className="text-gray-400">No partners</div>
+            )}
+            <div className="text-gray-400 mt-1 text-[10px]">Click for details</div>
+          </div>
+        )}
+
+        {/* Hover Tooltip for states (normal mode) */}
+        {hoveredState && showAllStates && !heatMode && (
           <div className="absolute bottom-3 left-3 bg-gray-900 text-white text-xs rounded-md px-3 py-2 pointer-events-none z-10 shadow-lg">
             <div className="font-semibold mb-0.5">{STATE_CENTERS[hoveredState]?.name || hoveredState}</div>
             {stateData && stateData[hoveredState] ? (

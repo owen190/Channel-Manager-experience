@@ -738,27 +738,34 @@ export default function LiveManagerPage() {
       setTerritoryFilter(prev => prev === city ? null : city);
     };
 
-    // Calculate heat map data by city
-    const heatMapData = Object.entries(advisorsByCityMap).map(([location, data]) => {
-      const advisorList = data.advisors;
-      const avgPulse = advisorList.length > 0
-        ? advisorList.reduce((sum, a) => {
-            const pulseScore: Record<string, number> = { Strong: 3, Steady: 2, Rising: 2.5, Fading: 1, Flatline: 0 };
-            const fullAdvisor = advisorsWithDeals.find(ad => ad.id === a.id);
-            return sum + (pulseScore[fullAdvisor?.pulse || ''] || 1);
-          }, 0) / advisorList.length
-        : 0;
-
-      const avgTrajectory = advisorList.length > 0
-        ? advisorList.reduce((sum, a) => {
-            const trajScore: Record<string, number> = { Accelerating: 3, Climbing: 2, Stable: 1, Slipping: -1, Freefall: -2 };
-            const fullAdvisor = advisorsWithDeals.find(ad => ad.id === a.id);
-            return sum + (trajScore[fullAdvisor?.trajectory || ''] || 0);
-          }, 0) / advisorList.length
-        : 0;
-
-      const score = (avgPulse + avgTrajectory) / 2;
-      return { location, count: data.count, mrr: data.mrr, score, health: score > 1.5 ? 'good' : score > 0 ? 'moderate' : 'poor' };
+    // Calculate per-state heat data for weather-map style heat map
+    const stateHeatData: Record<string, { score: number; partners: number; mrr: number; pipeline: number; deals: number }> = {};
+    advisorsWithDeals.forEach(a => {
+      // Extract state abbreviation from location like "Boston, MA"
+      const match = a.location?.match(/,\s*([A-Z]{2})$/);
+      if (!match) return;
+      const stateAbbr = match[1];
+      if (!stateHeatData[stateAbbr]) stateHeatData[stateAbbr] = { score: 0, partners: 0, mrr: 0, pipeline: 0, deals: 0 };
+      stateHeatData[stateAbbr].partners += 1;
+      stateHeatData[stateAbbr].mrr += a.mrr;
+      const advisorDeals = deals.filter(d => d.advisorId === a.id);
+      stateHeatData[stateAbbr].deals += advisorDeals.length;
+      stateHeatData[stateAbbr].pipeline += advisorDeals.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Stalled').reduce((s, d) => s + d.mrr, 0);
+    });
+    // Compute performance score for each state (0-1 based on pulse, trajectory, friction)
+    const maxStateMRR = Math.max(...Object.values(stateHeatData).map(s => s.mrr), 1);
+    Object.keys(stateHeatData).forEach(abbr => {
+      const stateAdvisors = advisorsWithDeals.filter(a => a.location?.endsWith(`, ${abbr}`));
+      if (stateAdvisors.length === 0) return;
+      const pulseScore: Record<string, number> = { Strong: 1, Steady: 0.7, Rising: 0.8, Fading: 0.3, Flatline: 0.1 };
+      const trajScore: Record<string, number> = { Accelerating: 1, Climbing: 0.8, Stable: 0.5, Slipping: 0.2, Freefall: 0 };
+      const fricScore: Record<string, number> = { Low: 1, Moderate: 0.6, High: 0.3, Critical: 0 };
+      const avgPulse = stateAdvisors.reduce((s, a) => s + (pulseScore[a.pulse] || 0.5), 0) / stateAdvisors.length;
+      const avgTraj = stateAdvisors.reduce((s, a) => s + (trajScore[a.trajectory] || 0.5), 0) / stateAdvisors.length;
+      const avgFric = stateAdvisors.reduce((s, a) => s + (fricScore[a.friction] || 0.5), 0) / stateAdvisors.length;
+      const mrrFactor = stateHeatData[abbr].mrr / maxStateMRR;
+      // Weighted composite: 30% pulse, 25% trajectory, 20% friction, 25% revenue
+      stateHeatData[abbr].score = Math.min(1, avgPulse * 0.3 + avgTraj * 0.25 + avgFric * 0.2 + mrrFactor * 0.25);
     });
 
     // Region analysis for territory sub-tab
@@ -825,43 +832,67 @@ export default function LiveManagerPage() {
         {/* ── PARTNERS SUB-TAB ── */}
         {relationshipViewMode === 'partners' && (
         <div className="space-y-4">
-          {/* Heat Map — SVG visualization */}
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
-            <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Territory Heat Map</p>
-            <div className="flex items-center gap-4 mb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#16A34A' }} />
-                <span className="text-10px text-gray-600">Good</span>
+          {/* Weather-Map Style Heat Map */}
+          <USAMap
+            advisorsByCity={advisorsByCityMap}
+            onCityClick={handleCityClick}
+            selectedCity={territoryFilter}
+            heatMode={true}
+            heatData={stateHeatData}
+            onStateClick={(abbr) => setSelectedState(prev => prev === abbr ? null : abbr)}
+            selectedState={selectedState}
+            title="Partner Performance Heat Map"
+            subtitle="States colored by partner engagement, trajectory & revenue · Click for details"
+          />
+
+          {/* State Detail (when clicked on heat map) */}
+          {selectedState && stateHeatData[selectedState] && stateHeatData[selectedState].partners > 0 && (
+            <div className="bg-white rounded-[10px] border border-[#157A6E]/30 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">
+                  {selectedState} — {stateHeatData[selectedState].partners} Partner{stateHeatData[selectedState].partners !== 1 ? 's' : ''}
+                </h3>
+                <button onClick={() => setSelectedState(null)} className="text-12px text-[#157A6E] hover:underline">Clear</button>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#FBBF24' }} />
-                <span className="text-10px text-gray-600">Moderate</span>
+              <div className="grid grid-cols-4 gap-3 mb-4">
+                <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                  <p className="text-10px text-gray-500">Partners</p>
+                  <p className="text-lg font-bold text-gray-800">{stateHeatData[selectedState].partners}</p>
+                </div>
+                <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                  <p className="text-10px text-gray-500">MRR</p>
+                  <p className="text-lg font-bold text-[#157A6E]">{formatCurrency(stateHeatData[selectedState].mrr)}</p>
+                </div>
+                <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                  <p className="text-10px text-gray-500">Pipeline</p>
+                  <p className="text-lg font-bold text-gray-800">{formatCurrency(stateHeatData[selectedState].pipeline)}</p>
+                </div>
+                <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                  <p className="text-10px text-gray-500">Score</p>
+                  <p className="text-lg font-bold text-[#157A6E]">{Math.round(stateHeatData[selectedState].score * 100)}%</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#EF4444' }} />
-                <span className="text-10px text-gray-600">Poor</span>
+              <div className="space-y-2">
+                {advisorsWithDeals
+                  .filter(a => a.location?.endsWith(`, ${selectedState}`))
+                  .sort((a, b) => b.mrr - a.mrr)
+                  .map(a => (
+                    <div key={a.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                      onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
+                      <div>
+                        <p className="text-13px font-medium text-gray-800">{a.name}</p>
+                        <p className="text-11px text-gray-500">{a.company} · {a.location}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <PulseBadge pulse={a.pulse} />
+                        <TrajectoryBadge trajectory={a.trajectory} />
+                        <span className="text-13px font-semibold text-[#157A6E]">{formatCurrency(a.mrr)}</span>
+                      </div>
+                    </div>
+                  ))}
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {heatMapData.slice(0, 12).map(data => {
-                const color = data.health === 'good' ? '#16A34A' : data.health === 'moderate' ? '#FBBF24' : '#EF4444';
-                const size = Math.min(20, 10 + data.count);
-                return (
-                  <div
-                    key={data.location}
-                    className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
-                    title={`${data.location}: ${data.count} partners, $${(data.mrr / 1000).toFixed(0)}K MRR`}
-                  >
-                    <div
-                      className="rounded-full"
-                      style={{ width: `${size}px`, height: `${size}px`, backgroundColor: color }}
-                    />
-                    <span className="text-9px text-gray-600 text-center">{data.location.split(',')[0]}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          )}
 
           {/* Engagement Level Filter */}
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
