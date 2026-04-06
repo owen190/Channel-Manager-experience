@@ -78,6 +78,7 @@ export default function LiveManagerPage() {
   const [ccKpiDrill, setCcKpiDrill] = useState<string | null>(null);
   const [showCoMarketingNotif, setShowCoMarketingNotif] = useState(true);
   const [tsdRoleFilter, setTsdRoleFilter] = useState<string>('All');
+  const [tsdCompanyFilter, setTsdCompanyFilter] = useState<string | null>(null);
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -1272,6 +1273,46 @@ export default function LiveManagerPage() {
             const companyMRR = companyAdvisors.reduce((s, a) => s + a.mrr, 0);
             const avgMRR = companyAdvisors.length > 0 ? companyMRR / companyAdvisors.length : 0;
 
+            // Calculate relationship score for the company
+            const avgPulseScore = companyAdvisors.length > 0
+              ? companyAdvisors.reduce((sum, a) => {
+                  const pulseMap: Record<string, number> = { 'Strong': 1, 'Steady': 0.7, 'Fading': 0.3, 'Flatline': 0.1 };
+                  return sum + (pulseMap[a.pulse] || 0);
+                }, 0) / companyAdvisors.length
+              : 0;
+
+            const avgTrajectoryScore = companyAdvisors.length > 0
+              ? companyAdvisors.reduce((sum, a) => {
+                  const trajectoryMap: Record<string, number> = { 'Accelerating': 1, 'Climbing': 0.8, 'Stable': 0.5, 'Slipping': 0.2, 'Freefall': 0 };
+                  return sum + (trajectoryMap[a.trajectory] || 0);
+                }, 0) / companyAdvisors.length
+              : 0;
+
+            const avgFrictionScore = companyAdvisors.length > 0
+              ? companyAdvisors.reduce((sum, a) => {
+                  const frictionMap: Record<string, number> = { 'Low': 1, 'Moderate': 0.6, 'High': 0.3, 'Critical': 0 };
+                  return sum + (frictionMap[a.friction] || 0);
+                }, 0) / companyAdvisors.length
+              : 0;
+
+            const avgRecentContact = companyAdvisors.length > 0
+              ? companyAdvisors.reduce((sum, a) => {
+                  const daysSince = getDaysSinceContact(a.lastContact);
+                  return sum + (daysSince < 7 ? 1 : daysSince < 14 ? 0.5 : 0);
+                }, 0) / companyAdvisors.length
+              : 0;
+
+            const relationshipScore = (avgPulseScore + avgTrajectoryScore + avgFrictionScore + avgRecentContact) / 4;
+
+            const getRelationshipBadge = (score: number) => {
+              if (score > 0.75) return { label: 'Excellent', color: '#16A34A' };
+              if (score > 0.5) return { label: 'Good', color: '#84CC16' };
+              if (score > 0.25) return { label: 'Fair', color: '#FBBF24' };
+              return { label: 'Needs Work', color: '#EF4444' };
+            };
+
+            const scoreInfo = getRelationshipBadge(relationshipScore);
+
             return (
               <div className="bg-white rounded-[10px] border border-[#157A6E]/30 p-6 mb-4">
                 <div className="flex items-center justify-between mb-4">
@@ -1286,7 +1327,7 @@ export default function LiveManagerPage() {
                     Clear filter
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <div>
                     <p className="text-11px text-gray-600 mb-1">Total Contacts</p>
                     <p className="text-18px font-bold text-gray-900">{companyAdvisors.length}</p>
@@ -1298,6 +1339,10 @@ export default function LiveManagerPage() {
                   <div>
                     <p className="text-11px text-gray-600 mb-1">Avg MRR per Contact</p>
                     <p className="text-18px font-bold text-gray-900">{formatCurrency(avgMRR)}</p>
+                  </div>
+                  <div>
+                    <p className="text-11px text-gray-600 mb-1">Relationship Score</p>
+                    <p className="text-18px font-bold" style={{ color: scoreInfo.color }}>{scoreInfo.label}</p>
                   </div>
                 </div>
               </div>
@@ -1453,8 +1498,45 @@ export default function LiveManagerPage() {
           const totalTsdIntrosAllTime = TSD_COMPANIES.reduce((s, c) => s + c.totalIntrosAllTime, 0);
           const totalTsdRevenue = TSD_COMPANIES.reduce((s, c) => s + c.totalRevenueAttributed, 0);
           const totalTsdContacts = TSD_COMPANIES.reduce((s, c) => s + c.contacts.length, 0);
-          const maxTsdRevenue = Math.max(...TSD_COMPANIES.map(c => c.totalRevenueAttributed), 1);
           const tsdColors: Record<string, string> = { Telarus: '#2563EB', Avant: '#EA580C', Bridgepointe: '#16A34A', Intelisys: '#7C3AED', AppDirect: '#0891B2' };
+
+          // Calculate average relationship score across all TSD companies
+          const avgRelationshipScore = TSD_COMPANIES.length > 0
+            ? TSD_COMPANIES.reduce((sum, company) => {
+                const avgDaysSinceContact = company.contacts.length > 0
+                  ? company.contacts.reduce((s, c) => s + getDaysSinceContact(c.lastContact), 0) / company.contacts.length
+                  : 0;
+                const introsFrequency = company.totalIntrosQTD > 8 ? 1 : company.totalIntrosQTD > 4 ? 0.5 : 0;
+                const recentContact = avgDaysSinceContact < 7 ? 1 : avgDaysSinceContact < 14 ? 0.5 : 0;
+                const revenueScale = company.totalRevenueAttributed > 100000 ? 1 : company.totalRevenueAttributed > 50000 ? 0.5 : 0;
+                return sum + (introsFrequency + recentContact + revenueScale) / 3;
+              }, 0) / TSD_COMPANIES.length
+            : 0;
+
+          const getScoreBadge = (score: number) => {
+            if (score > 0.75) return { label: 'Excellent', color: '#16A34A' };
+            if (score > 0.5) return { label: 'Good', color: '#84CC16' };
+            if (score > 0.25) return { label: 'Fair', color: '#FBBF24' };
+            return { label: 'Needs Work', color: '#EF4444' };
+          };
+
+          const scoreInfo = getScoreBadge(avgRelationshipScore);
+
+          // Get all contacts and filter by role + company
+          const allTsdContacts = TSD_COMPANIES.flatMap(company =>
+            company.contacts.map(contact => ({ ...contact, companyName: company.name, companyColor: tsdColors[company.name] || '#157A6E' }))
+          );
+
+          const filteredContacts = allTsdContacts.filter(contact => {
+            if (tsdRoleFilter !== 'All' && contact.role !== tsdRoleFilter) return false;
+            if (tsdCompanyFilter && contact.companyName !== tsdCompanyFilter) return false;
+            return true;
+          });
+
+          // Sort by most recent contact date
+          const sortedContacts = [...filteredContacts].sort((a, b) =>
+            new Date(b.lastContact).getTime() - new Date(a.lastContact).getTime()
+          );
 
           return (
         <div className="space-y-4">
@@ -1475,33 +1557,9 @@ export default function LiveManagerPage() {
               <p className="text-10px text-gray-400 mt-0.5">across {TSD_COMPANIES.length} companies</p>
             </div>
             <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
-              <p className="text-10px text-gray-500 uppercase font-medium">Partners Sourced</p>
-              <p className="text-xl font-bold text-gray-800 mt-1">{TSD_COMPANIES.reduce((s, c) => s + c.partners.length, 0)}</p>
-            </div>
-          </div>
-
-          {/* Revenue by TSD Chart */}
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <BarChart3 className="w-4 h-4 text-[#157A6E]" />
-              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Revenue by TSD</h3>
-            </div>
-            <div className="space-y-3">
-              {TSD_COMPANIES.sort((a, b) => b.totalRevenueAttributed - a.totalRevenueAttributed).map(company => (
-                <div key={company.name} className="flex items-center gap-3">
-                  <div className="w-24 text-12px font-medium text-gray-700 flex-shrink-0">{company.name}</div>
-                  <div className="flex-1 h-7 bg-gray-100 rounded-full overflow-hidden relative cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => setExpandedTsdCompany(prev => prev === company.name ? null : company.name)}>
-                    <div className="h-full rounded-full flex items-center transition-all duration-500"
-                      style={{ width: `${(company.totalRevenueAttributed / maxTsdRevenue) * 100}%`, backgroundColor: tsdColors[company.name] || '#157A6E' }}>
-                      <span className="text-10px font-semibold text-white ml-2 whitespace-nowrap">{formatCurrency(company.totalRevenueAttributed)}</span>
-                    </div>
-                  </div>
-                  <div className="w-20 text-right flex-shrink-0">
-                    <span className="text-11px font-semibold text-gray-600">{company.totalIntrosQTD} intros</span>
-                  </div>
-                </div>
-              ))}
+              <p className="text-10px text-gray-500 uppercase font-medium">Relationship Score</p>
+              <p className="text-xl font-bold mt-1" style={{ color: scoreInfo.color }}>{scoreInfo.label}</p>
+              <p className="text-10px text-gray-400 mt-0.5">{(avgRelationshipScore * 100).toFixed(0)}% health</p>
             </div>
           </div>
 
@@ -1525,143 +1583,161 @@ export default function LiveManagerPage() {
             </div>
           </div>
 
-          {/* TSD Company Cards */}
-          <div className="space-y-3">
+          {/* TSD Company Filter Pills */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+            <p className="text-11px text-gray-600 mb-3 uppercase font-medium">TSD Company</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setTsdCompanyFilter(null)}
+                className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
+                  tsdCompanyFilter === null
+                    ? 'bg-[#157A6E] text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                All
+              </button>
+              {TSD_COMPANIES.map(company => {
+                const companyContactCount = company.contacts.filter(c =>
+                  tsdRoleFilter === 'All' || c.role === tsdRoleFilter
+                ).length;
+                return (
+                  <button
+                    key={company.name}
+                    onClick={() => setTsdCompanyFilter(company.name)}
+                    className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
+                      tsdCompanyFilter === company.name
+                        ? 'text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                    style={tsdCompanyFilter === company.name ? { backgroundColor: tsdColors[company.name] || '#157A6E' } : {}}
+                  >
+                    {company.name}
+                    <span className={`ml-1.5 ${tsdCompanyFilter === company.name ? 'text-white/80' : 'text-gray-600'}`}>
+                      ({companyContactCount})
+                    </span>
+                  </button>
+                );
+              })}
+              <button
+                className="px-3 py-1.5 rounded-full text-12px font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors flex items-center gap-1"
+                title="Add a new TSD company"
+              >
+                <Plus className="w-3 h-3" /> Add TSD
+              </button>
+            </div>
+          </div>
+
+          {/* Per-Company Relationship Score Cards */}
+          {tsdCompanyFilter === null && (
+          <div className="grid grid-cols-5 gap-3">
             {TSD_COMPANIES.map(company => {
-              const isExpanded = expandedTsdCompany === company.name;
-              const color = tsdColors[company.name] || '#157A6E';
               const health = getTsdRelationshipHealth(company);
-              const filteredContacts = tsdRoleFilter === 'All'
-                ? company.contacts
-                : company.contacts.filter(c => c.role === tsdRoleFilter);
-
+              const color = tsdColors[company.name] || '#157A6E';
               return (
-              <div key={company.name} className={`bg-white rounded-[10px] border transition-all ${isExpanded ? 'border-[#157A6E] shadow-md' : 'border-[#e8e5e1] hover:shadow-sm'}`}>
-                {/* Company Header — always visible */}
-                <div className="p-5 cursor-pointer" onClick={() => setExpandedTsdCompany(prev => prev === company.name ? null : company.name)}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg" style={{ backgroundColor: color + '18' }}>
-                        {company.logo}
-                      </div>
-                      <div>
-                        <p className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">{company.name}</p>
-                        <p className="text-11px text-gray-500">{company.description}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div style={{ color: health.color }} className="text-center">
-                        <p className="text-12px font-bold">{health.health}</p>
-                        <p className="text-9px text-gray-400">Health</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-13px font-bold" style={{ color }}>{company.totalIntrosQTD} intros QTD</p>
-                        <p className="text-10px text-gray-400">{company.totalIntrosAllTime} all-time</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-13px font-bold text-[#157A6E]">{formatCurrency(company.totalRevenueAttributed)}</p>
-                        <p className="text-10px text-gray-400">{company.partners.length} partners</p>
-                      </div>
-                      {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                    </div>
+                <button
+                  key={company.name}
+                  onClick={() => setTsdCompanyFilter(company.name)}
+                  className="bg-white rounded-[10px] border border-[#e8e5e1] p-3 text-left hover:shadow-md hover:border-[#157A6E] transition-all cursor-pointer"
+                >
+                  <p className="text-12px font-semibold text-gray-900 mb-2">{company.name}</p>
+                  <div className="mb-2">
+                    <span className="text-10px font-medium text-white px-2 py-1 rounded-full" style={{ backgroundColor: health.color }}>
+                      {health.health}
+                    </span>
                   </div>
-                </div>
-
-                {/* Expanded Content — contacts grouped by role + partners */}
-                {isExpanded && (
-                <div className="border-t border-[#e8e5e1] px-5 pb-5">
-                  {/* Contacts grouped by role */}
-                  {filteredContacts.length > 0 && (
-                  <div className="pt-4 mb-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-12px font-semibold text-gray-700 uppercase tracking-wide">Your Contacts ({filteredContacts.length})</p>
-                      <button className="flex items-center gap-1 text-11px font-medium text-[#157A6E] hover:underline">
-                        <UserPlus className="w-3 h-3" /> Add Contact
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 gap-2">
-                      {filteredContacts.map(contact => {
-                        const daysSince = Math.floor((new Date().getTime() - new Date(contact.lastContact).getTime()) / (1000 * 60 * 60 * 24));
-                        return (
-                        <div key={contact.id} className="flex items-center gap-4 p-3 bg-[#F7F5F2] rounded-lg hover:bg-[#f0ede9] transition-colors">
-                          <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-11px font-semibold flex-shrink-0"
-                            style={{ backgroundColor: color }}>
-                            {contact.name.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-13px font-semibold text-gray-800">{contact.name}</p>
-                            <div className="flex items-center gap-2">
-                              <span className="text-10px text-gray-500 px-1.5 py-0.5 bg-gray-200 rounded">{contact.role}</span>
-                              <p className="text-11px text-gray-500">{contact.title}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-6 flex-shrink-0">
-                            <div className="text-center">
-                              <p className="text-13px font-bold" style={{ color }}>{contact.introsQTD}</p>
-                              <p className="text-9px text-gray-400 uppercase">Intros QTD</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-13px font-bold text-gray-600">{contact.introsAllTime}</p>
-                              <p className="text-9px text-gray-400 uppercase">All-Time</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-13px font-bold text-[#157A6E]">{formatCurrency(contact.revenueAttributed)}</p>
-                              <p className="text-9px text-gray-400 uppercase">Revenue</p>
-                            </div>
-                            <div className="text-center">
-                              <p className={`text-11px font-medium ${daysSince <= 3 ? 'text-green-600' : daysSince <= 7 ? 'text-yellow-600' : 'text-red-500'}`}>
-                                {daysSince}d ago
-                              </p>
-                              <p className="text-9px text-gray-400 uppercase">Contact</p>
-                            </div>
-                            <div className="flex gap-1">
-                              <button className="p-1.5 rounded hover:bg-white transition-colors" title={contact.email}>
-                                <Mail className="w-3.5 h-3.5 text-gray-400 hover:text-[#157A6E]" />
-                              </button>
-                              <button className="p-1.5 rounded hover:bg-white transition-colors" title={contact.phone}>
-                                <Phone className="w-3.5 h-3.5 text-gray-400 hover:text-[#157A6E]" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        );
-                      })}
-                    </div>
+                  <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: '75%', backgroundColor: health.color }}
+                    />
                   </div>
-                  )}
-
-                  {/* Partners sourced through this TSD */}
-                  {company.partners.length > 0 && (
-                  <div>
-                    <p className="text-12px font-semibold text-gray-700 uppercase tracking-wide mb-3">Partners via {company.name} ({company.partners.length})</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {company.partners.slice(0, 6).map(partner => (
-                        <div key={partner.id} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
-                          onClick={() => { setSelectedAdvisor(partner); setPanelOpen(true); }}>
-                          <div className="text-11px min-w-0 flex-1">
-                            <p className="text-gray-800 font-medium truncate">{partner.name}</p>
-                            <p className="text-gray-500 truncate">{partner.company}</p>
-                          </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <PulseBadge pulse={partner.pulse} />
-                            <span className="text-11px font-semibold text-[#157A6E]">{formatCurrency(partner.mrr)}</span>
-                            <ArrowUpRight className="w-3 h-3 text-gray-300" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {company.partners.length > 6 && (
-                      <p className="text-center text-11px text-[#157A6E] font-medium mt-2 cursor-pointer hover:underline">
-                        + {company.partners.length - 6} more partners
-                      </p>
-                    )}
-                  </div>
-                  )}
-                </div>
-                )}
-              </div>
+                  <p className="text-11px text-gray-600">{company.contacts.length} contacts</p>
+                </button>
               );
             })}
+          </div>
+          )}
+
+          {/* Flat Contact List */}
+          <div className="space-y-3">
+            {sortedContacts.length === 0 ? (
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
+                <p className="text-12px text-gray-500">No contacts match the selected filters</p>
+              </div>
+            ) : (
+              sortedContacts.map(contact => {
+                const daysSince = getDaysSinceContact(contact.lastContact);
+                return (
+                  <div
+                    key={contact.id}
+                    className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 hover:shadow-md hover:border-[#157A6E] transition-all"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3 flex-1">
+                        {/* Avatar with initials */}
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-white text-12px font-bold flex-shrink-0"
+                          style={{ backgroundColor: contact.companyColor }}
+                        >
+                          {contact.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                        </div>
+
+                        {/* Name, Title, and Badges */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-13px font-semibold text-gray-900">{contact.name}</p>
+                            {/* Company Tag */}
+                            <span
+                              className="text-9px font-medium text-white px-2 py-0.5 rounded-full"
+                              style={{ backgroundColor: contact.companyColor }}
+                            >
+                              {contact.companyName}
+                            </span>
+                          </div>
+                          <p className="text-11px text-gray-600 mb-1.5">{contact.title}</p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-10px font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded">
+                              {contact.role}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Metrics and Actions */}
+                      <div className="flex items-center gap-6 flex-shrink-0 ml-4">
+                        <div className="text-center">
+                          <p className="text-12px font-bold text-[#157A6E]">{contact.introsQTD}</p>
+                          <p className="text-9px text-gray-400 uppercase">QTD</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-12px font-bold text-gray-700">{contact.introsAllTime}</p>
+                          <p className="text-9px text-gray-400 uppercase">All-Time</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-12px font-bold text-[#157A6E]">{formatCurrency(contact.revenueAttributed)}</p>
+                          <p className="text-9px text-gray-400 uppercase">Revenue</p>
+                        </div>
+                        <div className="text-center">
+                          <p className={`text-11px font-medium ${daysSince <= 3 ? 'text-green-600' : daysSince <= 7 ? 'text-yellow-600' : 'text-red-500'}`}>
+                            {daysSince}d
+                          </p>
+                          <p className="text-9px text-gray-400 uppercase">ago</p>
+                        </div>
+                        <div className="flex gap-1">
+                          <button className="p-1.5 rounded hover:bg-gray-100 transition-colors" title={contact.email}>
+                            <Mail className="w-4 h-4 text-gray-400 hover:text-[#157A6E]" />
+                          </button>
+                          <button className="p-1.5 rounded hover:bg-gray-100 transition-colors" title={contact.phone}>
+                            <Phone className="w-4 h-4 text-gray-400 hover:text-[#157A6E]" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
           );
