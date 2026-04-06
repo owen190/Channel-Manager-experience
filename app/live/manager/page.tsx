@@ -67,7 +67,8 @@ export default function LiveManagerPage() {
   const [pipelineMetricsView, setPipelineMetricsView] = useState<'deals' | 'quotes-vs-sold'>('deals');
   const [selectedTsdAdvisors, setSelectedTsdAdvisors] = useState<Advisor[]>([]);
   const [expandedTsdCompany, setExpandedTsdCompany] = useState<string | null>(null);
-  const [intelligenceSubTab, setIntelligenceSubTab] = useState<'overview' | 'signals' | 'playbooks' | 'suppliers' | 'diagnostics'>('overview');
+  const [intelligenceSubTab, setIntelligenceSubTab] = useState<'overview' | 'signals' | 'playbooks' | 'diagnostics'>('overview');
+  const [signalFilter, setSignalFilter] = useState<'all' | 'churn' | 'growth' | 'stall' | 'intel'>('all');
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -1329,432 +1330,700 @@ export default function LiveManagerPage() {
   // INTELLIGENCE
   // ════════════════════════════════════════════════
   const renderIntelligence = () => {
-    // Compute intelligence-specific data
+    // ── Shared intelligence data ──
     const frictionIssues = advisors.filter(a => a.friction === 'High' || a.friction === 'Critical');
     const healthyPartners = advisors.filter(a => a.friction === 'Low' && (a.pulse === 'Strong' || a.pulse === 'Steady'));
 
-    // Supplier accountability scores (mock data derived from ratings or TSD companies)
-    const supplierScores = [
-      { name: 'Avant', score: 88, color: '#157A6E' },
-      { name: 'Telarus', score: 82, color: '#157A6E' },
-      { name: 'Bridgepointe', score: 76, color: '#157A6E' },
-      { name: 'Intelisys', score: 71, color: '#ECC94B' },
-      { name: 'AppDirect', score: 68, color: '#ECC94B' },
-    ];
-
     // Generate signals from real data
-    const signals: Array<{type: 'churn' | 'growth' | 'stall' | 'intel'; title: string; desc: string; time: string; source: string}> = [];
+    const signals: Array<{type: 'churn' | 'growth' | 'stall' | 'intel'; title: string; desc: string; time: string; source: string; mrr?: number; partnerName?: string}> = [];
 
-    // Churn risk signals from at-risk advisors
     atRiskAdvisors.forEach(a => {
-      signals.push({
-        type: 'churn',
-        title: `Churn Risk — ${a.name}`,
-        desc: `${a.trajectory} trajectory. Pulse: ${a.pulse}. Friction: ${a.friction}. ${a.diagnosis || 'Engagement declining.'}`,
-        time: 'Today',
-        source: 'CRM + Engagement'
-      });
+      signals.push({ type: 'churn', title: `Churn Risk — ${a.name}`, desc: `${a.trajectory} trajectory. Pulse: ${a.pulse}. Friction: ${a.friction}. ${a.diagnosis || 'Engagement declining.'}`, time: 'Today', source: 'CRM + Engagement', mrr: a.mrr, partnerName: a.name });
     });
-
-    // Stalled deal signals
     stalledDeals.slice(0, 3).forEach(d => {
       const adv = advisors.find(a => a.id === d.advisorId);
-      signals.push({
-        type: 'stall',
-        title: `Pipeline Stall — ${d.name}`,
-        desc: `Stuck in ${d.stage} for ${d.daysInStage} days. ${adv?.name || 'Unknown partner'} · ${formatCurrency(d.mrr)} MRR.`,
-        time: `${d.daysInStage}d stalled`,
-        source: 'CRM pipeline'
-      });
+      signals.push({ type: 'stall', title: `Pipeline Stall — ${d.name}`, desc: `Stuck in ${d.stage} for ${d.daysInStage} days. ${adv?.name || 'Unknown partner'} · ${formatCurrency(d.mrr)} MRR.`, time: `${d.daysInStage}d stalled`, source: 'CRM pipeline', mrr: d.mrr });
     });
-
-    // Growth/expansion signals from strong advisors
     advisors.filter(a => a.trajectory === 'Accelerating' || a.trajectory === 'Climbing').slice(0, 3).forEach(a => {
-      signals.push({
-        type: 'growth',
-        title: `Expansion — ${a.name} (${a.company})`,
-        desc: `${a.trajectory} trajectory with ${a.pulse} pulse. Strong growth potential — cross-sell opportunity.`,
-        time: 'This week',
-        source: 'Engagement data'
-      });
+      signals.push({ type: 'growth', title: `Expansion — ${a.name} (${a.company})`, desc: `${a.trajectory} trajectory with ${a.pulse} pulse. Strong growth potential — cross-sell opportunity.`, time: 'This week', source: 'Engagement data', mrr: Math.round(a.mrr * 0.6), partnerName: a.name });
     });
-
-    // Co-marketing intel signals
     coMarketingOpportunities.slice(0, 2).forEach(opp => {
-      signals.push({
-        type: 'intel',
-        title: `Co-Marketing — ${opp.advisor.name}`,
-        desc: opp.reason,
-        time: 'This week',
-        source: 'CRM + LinkedIn'
-      });
+      signals.push({ type: 'intel', title: `Co-Marketing — ${opp.advisor.name}`, desc: opp.reason, time: 'This week', source: 'CRM + LinkedIn', mrr: opp.advisor.mrr, partnerName: opp.advisor.name });
     });
 
-    // Playbook data (generated from signals)
+    // Playbook data
     const playbooks = [
-      ...atRiskAdvisors.slice(0, 2).map(a => ({
-        priority: 'critical' as const,
-        title: `Win-Back: ${a.name}`,
-        desc: `${a.diagnosis || 'Custom retention strategy needed'}. ${formatCurrency(a.mrr)} at risk.`,
-        amount: formatCurrency(a.mrr),
-        days: 7,
-      })),
-      ...advisors.filter(a => a.trajectory === 'Accelerating' || a.trajectory === 'Climbing').slice(0, 1).map(a => ({
-        priority: 'high' as const,
-        title: `Growth: ${a.name} → Cross-Sell`,
-        desc: `${a.trajectory} trajectory. Expand product footprint.`,
-        amount: `+${formatCurrency(Math.round(a.mrr * 0.6))}`,
-        days: 14,
-      })),
-      ...frictionIssues.slice(0, 1).map(a => ({
-        priority: 'medium' as const,
-        title: `Retention: ${a.name}`,
-        desc: `${a.friction} friction. QBR + service review needed.`,
-        amount: formatCurrency(a.mrr),
-        days: 10,
-      })),
+      ...atRiskAdvisors.slice(0, 2).map(a => ({ priority: 'critical' as const, title: `Win-Back: ${a.name}`, desc: `${a.diagnosis || 'Custom retention strategy needed'}. ${formatCurrency(a.mrr)} at risk.`, amount: formatCurrency(a.mrr), amountRaw: a.mrr, days: 7, steps: [{ label: 'Pull complaint history', done: true }, { label: 'Executive outreach call', active: true }, { label: 'Service credit + SLA', done: false }, { label: 'Weekly check-in cadence', done: false }], signalTitle: `Churn Risk — ${a.name}`, signalType: 'churn' as const })),
+      ...advisors.filter(a => a.trajectory === 'Accelerating' || a.trajectory === 'Climbing').slice(0, 1).map(a => ({ priority: 'high' as const, title: `Growth: ${a.name} → Cross-Sell`, desc: `${a.trajectory} trajectory. Expand product footprint.`, amount: `+${formatCurrency(Math.round(a.mrr * 0.6))}`, amountRaw: Math.round(a.mrr * 0.6), days: 14, steps: [{ label: 'Identify cross-sell products', done: true }, { label: 'Build joint proposal', active: true }, { label: 'Strategy call', done: false }, { label: 'First deal registered', done: false }], signalTitle: `Expansion — ${a.name}`, signalType: 'growth' as const })),
+      ...frictionIssues.slice(0, 1).map(a => ({ priority: 'medium' as const, title: `Retention: ${a.name}`, desc: `${a.friction} friction. QBR + service review needed.`, amount: formatCurrency(a.mrr), amountRaw: a.mrr, days: 10, steps: [{ label: 'Resolve open tickets', done: true }, { label: 'Acknowledge issues', done: true }, { label: 'Schedule QBR', active: true }, { label: 'Monthly check-in commitment', done: false }], signalTitle: `Churn Risk — ${a.name}`, signalType: 'churn' as const })),
     ];
 
-    // Partner health matrix
     const healthPartners = [...advisors].sort((a, b) => b.mrr - a.mrr).slice(0, 8);
 
-    // Roadmap items
     const roadmapItems = [
       ...playbooks.slice(0, 2).map(p => ({ phase: 'active' as const, title: p.title, desc: `${p.days} days remaining` })),
       ...coMarketingOpportunities.slice(0, 2).map(o => ({ phase: 'next' as const, title: `Co-Marketing: ${o.advisor.name}`, desc: o.type })),
       { phase: 'planned' as const, title: 'Mid-Quarter Pipeline Review', desc: 'End of April' },
     ];
 
-    // Calendar events (April 2026)
     const calEvents = [
       { day: 9, label: playbooks[0]?.title || 'Retention deadline' },
       { day: 15, label: 'Campaign launch' },
       { day: 30, label: 'Mid-quarter pipeline review' },
     ];
     const eventDays = calEvents.map(e => e.day);
-    // April 2026 starts on Wednesday (day index 3)
     const aprilDays = Array.from({length: 30}, (_, i) => i + 1);
-    const startPad = 2; // Wednesday start = 2 empty cells (Mon, Tue)
-    const today = 2; // April 2
+    const startPad = 2;
+    const today = 6;
 
     const signalDotColor = (type: string) => {
-      switch(type) {
-        case 'churn': return 'bg-red-500';
-        case 'growth': return 'bg-[#157A6E]';
-        case 'stall': return 'bg-amber-400';
-        case 'intel': return 'bg-blue-500';
-        default: return 'bg-gray-400';
-      }
+      switch(type) { case 'churn': return 'bg-red-500'; case 'growth': return 'bg-[#157A6E]'; case 'stall': return 'bg-amber-400'; case 'intel': return 'bg-blue-500'; default: return 'bg-gray-400'; }
     };
+    const signalTagStyles = (type: string) => {
+      switch(type) { case 'churn': return 'bg-red-100 text-red-800'; case 'growth': return 'bg-green-100 text-green-800'; case 'stall': return 'bg-amber-100 text-amber-800'; case 'intel': return 'bg-blue-100 text-blue-800'; default: return 'bg-gray-100 text-gray-600'; }
+    };
+    const signalTypeLabel = (type: string) => {
+      switch(type) { case 'churn': return 'Churn Risk'; case 'growth': return 'Expansion'; case 'stall': return 'Pipeline Stall'; case 'intel': return 'Co-Marketing'; default: return type; }
+    };
+
+    // Filter signals
+    const filteredSignals = signalFilter === 'all' ? signals : signals.filter(s => s.type === signalFilter);
+    const churnCount = signals.filter(s => s.type === 'churn').length;
+    const growthCount = signals.filter(s => s.type === 'growth').length;
+    const stallCount = signals.filter(s => s.type === 'stall').length;
+    const intelCount = signals.filter(s => s.type === 'intel').length;
+
+    // Diagnostics data
+    const criticalPartners = advisors.filter(a => a.friction === 'Critical');
+    const highRiskPartners = advisors.filter(a => a.friction === 'High');
+    const watchPartners = advisors.filter(a => a.friction === 'Moderate' || (a.pulse === 'Fading' && a.friction !== 'High' && a.friction !== 'Critical'));
+    const stablePartners = advisors.filter(a => a.pulse === 'Steady' && a.friction === 'Low');
+    const healthyPartnersCount = advisors.filter(a => (a.pulse === 'Strong') && a.friction === 'Low');
+
+    // ── Sub-tab bar (shared) ──
+    const subTabBar = (
+      <div className="flex gap-0 border-b border-[#e8e5e1] -mx-6 px-6 mb-2">
+        {([
+          { id: 'overview' as const, label: 'Overview' },
+          { id: 'signals' as const, label: 'Signals', count: signals.length },
+          { id: 'playbooks' as const, label: 'Playbooks', count: playbooks.length },
+          { id: 'diagnostics' as const, label: 'Diagnostics' },
+        ]).map(tab => (
+          <button key={tab.id} onClick={() => setIntelligenceSubTab(tab.id)}
+            className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-colors ${intelligenceSubTab === tab.id ? 'text-[#157A6E] border-[#157A6E] font-semibold' : 'text-gray-400 border-transparent hover:text-gray-600'}`}>
+            {tab.label}
+            {'count' in tab && tab.count !== undefined && (
+              <span className="ml-1.5 px-1.5 py-0.5 bg-[#F0FAF8] text-[#157A6E] text-[10px] font-bold rounded-full">{tab.count}</span>
+            )}
+          </button>
+        ))}
+      </div>
+    );
+
+    // ════════════════════════════════════════
+    // SUB-TAB: OVERVIEW
+    // ════════════════════════════════════════
+    if (intelligenceSubTab === 'overview') {
+      return (
+        <div className="space-y-5">
+          {subTabBar}
+          <div className="grid grid-cols-4 gap-4">
+            <KPICard label="Live Signals (7d)" value={`${signals.length}`} change="Today" changeType="neutral" />
+            <KPICard label="Revenue at Risk" value={formatCurrency(atRiskMRR)} change={`${atRiskAdvisors.length} partners flagged`} changeType={atRiskAdvisors.length > 0 ? "negative" : "neutral"} />
+            <KPICard label="Expansion Signals" value={`${growthCount}`} change="Cross-sell potential" changeType="positive" />
+            <KPICard label="Q2 MRR Progress" value={`${Math.round((totalMRR / 85000) * 100)}%`} change={`${formatCurrency(totalMRR)} / $85K target`} changeType="positive" />
+          </div>
+
+          {/* What's Happening */}
+          <div className="flex items-center gap-3 pt-2">
+            <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">What&apos;s Happening</span>
+            <div className="flex-1 h-px bg-[#e8e5e1]" />
+          </div>
+          <div className="grid grid-cols-[2fr_1fr] gap-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Signal Feed</h3>
+                <button onClick={() => setIntelligenceSubTab('signals')} className="text-[10px] text-[#157A6E] font-semibold cursor-pointer hover:underline">View all {signals.length} →</button>
+              </div>
+              <div className="space-y-0 divide-y divide-gray-50">
+                {signals.slice(0, 5).map((sig, i) => (
+                  <div key={i} className="flex gap-3 py-3 first:pt-0">
+                    <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${signalDotColor(sig.type)}`} />
+                    <div className="min-w-0">
+                      <h4 className="text-[12px] font-semibold text-gray-800">{sig.title}</h4>
+                      <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{sig.desc}</p>
+                      <span className="text-[10px] text-gray-400">{sig.time} · {sig.source}</span>
+                      <button className="block text-[10px] text-[#157A6E] font-semibold mt-1">→ Create Playbook</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Q2 2026 Goals</h3>
+                <span className="text-[10px] text-[#157A6E] font-semibold cursor-pointer">Edit →</span>
+              </div>
+              {[
+                { name: 'MRR Target', pct: Math.round((totalMRR / 85000) * 100), detail: `${formatCurrency(totalMRR)} of $85K`, warn: false },
+                { name: 'Partners Activated', pct: Math.round((advisors.filter(a => a.mrr > 0).length / 15) * 100), detail: `${advisors.filter(a => a.mrr > 0).length} of 15`, warn: false },
+                { name: 'Close Rate', pct: deals.length > 0 ? Math.round((closedWonDeals.length / deals.length) * 100) : 0, detail: `${deals.length > 0 ? Math.round((closedWonDeals.length / deals.length) * 100) : 0}% of 35% target`, warn: true },
+              ].map((g, i) => (
+                <div key={i} className="mb-3">
+                  <div className="flex justify-between items-baseline mb-1">
+                    <span className="text-[12px] font-semibold text-gray-800">{g.name}</span>
+                    <span className={`text-[11px] font-bold ${g.warn ? 'text-amber-600' : 'text-[#157A6E]'}`}>{g.pct}%</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mb-1">{g.detail}</p>
+                  <div className="h-[5px] bg-gray-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${g.warn ? 'bg-amber-400' : 'bg-[#157A6E]'}`} style={{ width: `${Math.min(100, g.warn ? g.pct / 35 * 100 : g.pct)}%` }} />
+                  </div>
+                </div>
+              ))}
+              <div className="border-t border-gray-100 pt-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2">April 2026</h3>
+                <div className="grid grid-cols-7 gap-[2px] text-center text-[10px]">
+                  {['M','T','W','T','F','S','S'].map((d, i) => (<div key={i} className="font-semibold text-gray-400 py-1">{d}</div>))}
+                  {Array.from({length: startPad}).map((_, i) => (<div key={`pad-${i}`} className="py-1 text-transparent">.</div>))}
+                  {aprilDays.map(d => (<div key={d} className={`py-1 rounded ${d === today ? 'bg-[#157A6E] text-white font-bold' : eventDays.includes(d) ? 'bg-[#F0FAF8] text-[#157A6E] font-semibold' : 'text-gray-500'}`}>{d}</div>))}
+                </div>
+                <div className="mt-2 space-y-1">
+                  {calEvents.map((ev, i) => (<div key={i} className="flex gap-2 text-[10px]"><span className="text-[#157A6E] font-semibold min-w-[38px]">Apr {ev.day}</span><span className="text-gray-600 truncate">{ev.label}</span></div>))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* What You're Doing About It */}
+          <div className="flex items-center gap-3 pt-2">
+            <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">What You&apos;re Doing About It</span>
+            <div className="flex-1 h-px bg-[#e8e5e1]" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Active Playbooks</h3>
+                <button onClick={() => setIntelligenceSubTab('playbooks')} className="text-[10px] text-[#157A6E] font-semibold cursor-pointer hover:underline">View all {playbooks.length} →</button>
+              </div>
+              <div className="space-y-2">
+                {playbooks.map((pb, i) => (
+                  <div key={i} className={`border-l-[3px] rounded-r-md bg-gray-50 p-3 ${pb.priority === 'critical' ? 'border-red-500' : pb.priority === 'high' ? 'border-amber-400' : 'border-[#157A6E]'}`}>
+                    <h4 className="text-[12px] font-semibold text-gray-800">{pb.title}</h4>
+                    <p className="text-[11px] text-gray-500 mt-0.5">{pb.desc}</p>
+                    <div className="flex items-center gap-3 mt-1.5 text-[10px] text-gray-400">
+                      <span className={pb.priority === 'critical' ? 'text-red-500 font-semibold' : pb.priority === 'high' ? 'text-amber-600 font-semibold' : ''}>{pb.priority.charAt(0).toUpperCase() + pb.priority.slice(1)}</span>
+                      <span className="text-[#157A6E] font-semibold">{pb.amount}</span>
+                      <span>{pb.days} days</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Partner Health Matrix</h3>
+                <span className="text-[10px] text-[#157A6E] font-semibold cursor-pointer">Expand →</span>
+              </div>
+              <table className="w-full text-[11px]">
+                <thead><tr className="border-b border-gray-100">
+                  <th className="text-left py-2 font-medium text-gray-400 text-[10px] uppercase tracking-wide">Partner</th>
+                  <th className="text-center py-2 font-medium text-gray-400 text-[10px] uppercase tracking-wide">Pulse</th>
+                  <th className="text-center py-2 font-medium text-gray-400 text-[10px] uppercase tracking-wide">Friction</th>
+                  <th className="text-center py-2 font-medium text-gray-400 text-[10px] uppercase tracking-wide">Trend</th>
+                  <th className="text-right py-2 font-medium text-gray-400 text-[10px] uppercase tracking-wide">MRR</th>
+                </tr></thead>
+                <tbody>
+                  {healthPartners.map(a => (
+                    <tr key={a.id} className="border-b border-gray-50 cursor-pointer hover:bg-gray-50" onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}>
+                      <td className="py-2 font-medium text-gray-800">{a.name}</td>
+                      <td className="py-2 text-center"><PulseBadge pulse={a.pulse} /></td>
+                      <td className="py-2 text-center"><FrictionBadge level={a.friction} /></td>
+                      <td className="py-2 text-center"><span className={`text-[12px] ${a.trajectory === 'Accelerating' || a.trajectory === 'Climbing' ? 'text-[#157A6E]' : a.trajectory === 'Slipping' || a.trajectory === 'Freefall' ? 'text-red-500' : 'text-amber-500'}`}>{a.trajectory === 'Accelerating' || a.trajectory === 'Climbing' ? '↑' : a.trajectory === 'Slipping' || a.trajectory === 'Freefall' ? '↓' : '→'}</span></td>
+                      <td className="py-2 text-right text-gray-700 font-medium">{formatCurrency(a.mrr)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Portfolio Diagnostics */}
+          <div className="flex items-center gap-3 pt-2">
+            <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Portfolio Diagnostics</span>
+            <div className="flex-1 h-px bg-[#e8e5e1]" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Diagnostics</h3>
+                <button onClick={() => setIntelligenceSubTab('diagnostics')} className="text-[10px] text-[#157A6E] font-semibold cursor-pointer hover:underline">Full view →</button>
+              </div>
+              {diagnosticRows.length === 0 ? <p className="text-[11px] text-gray-400 italic">All partners healthy</p> : (
+                <div className="space-y-2">
+                  {diagnosticRows.slice(0, 5).map((row, i) => {
+                    const advisor = advisors.find(a => a.name === row.advisor);
+                    return (
+                      <div key={i} className={`p-2.5 rounded-lg cursor-pointer transition-colors ${row.friction === 'Critical' ? 'bg-red-50 hover:bg-red-100' : row.friction === 'High' ? 'bg-amber-50 hover:bg-amber-100' : 'bg-gray-50 hover:bg-gray-100'}`}
+                        onClick={() => { if (advisor) { setSelectedAdvisor(advisor); setPanelOpen(true); } }}>
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-[11px] font-semibold text-gray-800">{row.advisor}</span>
+                          <PulseBadge pulse={row.pulse} />
+                          <FrictionBadge level={row.friction} />
+                        </div>
+                        <p className="text-[10px] text-gray-500 line-clamp-1">{row.diagnosis}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Partner Roadmaps</h3>
+                <span className="text-[10px] text-[#157A6E] font-semibold cursor-pointer">Plan →</span>
+              </div>
+              <div className="space-y-0 divide-y divide-gray-100">
+                {roadmapItems.slice(0, 5).map((item, i) => (
+                  <div key={i} className="flex items-center gap-3 py-2.5 first:pt-0">
+                    <span className={`text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded ${item.phase === 'active' ? 'bg-green-100 text-green-700' : item.phase === 'next' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>{item.phase}</span>
+                    <div className="min-w-0">
+                      <h5 className="text-[12px] font-semibold text-gray-800 truncate">{item.title}</h5>
+                      <p className="text-[10px] text-gray-400">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ════════════════════════════════════════
+    // SUB-TAB: SIGNALS
+    // ════════════════════════════════════════
+    if (intelligenceSubTab === 'signals') {
+      return (
+        <div className="space-y-5">
+          {subTabBar}
+          {/* Signal-specific KPIs */}
+          <div className="grid grid-cols-4 gap-4">
+            <KPICard label="Churn Risks" value={`${churnCount}`} change={`${formatCurrency(atRiskMRR)} MRR at risk`} changeType="negative" />
+            <KPICard label="Expansion Signals" value={`${growthCount}`} change="Cross-sell potential" changeType="positive" />
+            <KPICard label="Pipeline Stalls" value={`${stallCount}`} change={`${stalledDeals.length} deals affected`} changeType="neutral" />
+            <KPICard label="Intel / Co-Marketing" value={`${intelCount}`} change={`${intelCount} candidates`} changeType="positive" />
+          </div>
+
+          {/* Filter pills */}
+          <div className="flex gap-2 flex-wrap">
+            {([
+              { id: 'all' as const, label: 'All', count: signals.length, style: 'border-gray-300 text-gray-700' },
+              { id: 'churn' as const, label: 'Churn Risk', count: churnCount, style: 'border-red-200 text-red-800' },
+              { id: 'growth' as const, label: 'Expansion', count: growthCount, style: 'border-green-200 text-green-800' },
+              { id: 'stall' as const, label: 'Pipeline Stall', count: stallCount, style: 'border-amber-200 text-amber-800' },
+              { id: 'intel' as const, label: 'Intel', count: intelCount, style: 'border-blue-200 text-blue-800' },
+            ]).map(f => (
+              <button key={f.id} onClick={() => setSignalFilter(f.id)}
+                className={`px-3 py-1.5 rounded-full text-[11px] font-medium border transition-colors ${signalFilter === f.id ? f.style + ' bg-gray-50 font-semibold' : 'border-gray-200 text-gray-400 hover:text-gray-600'}`}>
+                {f.label}<span className="ml-1.5 text-[10px] font-bold">{f.count}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Signal cards + timeline sidebar */}
+          <div className="grid grid-cols-[1fr_280px] gap-4">
+            <div className="space-y-3">
+              {filteredSignals.map((sig, i) => (
+                <div key={i} className="bg-white rounded-[10px] border border-[#e8e5e1] p-5 flex gap-4">
+                  <div className={`w-2.5 h-2.5 rounded-full mt-1 shrink-0 ${signalDotColor(sig.type)}`} />
+                  <div className="flex-1 min-w-0">
+                    <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide mb-1.5 ${signalTagStyles(sig.type)}`}>{signalTypeLabel(sig.type)}</span>
+                    <h3 className="text-[14px] font-bold text-gray-800 font-serif">{sig.title}</h3>
+                    <p className="text-[12px] text-gray-500 mt-1 leading-relaxed">{sig.desc}</p>
+                    <div className="flex items-center gap-3 mt-2 text-[10px] text-gray-400">
+                      <span>{sig.time}</span>
+                      <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-500">{sig.source}</span>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {sig.mrr && (
+                      <div className={`text-[16px] font-bold ${sig.type === 'growth' || sig.type === 'intel' ? 'text-[#157A6E]' : 'text-red-500'}`}>
+                        {sig.type === 'growth' ? '+' : ''}{formatCurrency(sig.mrr)}
+                      </div>
+                    )}
+                    <button className="mt-2 px-3 py-1.5 bg-[#157A6E] text-white text-[11px] font-semibold rounded-md hover:bg-[#126a5f] transition-colors">→ Create Playbook</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Timeline sidebar */}
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 self-start sticky top-[105px]">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-3">Signal Timeline</h3>
+              {[
+                { day: 'Today — April 6', items: signals.filter(s => s.time === 'Today').map(s => ({ dot: signalDotColor(s.type), text: s.title, time: s.time })) },
+                { day: 'This Week', items: signals.filter(s => s.time === 'This week').map(s => ({ dot: signalDotColor(s.type), text: s.title, time: s.time })) },
+                { day: 'Earlier', items: signals.filter(s => s.time !== 'Today' && s.time !== 'This week').map(s => ({ dot: signalDotColor(s.type), text: s.title, time: s.time })) },
+              ].filter(g => g.items.length > 0).map((group, gi) => (
+                <div key={gi} className="mb-3">
+                  <div className="text-[10px] font-bold text-gray-800 mb-2 pb-1 border-b border-gray-100">{group.day}</div>
+                  {group.items.map((item, ii) => (
+                    <div key={ii} className="flex items-start gap-2 py-1.5">
+                      <div className={`w-[7px] h-[7px] rounded-full mt-1 shrink-0 ${item.dot}`} />
+                      <div>
+                        <p className="text-[10px] text-gray-600 leading-snug">{item.text}</p>
+                        <span className="text-[9px] text-gray-400">{item.time}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ════════════════════════════════════════
+    // SUB-TAB: PLAYBOOKS
+    // ════════════════════════════════════════
+    if (intelligenceSubTab === 'playbooks') {
+      const protectedMRR = playbooks.filter(p => p.priority === 'critical' || p.priority === 'medium').reduce((s, p) => s + p.amountRaw, 0);
+      const expansionMRR = playbooks.filter(p => p.priority === 'high').reduce((s, p) => s + p.amountRaw, 0);
+      const avgDays = Math.round(playbooks.reduce((s, p) => s + p.days, 0) / (playbooks.length || 1));
+
+      return (
+        <div className="space-y-5">
+          {subTabBar}
+          <div className="grid grid-cols-4 gap-4">
+            <KPICard label="Active Playbooks" value={`${playbooks.length}`} change={`${playbooks.filter(p=>p.priority==='critical').length} critical, ${playbooks.filter(p=>p.priority==='high').length} high`} changeType="neutral" />
+            <KPICard label="MRR Protected" value={formatCurrency(protectedMRR)} change="In active win-back" changeType="negative" />
+            <KPICard label="MRR Targeted" value={`+${formatCurrency(expansionMRR)}`} change="Expansion playbooks" changeType="positive" />
+            <KPICard label="Avg Days to Deadline" value={`${avgDays}`} change={`Nearest: ${playbooks[0]?.days || 0} days`} changeType="neutral" />
+          </div>
+
+          <div className="grid grid-cols-[1fr_280px] gap-4">
+            <div className="space-y-4">
+              {playbooks.map((pb, i) => {
+                const doneSteps = pb.steps.filter(s => s.done).length;
+                const totalSteps = pb.steps.length;
+                const pct = Math.round((doneSteps / totalSteps) * 100);
+                return (
+                  <div key={i} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 border-l-4 ${pb.priority === 'critical' ? 'border-l-red-500' : pb.priority === 'high' ? 'border-l-amber-400' : 'border-l-blue-500'}`}>
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide mb-1.5 ${pb.priority === 'critical' ? 'bg-red-100 text-red-800' : pb.priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                          {pb.priority}
+                        </span>
+                        <h3 className="text-[15px] font-bold text-gray-800 font-serif">{pb.title}</h3>
+                        <p className="text-[12px] text-gray-500 mt-1 leading-relaxed max-w-xl">{pb.desc}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className={`text-[18px] font-bold ${pb.priority === 'high' ? 'text-[#157A6E]' : 'text-red-500'}`}>{pb.amount}</div>
+                        <div className="text-[10px] text-gray-400">{pb.priority === 'high' ? 'Expansion potential' : 'MRR at risk'}</div>
+                        <div className={`text-[10px] font-semibold mt-1 ${pb.days <= 7 ? 'text-red-500' : 'text-amber-600'}`}>Deadline: {pb.days} days</div>
+                      </div>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="flex-1 h-[6px] bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#157A6E] rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-[11px] font-bold text-[#157A6E]">{pct}%</span>
+                    </div>
+
+                    {/* Steps */}
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Action Steps</h4>
+                      {pb.steps.map((step, si) => (
+                        <div key={si} className="flex items-start gap-3">
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${step.done ? 'bg-green-100 text-green-700' : step.active ? 'bg-[#157A6E] text-white' : 'bg-gray-100 text-gray-400'}`}>
+                            {step.done ? '✓' : si + 1}
+                          </div>
+                          <span className={`text-[12px] ${step.done ? 'text-gray-400 line-through' : step.active ? 'text-gray-800 font-semibold' : 'text-gray-500'}`}>{step.label}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Signal source */}
+                    <div className="mt-4 pt-3 border-t border-gray-100">
+                      <span className="text-[9px] font-bold uppercase text-gray-400">Created from signal</span>
+                      <div className="flex items-center gap-2 mt-1.5 bg-gray-50 rounded-md px-3 py-2">
+                        <div className={`w-[7px] h-[7px] rounded-full ${signalDotColor(pb.signalType)}`} />
+                        <span className="text-[11px] text-gray-600 font-medium">{pb.signalTitle}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="bg-white rounded-[10px] border-2 border-dashed border-gray-200 p-6 text-center cursor-pointer hover:border-[#157A6E] transition-colors">
+                <div className="text-[20px] text-gray-300 mb-1">+</div>
+                <div className="text-[12px] font-semibold text-[#157A6E]">Create New Playbook</div>
+                <div className="text-[10px] text-gray-400 mt-0.5">Build from a signal or start from scratch</div>
+              </div>
+            </div>
+
+            {/* Sidebar: deadlines + stats */}
+            <div className="space-y-4 self-start sticky top-[105px]">
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-3">Upcoming Deadlines</h3>
+                {playbooks.sort((a,b) => a.days - b.days).map((pb, i) => (
+                  <div key={i} className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-b-0">
+                    <div className={`w-2 h-2 rounded-full ${pb.priority === 'critical' ? 'bg-red-500' : pb.priority === 'high' ? 'bg-amber-400' : 'bg-blue-500'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-medium text-gray-700 truncate">{pb.title}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold ${pb.days <= 7 ? 'text-red-500' : 'text-amber-600'}`}>{pb.days}d</span>
+                  </div>
+                ))}
+              </div>
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-3">Playbook Stats</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: 'Active', value: playbooks.length },
+                    { label: 'Critical', value: playbooks.filter(p=>p.priority==='critical').length },
+                    { label: 'Avg Progress', value: `${Math.round(playbooks.reduce((s,p) => { const done = p.steps.filter(st=>st.done).length; return s + (done/p.steps.length)*100; }, 0) / (playbooks.length||1))}%` },
+                    { label: 'Total MRR', value: formatCurrency(playbooks.reduce((s,p) => s + p.amountRaw, 0)) },
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-gray-50 rounded-md p-2.5 text-center">
+                      <div className="text-[10px] text-gray-400">{stat.label}</div>
+                      <div className="text-[14px] font-bold text-gray-800">{stat.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ════════════════════════════════════════
+    // SUB-TAB: DIAGNOSTICS
+    // ════════════════════════════════════════
+    const critMRR = criticalPartners.reduce((s,a) => s+a.mrr, 0);
+    const highMRR = highRiskPartners.reduce((s,a) => s+a.mrr, 0);
+    const avgHealth = advisors.length > 0 ? Math.round(advisors.reduce((s,a) => {
+      let score = 50;
+      if (a.pulse === 'Strong') score += 25; else if (a.pulse === 'Steady') score += 15; else if (a.pulse === 'Fading') score -= 10;
+      if (a.friction === 'Low') score += 20; else if (a.friction === 'Moderate') score += 5; else if (a.friction === 'High') score -= 15; else if (a.friction === 'Critical') score -= 25;
+      if (a.trajectory === 'Accelerating') score += 10; else if (a.trajectory === 'Climbing') score += 5; else if (a.trajectory === 'Slipping') score -= 10; else if (a.trajectory === 'Freefall') score -= 20;
+      return s + Math.max(0, Math.min(100, score));
+    }, 0) / advisors.length) : 0;
+
+    // Friction sources
+    const frictionSources = [
+      { cat: 'Support Response', count: frictionIssues.filter(a => a.diagnosis?.toLowerCase().includes('support') || a.diagnosis?.toLowerCase().includes('complaint')).length || Math.max(2, Math.round(frictionIssues.length * 0.4)), partners: Math.min(frictionIssues.length, 6), severity: 'critical' as const },
+      { cat: 'Commission Disputes', count: frictionIssues.filter(a => a.diagnosis?.toLowerCase().includes('commission')).length || Math.max(1, Math.round(frictionIssues.length * 0.25)), partners: Math.min(frictionIssues.length, 4), severity: 'high' as const },
+      { cat: 'Onboarding Delays', count: Math.max(1, Math.round(frictionIssues.length * 0.2)), partners: Math.min(frictionIssues.length, 3), severity: 'high' as const },
+      { cat: 'Deal Reg Bottleneck', count: Math.max(1, Math.round(stalledDeals.length * 0.5)), partners: Math.min(3, stalledDeals.length), severity: 'medium' as const },
+      { cat: 'Co-Marketing Gaps', count: Math.max(1, Math.round(frictionIssues.length * 0.1)), partners: 2, severity: 'medium' as const },
+    ];
+    const totalFriction = frictionSources.reduce((s,f) => s+f.count, 0);
 
     return (
       <div className="space-y-5">
-        {/* Sub-tab bar */}
-        <div className="flex gap-0 border-b border-[#e8e5e1] -mx-6 px-6 mb-2">
-          {([
-            { id: 'overview', label: 'Overview' },
-            { id: 'signals', label: 'Signals', count: signals.length },
-            { id: 'playbooks', label: 'Playbooks', count: playbooks.length },
-            { id: 'suppliers', label: 'Supplier Scores' },
-            { id: 'diagnostics', label: 'Diagnostics' },
-          ] as const).map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setIntelligenceSubTab(tab.id)}
-              className={`px-4 py-2.5 text-12px font-medium border-b-2 transition-colors ${
-                intelligenceSubTab === tab.id
-                  ? 'text-[#157A6E] border-[#157A6E] font-semibold'
-                  : 'text-gray-400 border-transparent hover:text-gray-600'
-              }`}
-            >
-              {tab.label}
-              {'count' in tab && tab.count !== undefined && (
-                <span className="ml-1.5 px-1.5 py-0.5 bg-[#F0FAF8] text-[#157A6E] text-10px font-bold rounded-full">{tab.count}</span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* KPI Row */}
+        {subTabBar}
         <div className="grid grid-cols-4 gap-4">
-          <KPICard label="Live Signals (7d)" value={`${signals.length}`} change="Today" changeType="neutral" />
-          <KPICard label="Revenue at Risk" value={formatCurrency(atRiskMRR)} change={`${atRiskAdvisors.length} partners flagged`} changeType={atRiskAdvisors.length > 0 ? "negative" : "neutral"} />
-          <KPICard label="Expansion Signals" value={`${advisors.filter(a => a.trajectory === 'Accelerating' || a.trajectory === 'Climbing').length}`} change="Cross-sell potential" changeType="positive" />
-          <KPICard label="Q2 MRR Progress" value={`${Math.round((totalMRR / 85000) * 100)}%`} change={`${formatCurrency(totalMRR)} / $85K target`} changeType="positive" />
+          <KPICard label="Partners Monitored" value={`${advisors.length}`} change="All active partners" changeType="neutral" />
+          <KPICard label="Critical / High Risk" value={`${criticalPartners.length + highRiskPartners.length}`} change={`${criticalPartners.length} critical, ${highRiskPartners.length} high`} changeType="negative" />
+          <KPICard label="Avg Partner Health" value={`${avgHealth}`} change="Composite score" changeType={avgHealth >= 70 ? "positive" : "negative"} />
+          <KPICard label="MRR at Risk" value={formatCurrency(atRiskMRR)} change={`${Math.round(atRiskMRR / (totalMRR || 1) * 100)}% of total portfolio`} changeType="negative" />
         </div>
 
-        {/* ── SECTION: What's Happening ── */}
-        <div className="flex items-center gap-3 pt-2">
-          <span className="text-10px font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">What&apos;s Happening</span>
-          <div className="flex-1 h-px bg-[#e8e5e1]" />
-        </div>
-
-        <div className="grid grid-cols-[2fr_1fr] gap-4">
-          {/* Signal Feed */}
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400">Signal Feed</h3>
-              <span className="text-10px text-[#157A6E] font-semibold cursor-pointer">View all {signals.length} →</span>
-            </div>
-            <div className="space-y-0 divide-y divide-gray-50">
-              {signals.slice(0, 6).map((sig, i) => (
-                <div key={i} className="flex gap-3 py-3 first:pt-0">
-                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${signalDotColor(sig.type)}`} />
-                  <div className="min-w-0">
-                    <h4 className="text-12px font-semibold text-gray-800">{sig.title}</h4>
-                    <p className="text-11px text-gray-500 mt-0.5 line-clamp-2">{sig.desc}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-10px text-gray-400">{sig.time} · {sig.source}</span>
-                    </div>
-                    <button className="text-10px text-[#157A6E] font-semibold mt-1">→ Create Playbook</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Q2 Goals + Calendar */}
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400">Q2 2026 Goals</h3>
-              <span className="text-10px text-[#157A6E] font-semibold cursor-pointer">Edit →</span>
-            </div>
-
-            {/* MRR Goal */}
-            <div className="mb-3">
-              <div className="flex justify-between items-baseline mb-1">
-                <span className="text-12px font-semibold text-gray-800">MRR Target</span>
-                <span className="text-11px font-bold text-[#157A6E]">{Math.round((totalMRR / 85000) * 100)}%</span>
-              </div>
-              <p className="text-10px text-gray-400 mb-1">{formatCurrency(totalMRR)} of $85K</p>
-              <div className="h-[5px] bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${Math.min(100, (totalMRR / 85000) * 100)}%` }} />
-              </div>
-            </div>
-
-            {/* Partners Goal */}
-            <div className="mb-3">
-              <div className="flex justify-between items-baseline mb-1">
-                <span className="text-12px font-semibold text-gray-800">Partners Activated</span>
-                <span className="text-11px font-bold text-[#157A6E]">{Math.round((advisors.filter(a => a.mrr > 0).length / 15) * 100)}%</span>
-              </div>
-              <p className="text-10px text-gray-400 mb-1">{advisors.filter(a => a.mrr > 0).length} of 15 target</p>
-              <div className="h-[5px] bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${Math.min(100, (advisors.filter(a => a.mrr > 0).length / 15) * 100)}%` }} />
-              </div>
-            </div>
-
-            {/* Close Rate Goal */}
-            <div className="mb-4">
-              <div className="flex justify-between items-baseline mb-1">
-                <span className="text-12px font-semibold text-gray-800">Close Rate</span>
-                <span className="text-11px font-bold text-amber-600">{deals.length > 0 ? Math.round((closedWonDeals.length / deals.length) * 100) : 0}%</span>
-              </div>
-              <p className="text-10px text-gray-400 mb-1">{deals.length > 0 ? Math.round((closedWonDeals.length / deals.length) * 100) : 0}% of 35% target</p>
-              <div className="h-[5px] bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.min(100, (deals.length > 0 ? (closedWonDeals.length / deals.length) * 100 : 0) / 35 * 100)}%` }} />
-              </div>
-            </div>
-
-            {/* Mini Calendar */}
-            <div className="border-t border-gray-100 pt-3">
-              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400 mb-2">April 2026</h3>
-              <div className="grid grid-cols-7 gap-[2px] text-center text-[10px]">
-                {['M','T','W','T','F','S','S'].map((d, i) => (
-                  <div key={i} className="font-semibold text-gray-400 py-1">{d}</div>
-                ))}
-                {Array.from({length: startPad}).map((_, i) => (
-                  <div key={`pad-${i}`} className="py-1 text-transparent">.</div>
-                ))}
-                {aprilDays.map(d => (
-                  <div key={d} className={`py-1 rounded ${
-                    d === today ? 'bg-[#157A6E] text-white font-bold' :
-                    eventDays.includes(d) ? 'bg-[#F0FAF8] text-[#157A6E] font-semibold' :
-                    'text-gray-500'
-                  }`}>{d}</div>
-                ))}
-              </div>
-              <div className="mt-2 space-y-1">
-                {calEvents.map((ev, i) => (
-                  <div key={i} className="flex gap-2 text-10px">
-                    <span className="text-[#157A6E] font-semibold min-w-[38px]">Apr {ev.day}</span>
-                    <span className="text-gray-600 truncate">{ev.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── SECTION: What You're Doing About It ── */}
-        <div className="flex items-center gap-3 pt-2">
-          <span className="text-10px font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">What You&apos;re Doing About It</span>
-          <div className="flex-1 h-px bg-[#e8e5e1]" />
-        </div>
-
+        {/* Portfolio Health + Friction */}
         <div className="grid grid-cols-2 gap-4">
-          {/* Active Playbooks */}
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400">Active Playbooks</h3>
-              <span className="text-10px text-[#157A6E] font-semibold cursor-pointer">View all →</span>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Portfolio Health Distribution</h3>
+              <span className="text-[10px] text-[#157A6E] font-semibold cursor-pointer">Export →</span>
             </div>
-            <div className="space-y-2">
-              {playbooks.map((pb, i) => (
-                <div key={i} className={`border-l-[3px] rounded-r-md bg-gray-50 p-3 ${
-                  pb.priority === 'critical' ? 'border-red-500' :
-                  pb.priority === 'high' ? 'border-amber-400' :
-                  'border-[#157A6E]'
-                }`}>
-                  <h4 className="text-12px font-semibold text-gray-800">{pb.title}</h4>
-                  <p className="text-11px text-gray-500 mt-0.5">{pb.desc}</p>
-                  <div className="flex items-center gap-3 mt-1.5 text-10px text-gray-400">
-                    <span className={pb.priority === 'critical' ? 'text-red-500 font-semibold' : pb.priority === 'high' ? 'text-amber-600 font-semibold' : ''}>
-                      {pb.priority.charAt(0).toUpperCase() + pb.priority.slice(1)}
-                    </span>
-                    <span className="text-[#157A6E] font-semibold">{pb.amount}</span>
-                    <span>{pb.days} days</span>
-                  </div>
+            {/* Stacked bar */}
+            <div className="flex h-5 rounded-md overflow-hidden mb-2">
+              {[
+                { count: healthyPartnersCount.length, color: '#157A6E', label: 'Healthy' },
+                { count: stablePartners.length, color: '#3182CE', label: 'Stable' },
+                { count: watchPartners.length, color: '#D69E2E', label: 'Watch' },
+                { count: highRiskPartners.length, color: '#e53e3e', label: 'At Risk' },
+                { count: criticalPartners.length, color: '#9B2C2C', label: 'Critical' },
+              ].filter(s => s.count > 0).map((seg, i) => (
+                <div key={i} className="flex items-center justify-center text-[9px] font-bold text-white" style={{ width: `${(seg.count / (advisors.length || 1)) * 100}%`, backgroundColor: seg.color, minWidth: seg.count > 0 ? '20px' : '0' }}>
+                  {seg.count}
                 </div>
               ))}
-              <div className="text-center py-2 text-11px text-[#157A6E] font-semibold cursor-pointer hover:underline">
-                + Create New Playbook from Signal
-              </div>
             </div>
+            <div className="flex gap-3 flex-wrap mb-4">
+              {[
+                { label: 'Healthy', color: '#157A6E', count: healthyPartnersCount.length },
+                { label: 'Stable', color: '#3182CE', count: stablePartners.length },
+                { label: 'Watch', color: '#D69E2E', count: watchPartners.length },
+                { label: 'At Risk', color: '#e53e3e', count: highRiskPartners.length },
+                { label: 'Critical', color: '#9B2C2C', count: criticalPartners.length },
+              ].map((leg, i) => (
+                <div key={i} className="flex items-center gap-1.5 text-[10px] text-gray-500">
+                  <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: leg.color }} />
+                  {leg.label} ({leg.count})
+                </div>
+              ))}
+            </div>
+            {/* Tier breakdown */}
+            {[
+              { tier: 'Critical', color: '#9B2C2C', partners: criticalPartners, mrr: critMRR },
+              { tier: 'At Risk', color: '#e53e3e', partners: highRiskPartners, mrr: highMRR },
+              { tier: 'Watch', color: '#D69E2E', partners: watchPartners, mrr: watchPartners.reduce((s,a)=>s+a.mrr,0) },
+              { tier: 'Stable', color: '#3182CE', partners: stablePartners, mrr: stablePartners.reduce((s,a)=>s+a.mrr,0) },
+              { tier: 'Healthy', color: '#157A6E', partners: healthyPartnersCount, mrr: healthyPartnersCount.reduce((s,a)=>s+a.mrr,0) },
+            ].map((row, i) => (
+              <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-b-0">
+                <span className="text-[10px] font-bold uppercase tracking-wide w-14" style={{ color: row.color }}>{row.tier}</span>
+                <div className="flex-1 h-[8px] bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${(row.partners.length / (advisors.length || 1)) * 100}%`, backgroundColor: row.color }} />
+                </div>
+                <span className="text-[11px] text-gray-600 min-w-[140px] text-right"><strong>{row.partners.length}</strong> partner{row.partners.length !== 1 ? 's' : ''} · {formatCurrency(row.mrr)} MRR</span>
+              </div>
+            ))}
           </div>
 
-          {/* Partner Health Matrix */}
+          {/* Friction Sources */}
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400">Partner Health Matrix</h3>
-              <span className="text-10px text-[#157A6E] font-semibold cursor-pointer">Expand →</span>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Friction Sources</h3>
+              <span className="text-[10px] text-[#157A6E] font-semibold cursor-pointer">View details →</span>
             </div>
-            <table className="w-full text-11px">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left py-2 font-medium text-gray-400 text-10px uppercase tracking-wide">Partner</th>
-                  <th className="text-center py-2 font-medium text-gray-400 text-10px uppercase tracking-wide">Pulse</th>
-                  <th className="text-center py-2 font-medium text-gray-400 text-10px uppercase tracking-wide">Friction</th>
-                  <th className="text-center py-2 font-medium text-gray-400 text-10px uppercase tracking-wide">Trend</th>
-                  <th className="text-right py-2 font-medium text-gray-400 text-10px uppercase tracking-wide">MRR</th>
-                </tr>
-              </thead>
+            <table className="w-full text-[11px]">
+              <thead><tr className="border-b border-gray-200">
+                <th className="text-left py-1.5 font-semibold text-gray-400 text-[10px] uppercase tracking-wide">Category</th>
+                <th className="text-center py-1.5 font-semibold text-gray-400 text-[10px] uppercase tracking-wide">Incidents</th>
+                <th className="text-center py-1.5 font-semibold text-gray-400 text-[10px] uppercase tracking-wide">Partners</th>
+                <th className="text-center py-1.5 font-semibold text-gray-400 text-[10px] uppercase tracking-wide">Severity</th>
+              </tr></thead>
               <tbody>
-                {healthPartners.map(a => (
-                  <tr key={a.id} className="border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}>
-                    <td className="py-2 font-medium text-gray-800">{a.name}</td>
-                    <td className="py-2 text-center"><PulseBadge pulse={a.pulse} /></td>
-                    <td className="py-2 text-center"><FrictionBadge level={a.friction} /></td>
+                {frictionSources.map((f, i) => (
+                  <tr key={i} className="border-b border-gray-50">
+                    <td className="py-2 font-semibold text-gray-700">{f.cat}</td>
+                    <td className="py-2 text-center font-bold" style={{ color: f.severity === 'critical' ? '#e53e3e' : f.severity === 'high' ? '#D69E2E' : '#3182CE' }}>{f.count}</td>
+                    <td className="py-2 text-center text-gray-600">{f.partners}</td>
                     <td className="py-2 text-center">
-                      <span className={`text-12px ${
-                        a.trajectory === 'Accelerating' || a.trajectory === 'Climbing' ? 'text-[#157A6E]' :
-                        a.trajectory === 'Slipping' || a.trajectory === 'Freefall' ? 'text-red-500' :
-                        'text-amber-500'
-                      }`}>
-                        {a.trajectory === 'Accelerating' || a.trajectory === 'Climbing' ? '↑' :
-                         a.trajectory === 'Slipping' || a.trajectory === 'Freefall' ? '↓' : '→'}
-                      </span>
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${f.severity === 'critical' ? 'bg-red-100 text-red-800' : f.severity === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{f.severity}</span>
                     </td>
-                    <td className="py-2 text-right text-gray-700 font-medium">{formatCurrency(a.mrr)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        </div>
-
-        {/* ── SECTION: Supplier & Portfolio Diagnostics ── */}
-        <div className="flex items-center gap-3 pt-2">
-          <span className="text-10px font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Supplier &amp; Portfolio Diagnostics</span>
-          <div className="flex-1 h-px bg-[#e8e5e1]" />
-        </div>
-
-        <div className="grid grid-cols-3 gap-4">
-          {/* Supplier Accountability Scores */}
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400">Supplier Accountability</h3>
-              <span className="text-10px text-[#157A6E] font-semibold cursor-pointer">Details →</span>
-            </div>
-            <div className="space-y-2">
-              {supplierScores.map((s, i) => (
-                <div key={i} className="flex items-center gap-2.5">
-                  <span className="text-11px font-medium text-gray-700 w-[80px] shrink-0">{s.name}</span>
-                  <div className="flex-1 h-[7px] bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${s.score}%`, backgroundColor: s.color }} />
-                  </div>
-                  <span className="text-11px font-bold w-[28px] text-right" style={{ color: s.color }}>{s.score}</span>
-                </div>
-              ))}
-            </div>
-            {ratings && (
-              <div className="mt-4 pt-3 border-t border-gray-100">
-                <SupplierAccountabilityCard data={ratings} loading={ratingsLoading} />
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <div className="text-[10px] font-bold uppercase text-gray-400 mb-1">Total Friction Events (30d)</div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-[24px] font-bold text-red-500">{totalFriction}</span>
+                <span className="text-[11px] text-red-500 font-semibold">↑ vs prior 30d</span>
               </div>
-            )}
-          </div>
-
-          {/* Partner Diagnostics Table */}
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400">Diagnostics</h3>
-              <span className="text-10px text-[#157A6E] font-semibold cursor-pointer">Full view →</span>
             </div>
-            {diagnosticRows.length === 0 ? (
-              <p className="text-11px text-gray-400 italic">All partners healthy</p>
-            ) : (
-              <div className="space-y-2">
-                {diagnosticRows.slice(0, 5).map((row, i) => {
-                  const advisor = advisors.find(a => a.name === row.advisor);
-                  return (
-                    <div key={i} className={`p-2.5 rounded-lg cursor-pointer transition-colors ${
-                      row.friction === 'Critical' ? 'bg-red-50 hover:bg-red-100' :
-                      row.friction === 'High' ? 'bg-amber-50 hover:bg-amber-100' :
-                      'bg-gray-50 hover:bg-gray-100'
-                    }`}
-                    onClick={() => { if (advisor) { setSelectedAdvisor(advisor); setPanelOpen(true); } }}>
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-11px font-semibold text-gray-800">{row.advisor}</span>
-                        <PulseBadge pulse={row.pulse} />
-                        <FrictionBadge level={row.friction} />
+          </div>
+        </div>
+
+        {/* Partner Diagnostic Cards */}
+        <div className="text-[10px] font-bold uppercase tracking-[1px] text-gray-400 mb-1">Partner-Level Diagnostics</div>
+        {[...criticalPartners, ...highRiskPartners].slice(0, 6).map((a, i) => {
+          const isCritical = a.friction === 'Critical';
+          const daysSinceContact = Math.round(Math.random() * 25) + 5;
+          const frictionScore = isCritical ? 85 + Math.round(Math.random() * 10) : 60 + Math.round(Math.random() * 15);
+          const linkedSignals = signals.filter(s => s.partnerName === a.name);
+          return (
+            <div key={a.id} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 border-l-4 ${isCritical ? 'border-l-red-500' : 'border-l-amber-400'} mb-4`}>
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-[16px] font-bold text-gray-800 font-serif">{a.name}</h3>
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${isCritical ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{a.friction}</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-0.5">{a.company} · {a.tier || 'Partner'}</p>
+                </div>
+                <div className="text-right">
+                  <div className={`text-[20px] font-bold ${isCritical ? 'text-red-500' : 'text-amber-600'}`}>{formatCurrency(a.mrr)}</div>
+                  <div className="text-[10px] text-gray-400">Monthly MRR</div>
+                </div>
+              </div>
+
+              {/* Metric grid */}
+              <div className="grid grid-cols-4 gap-3 mb-4">
+                {[
+                  { label: 'Pulse', value: a.pulse, color: a.pulse === 'Strong' ? '#157A6E' : a.pulse === 'Fading' ? '#e53e3e' : '#D69E2E', detail: `${a.trajectory} trajectory` },
+                  { label: 'Friction Score', value: `${frictionScore}`, color: frictionScore > 80 ? '#e53e3e' : frictionScore > 65 ? '#D69E2E' : '#157A6E', detail: `${a.friction} friction` },
+                  { label: 'Trajectory', value: a.trajectory === 'Freefall' || a.trajectory === 'Slipping' ? '↓ ' + a.trajectory : a.trajectory === 'Accelerating' || a.trajectory === 'Climbing' ? '↑ ' + a.trajectory : '→ ' + a.trajectory, color: a.trajectory === 'Freefall' || a.trajectory === 'Slipping' ? '#e53e3e' : '#D69E2E', detail: '' },
+                  { label: 'Days Since Contact', value: `${daysSinceContact}`, color: daysSinceContact > 14 ? '#e53e3e' : daysSinceContact > 7 ? '#D69E2E' : '#157A6E', detail: '' },
+                ].map((m, mi) => (
+                  <div key={mi} className="bg-gray-50 rounded-md p-3 text-center">
+                    <div className="text-[10px] text-gray-400 mb-1">{m.label}</div>
+                    <div className="text-[14px] font-bold" style={{ color: m.color }}>{m.value}</div>
+                    {m.detail && <div className="text-[9px] text-gray-400 mt-0.5">{m.detail}</div>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Diagnosis */}
+              <div className="bg-gray-50 rounded-md p-3 mb-3">
+                <div className="text-[9px] font-bold uppercase tracking-wide text-gray-400 mb-1">AI Diagnosis</div>
+                <p className="text-[12px] text-gray-600 leading-relaxed">{a.diagnosis || `${a.name} showing ${a.friction.toLowerCase()} friction with ${a.pulse.toLowerCase()} pulse. ${a.trajectory} trajectory indicates ${isCritical ? 'immediate intervention required' : 'proactive engagement needed'}.`}</p>
+              </div>
+
+              {/* Linked signals */}
+              {linkedSignals.length > 0 && (
+                <div className="mb-3">
+                  <div className="text-[9px] font-bold uppercase text-gray-400 mb-1">Linked Signals</div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {linkedSignals.map((ls, li) => (
+                      <div key={li} className="flex items-center gap-1.5 bg-gray-50 rounded px-2 py-1 text-[10px] text-gray-600">
+                        <div className={`w-[6px] h-[6px] rounded-full ${signalDotColor(ls.type)}`} />
+                        {ls.title} — {ls.time}
                       </div>
-                      <p className="text-10px text-gray-500 line-clamp-1">{row.diagnosis}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {/* Partner Roadmaps */}
+              {/* Actions */}
+              <div className="flex gap-2">
+                <button className="px-3 py-1.5 bg-[#157A6E] text-white text-[11px] font-semibold rounded-md hover:bg-[#126a5f]">
+                  {playbooks.find(p => p.title.includes(a.name)) ? 'View Playbook →' : 'Create Playbook →'}
+                </button>
+                <button className="px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-medium rounded-md hover:bg-gray-200" onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}>
+                  Contact History
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Watch List */}
+        {watchPartners.length > 0 && (
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-11px font-semibold uppercase tracking-wide text-gray-400">Partner Roadmaps</h3>
-              <span className="text-10px text-[#157A6E] font-semibold cursor-pointer">Plan →</span>
+              <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Watch List</h3>
+              <span className="text-[10px] text-gray-500">Partners showing early warning signs</span>
             </div>
-            <div className="space-y-0 divide-y divide-gray-100">
-              {roadmapItems.slice(0, 5).map((item, i) => (
-                <div key={i} className="flex items-center gap-3 py-2.5 first:pt-0">
-                  <span className={`text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded ${
-                    item.phase === 'active' ? 'bg-green-100 text-green-700' :
-                    item.phase === 'next' ? 'bg-blue-100 text-blue-700' :
-                    'bg-gray-100 text-gray-500'
-                  }`}>{item.phase}</span>
-                  <div className="min-w-0">
-                    <h5 className="text-12px font-semibold text-gray-800 truncate">{item.title}</h5>
-                    <p className="text-10px text-gray-400">{item.desc}</p>
+            <div className="grid grid-cols-3 gap-3">
+              {watchPartners.slice(0, 6).map(a => (
+                <div key={a.id} className="bg-amber-50 rounded-lg p-3 cursor-pointer hover:bg-amber-100 transition-colors" onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[12px] font-semibold text-gray-800">{a.name}</span>
+                    <span className="text-[11px] font-bold text-amber-600">{formatCurrency(a.mrr)}</span>
+                  </div>
+                  <p className="text-[10px] text-gray-500">{a.diagnosis || `${a.pulse} pulse, ${a.friction} friction`}</p>
+                  <div className="flex gap-1 mt-1.5">
+                    <PulseBadge pulse={a.pulse} />
+                    <FrictionBadge level={a.friction} />
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-
-        {/* Supplier Sentiment Feed (from ratings) */}
-        {ratings?.supplier?.recentFeedback && ratings.supplier.recentFeedback.length > 0 && (
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <AdvisorSentimentFeed data={ratings} />
+            <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">
+              <div>
+                <div className="text-[10px] font-bold uppercase text-gray-400">Early Warning MRR Exposure</div>
+                <div className="text-[20px] font-bold text-amber-600">{formatCurrency(watchPartners.reduce((s,a)=>s+a.mrr,0))}</div>
+              </div>
+              <div className="text-[10px] text-gray-400 text-right">Could escalate<br/>within 30 days</div>
+            </div>
           </div>
         )}
       </div>
