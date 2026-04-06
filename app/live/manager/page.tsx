@@ -76,6 +76,7 @@ export default function LiveManagerPage() {
   const [playbookDeadline, setPlaybookDeadline] = useState(14);
   const [ccKpiDrill, setCcKpiDrill] = useState<string | null>(null);
   const [showCoMarketingNotif, setShowCoMarketingNotif] = useState(true);
+  const [tsdRoleFilter, setTsdRoleFilter] = useState<string>('All');
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -275,9 +276,9 @@ export default function LiveManagerPage() {
         logo: '🟦',
         description: 'Largest privately-held technology solutions distributor',
         contacts: [
-          { id: 'tel-1', name: 'Sarah Mitchell', title: 'Channel Development Manager', email: 's.mitchell@telarus.com', phone: '(801) 555-4821', lastContact: '2026-03-29', introsQTD: 8, introsAllTime: 47, revenueAttributed: 142000 },
-          { id: 'tel-2', name: 'James Thornton', title: 'Solutions Engineer', email: 'j.thornton@telarus.com', phone: '(801) 555-3392', lastContact: '2026-03-25', introsQTD: 5, introsAllTime: 31, revenueAttributed: 88000 },
-          { id: 'tel-3', name: 'Rachael Nguyen', title: 'Partner Success Lead', email: 'r.nguyen@telarus.com', phone: '(801) 555-1104', lastContact: '2026-04-01', introsQTD: 12, introsAllTime: 63, revenueAttributed: 215000 },
+          { id: 'tel-1', name: 'Sarah Mitchell', title: 'Channel Development Manager', role: 'Channel Manager', email: 's.mitchell@telarus.com', phone: '(801) 555-4821', lastContact: '2026-03-29', introsQTD: 8, introsAllTime: 47, revenueAttributed: 142000 },
+          { id: 'tel-2', name: 'James Thornton', title: 'Solutions Engineer', role: 'Sales Engineer', email: 'j.thornton@telarus.com', phone: '(801) 555-3392', lastContact: '2026-03-25', introsQTD: 5, introsAllTime: 31, revenueAttributed: 88000 },
+          { id: 'tel-3', name: 'Rachael Nguyen', title: 'Partner Success Lead', role: 'Channel Manager', email: 'r.nguyen@telarus.com', phone: '(801) 555-1104', lastContact: '2026-04-01', introsQTD: 12, introsAllTime: 63, revenueAttributed: 215000 },
         ],
       },
       {
@@ -285,8 +286,8 @@ export default function LiveManagerPage() {
         logo: '🟧',
         description: 'Leading channel platform for IT decision making',
         contacts: [
-          { id: 'av-1', name: 'Derek Paulson', title: 'Channel Account Manager', email: 'd.paulson@avant.com', phone: '(312) 555-6678', lastContact: '2026-03-31', introsQTD: 10, introsAllTime: 52, revenueAttributed: 178000 },
-          { id: 'av-2', name: 'Monica Reeves', title: 'Solutions Architect', email: 'm.reeves@avant.com', phone: '(312) 555-2241', lastContact: '2026-03-28', introsQTD: 6, introsAllTime: 28, revenueAttributed: 95000 },
+          { id: 'av-1', name: 'Derek Paulson', title: 'Channel Account Manager', role: 'Channel Manager', email: 'd.paulson@avant.com', phone: '(312) 555-6678', lastContact: '2026-03-31', introsQTD: 10, introsAllTime: 52, revenueAttributed: 178000 },
+          { id: 'av-2', name: 'Monica Reeves', title: 'Solutions Architect', role: 'Sales Engineer', email: 'm.reeves@avant.com', phone: '(312) 555-2241', lastContact: '2026-03-28', introsQTD: 6, introsAllTime: 28, revenueAttributed: 95000 },
         ],
       },
       {
@@ -294,8 +295,8 @@ export default function LiveManagerPage() {
         logo: '🟩',
         description: 'Technology advisory and distribution platform',
         contacts: [
-          { id: 'bp-1', name: 'Kevin Marsh', title: 'VP Channel Partnerships', email: 'k.marsh@bridgepointe.com', phone: '(925) 555-8812', lastContact: '2026-03-22', introsQTD: 4, introsAllTime: 19, revenueAttributed: 67000 },
-          { id: 'bp-2', name: 'Alicia Tran', title: 'Partner Development Rep', email: 'a.tran@bridgepointe.com', phone: '(925) 555-3350', lastContact: '2026-03-27', introsQTD: 7, introsAllTime: 34, revenueAttributed: 112000 },
+          { id: 'bp-1', name: 'Kevin Marsh', title: 'VP Channel Partnerships', role: 'Leadership', email: 'k.marsh@bridgepointe.com', phone: '(925) 555-8812', lastContact: '2026-03-22', introsQTD: 4, introsAllTime: 19, revenueAttributed: 67000 },
+          { id: 'bp-2', name: 'Alicia Tran', title: 'Partner Development Rep', role: 'PDM/SPDM', email: 'a.tran@bridgepointe.com', phone: '(925) 555-3350', lastContact: '2026-03-27', introsQTD: 7, introsAllTime: 34, revenueAttributed: 112000 },
         ],
       },
       {
@@ -303,9 +304,9 @@ export default function LiveManagerPage() {
         logo: '🟪',
         description: 'Telecommunications master agent and solutions distributor',
         contacts: [
-          { id: 'in-1', name: 'Robert Cianci', title: 'Channel Director', email: 'r.cianci@intelisys.com', phone: '(203) 555-9901', lastContact: '2026-03-30', introsQTD: 9, introsAllTime: 41, revenueAttributed: 156000 },
-          { id: 'in-2', name: 'Patricia Dunn', title: 'Sales Engineer', email: 'p.dunn@intelisys.com', phone: '(203) 555-4478', lastContact: '2026-03-18', introsQTD: 3, introsAllTime: 22, revenueAttributed: 71000 },
-          { id: 'in-3', name: 'Tyler Washington', title: 'Partner Enablement Manager', email: 't.washington@intelisys.com', phone: '(203) 555-6632', lastContact: '2026-04-01', introsQTD: 11, introsAllTime: 55, revenueAttributed: 198000 },
+          { id: 'in-1', name: 'Robert Cianci', title: 'Channel Director', role: 'Leadership', email: 'r.cianci@intelisys.com', phone: '(203) 555-9901', lastContact: '2026-03-30', introsQTD: 9, introsAllTime: 41, revenueAttributed: 156000 },
+          { id: 'in-2', name: 'Patricia Dunn', title: 'Sales Engineer', role: 'Sales Engineer', email: 'p.dunn@intelisys.com', phone: '(203) 555-4478', lastContact: '2026-03-18', introsQTD: 3, introsAllTime: 22, revenueAttributed: 71000 },
+          { id: 'in-3', name: 'Tyler Washington', title: 'Partner Enablement Manager', role: 'Channel Manager', email: 't.washington@intelisys.com', phone: '(203) 555-6632', lastContact: '2026-04-01', introsQTD: 11, introsAllTime: 55, revenueAttributed: 198000 },
         ],
       },
       {
@@ -313,8 +314,8 @@ export default function LiveManagerPage() {
         logo: '🔵',
         description: 'B2B subscription commerce platform and marketplace',
         contacts: [
-          { id: 'ad-1', name: 'Yuki Tanaka', title: 'Partner Growth Manager', email: 'y.tanaka@appdirect.com', phone: '(415) 555-7723', lastContact: '2026-03-26', introsQTD: 6, introsAllTime: 25, revenueAttributed: 83000 },
-          { id: 'ad-2', name: 'Chris Brennan', title: 'Solutions Consultant', email: 'c.brennan@appdirect.com', phone: '(415) 555-1198', lastContact: '2026-03-20', introsQTD: 2, introsAllTime: 14, revenueAttributed: 45000 },
+          { id: 'ad-1', name: 'Yuki Tanaka', title: 'Partner Growth Manager', role: 'Channel Manager', email: 'y.tanaka@appdirect.com', phone: '(415) 555-7723', lastContact: '2026-03-26', introsQTD: 6, introsAllTime: 25, revenueAttributed: 83000 },
+          { id: 'ad-2', name: 'Chris Brennan', title: 'Solutions Consultant', role: 'Sales Engineer', email: 'c.brennan@appdirect.com', phone: '(415) 555-1198', lastContact: '2026-03-20', introsQTD: 2, introsAllTime: 14, revenueAttributed: 45000 },
         ],
       },
     ];
@@ -631,31 +632,54 @@ export default function LiveManagerPage() {
   );
 
   // ════════════════════════════════════════════════
-  // RELATIONSHIPS (with sub-tabs: Partners, TSDs, Territory, White Space)
+  // RELATIONSHIPS (with sub-tabs: Partners, TSDs, White Space)
   // ════════════════════════════════════════════════
   const renderRelationships = () => {
-    // Contact type categories
-    const contactTypes = ['All', 'Partner', 'Champion', 'Decision Maker', 'Influencer', 'End User'];
-    // Assign mock contact types based on seeded random
-    const getContactType = (advisor: Advisor): string => {
-      const types = ['Partner', 'Champion', 'Decision Maker', 'Influencer', 'End User'];
-      const idx = Math.floor(seededRandom(advisor.id + '-ct') * types.length);
-      return types[idx];
+    // Relationship Stage types (new channel-appropriate categories)
+    const relationshipStages = ['Prospect', 'Onboarding', 'Activated', 'Scaling', 'Strategic'];
+    const getRelationshipStage = (advisor: Advisor): string => {
+      const stages = ['Prospect', 'Onboarding', 'Activated', 'Scaling', 'Strategic'];
+      const idx = Math.floor(seededRandom(advisor.id + '-stage') * stages.length);
+      return stages[idx];
     };
 
-    // Filtering logic
-    const allAdvisorsCount = advisorsWithDeals.length;
-    const activatedCount = advisorsWithDeals.filter(a => deals.some(d => d.advisorId === a.id)).length;
-    const activeCount = advisorsWithDeals.filter(a => a.pulse === 'Strong' || a.pulse === 'Steady').length;
-    const top20Count = advisorsWithDeals.filter(a => a.tier === 'top10' || a.tier === 'next20').length;
-    const needsAttentionCount = advisorsWithDeals.filter(a =>
-      a.friction === 'High' || a.friction === 'Critical' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall'
-    ).length;
+    // New engagement level filters
+    const engagementSegments = [
+      { label: 'All Partners', key: 'All', count: advisorsWithDeals.length },
+      {
+        label: 'Revenue Producing',
+        key: 'Revenue Producing',
+        count: advisorsWithDeals.filter(a => deals.some(d => d.advisorId === a.id)).length,
+      },
+      {
+        label: 'High Engagement',
+        key: 'High Engagement',
+        count: advisorsWithDeals.filter(a => a.pulse === 'Strong' || a.pulse === 'Steady').length,
+      },
+      {
+        label: 'Strategic Top 20',
+        key: 'Strategic Top 20',
+        count: advisorsWithDeals.filter(a => a.tier === 'top10' || a.tier === 'next20').length,
+      },
+      {
+        label: 'Needs Attention',
+        key: 'Needs Attention',
+        count: advisorsWithDeals.filter(a =>
+          a.friction === 'High' || a.friction === 'Critical' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall'
+        ).length,
+      },
+      {
+        label: 'New / Onboarding',
+        key: 'New / Onboarding',
+        count: advisorsWithDeals.filter(a => getRelationshipStage(a) === 'Onboarding').length,
+      },
+    ];
 
+    // Filtering logic for partners
     let filteredAdvisors = [...advisorsWithDeals];
-    if (relationshipFilter === 'Activated') {
+    if (relationshipFilter === 'Revenue Producing') {
       filteredAdvisors = advisorsWithDeals.filter(a => deals.some(d => d.advisorId === a.id));
-    } else if (relationshipFilter === 'Active') {
+    } else if (relationshipFilter === 'High Engagement') {
       filteredAdvisors = advisorsWithDeals.filter(a => a.pulse === 'Strong' || a.pulse === 'Steady');
     } else if (relationshipFilter === 'Strategic Top 20') {
       filteredAdvisors = advisorsWithDeals.filter(a => a.tier === 'top10' || a.tier === 'next20');
@@ -663,11 +687,8 @@ export default function LiveManagerPage() {
       filteredAdvisors = advisorsWithDeals.filter(a =>
         a.friction === 'High' || a.friction === 'Critical' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall'
       );
-    }
-
-    // Apply contact type filter
-    if (contactTypeFilter !== 'All') {
-      filteredAdvisors = filteredAdvisors.filter(a => getContactType(a) === contactTypeFilter);
+    } else if (relationshipFilter === 'New / Onboarding') {
+      filteredAdvisors = advisorsWithDeals.filter(a => getRelationshipStage(a) === 'Onboarding');
     }
 
     // Apply city filter from map
@@ -692,27 +713,11 @@ export default function LiveManagerPage() {
       return Math.floor((now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
     };
 
-    const segments = [
-      { label: 'All Partners', count: allAdvisorsCount, key: 'All' },
-      { label: 'Activated', count: activatedCount, key: 'Activated' },
-      { label: 'Active', count: activeCount, key: 'Active' },
-      { label: 'Strategic Top 20', count: top20Count, key: 'Strategic Top 20' },
-      { label: 'Needs Attention', count: needsAttentionCount, key: 'Needs Attention' },
-    ];
-
-    const handleCityClick = (city: string) => {
-      setTerritoryFilter(prev => prev === city ? null : city);
+    const getLastContactColor = (days: number): string => {
+      if (days < 3) return 'text-green-600';
+      if (days < 7) return 'text-yellow-600';
+      return 'text-red-500';
     };
-
-    // TSD data
-    const allTsds = new Set<string>();
-    advisorsWithDeals.forEach(a => { a.tsds?.forEach(tsd => allTsds.add(tsd)); });
-    const tsdArray = Array.from(allTsds).sort();
-    const tsdData = tsdArray.map(tsd => {
-      const advisorsWithTsd = advisorsWithDeals.filter(a => a.tsds?.includes(tsd));
-      const mrrWithTsd = advisorsWithTsd.reduce((sum, a) => sum + a.mrr, 0);
-      return { tsd, advisorCount: advisorsWithTsd.length, mrr: mrrWithTsd, advisors: advisorsWithTsd };
-    });
 
     // White space data per advisor
     const whiteSpaceData = advisorsWithDeals.map(advisor => {
@@ -727,6 +732,33 @@ export default function LiveManagerPage() {
         crossSellScore,
         opportunityMRR: opportunityProducts.reduce((sum, p) => sum + (2000 + seededRandom(`${advisor.id}-${p}`) * 6000), 0),
       };
+    });
+
+    const handleCityClick = (city: string) => {
+      setTerritoryFilter(prev => prev === city ? null : city);
+    };
+
+    // Calculate heat map data by city
+    const heatMapData = Object.entries(advisorsByCityMap).map(([location, data]) => {
+      const advisorList = data.advisors;
+      const avgPulse = advisorList.length > 0
+        ? advisorList.reduce((sum, a) => {
+            const pulseScore: Record<string, number> = { Strong: 3, Steady: 2, Rising: 2.5, Fading: 1, Flatline: 0 };
+            const fullAdvisor = advisorsWithDeals.find(ad => ad.id === a.id);
+            return sum + (pulseScore[fullAdvisor?.pulse || ''] || 1);
+          }, 0) / advisorList.length
+        : 0;
+
+      const avgTrajectory = advisorList.length > 0
+        ? advisorList.reduce((sum, a) => {
+            const trajScore: Record<string, number> = { Accelerating: 3, Climbing: 2, Stable: 1, Slipping: -1, Freefall: -2 };
+            const fullAdvisor = advisorsWithDeals.find(ad => ad.id === a.id);
+            return sum + (trajScore[fullAdvisor?.trajectory || ''] || 0);
+          }, 0) / advisorList.length
+        : 0;
+
+      const score = (avgPulse + avgTrajectory) / 2;
+      return { location, count: data.count, mrr: data.mrr, score, health: score > 1.5 ? 'good' : score > 0 ? 'moderate' : 'poor' };
     });
 
     // Region analysis for territory sub-tab
@@ -746,6 +778,26 @@ export default function LiveManagerPage() {
       return { region, partners: advs.length, mrr: regionMRR, pipeline: regionPipeline, avgSold, closedCount: closedDeals.length };
     }).sort((a, b) => b.mrr - a.mrr);
 
+    // TSD role categories
+    const tsdRoles = ['All', 'Leadership', 'Channel Manager', 'PDM/SPDM', 'Sales Engineer', 'Marketing', 'Ops', 'Other'];
+
+    // Compute Relationship Health for TSD companies
+    const getTsdRelationshipHealth = (company: typeof TSD_COMPANIES[0]): { health: string; color: string } => {
+      const avgDaysSinceContact = company.contacts.length > 0
+        ? company.contacts.reduce((sum, c) => sum + getDaysSinceContact(c.lastContact), 0) / company.contacts.length
+        : 0;
+
+      const introsFrequency = company.totalIntrosQTD > 8 ? 1 : company.totalIntrosQTD > 4 ? 0.5 : 0;
+      const recentContact = avgDaysSinceContact < 7 ? 1 : avgDaysSinceContact < 14 ? 0.5 : 0;
+      const revenueScale = company.totalRevenueAttributed > 100000 ? 1 : company.totalRevenueAttributed > 50000 ? 0.5 : 0;
+
+      const healthScore = (introsFrequency + recentContact + revenueScale) / 3;
+      if (healthScore > 0.75) return { health: 'Excellent', color: '#16A34A' };
+      if (healthScore > 0.5) return { health: 'Good', color: '#84CC16' };
+      if (healthScore > 0.25) return { health: 'Fair', color: '#FBBF24' };
+      return { health: 'Needs Work', color: '#EF4444' };
+    };
+
     return (
       <>
         {/* Sub-Tab Navigation */}
@@ -753,7 +805,6 @@ export default function LiveManagerPage() {
           {[
             { key: 'partners', label: 'Partners', icon: Users },
             { key: 'tsds', label: `TSDs (${TSD_COMPANIES.length})`, icon: Building2 },
-            { key: 'territory', label: 'Territory Map', icon: Map },
             { key: 'white-space', label: 'White Space', icon: LayoutGrid },
           ].map(tab => (
             <button
@@ -774,34 +825,49 @@ export default function LiveManagerPage() {
         {/* ── PARTNERS SUB-TAB ── */}
         {relationshipViewMode === 'partners' && (
         <div className="space-y-4">
-          {/* Territory Map */}
-          <USAMap
-            advisorsByCity={advisorsByCityMap}
-            onCityClick={handleCityClick}
-            selectedCity={territoryFilter}
-          />
-
-          {/* Contact Type Filter */}
+          {/* Heat Map — SVG visualization */}
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
-            <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Contact Type</p>
-            <div className="flex flex-wrap gap-2 mb-4">
-              {contactTypes.map(ct => (
-                <button
-                  key={ct}
-                  onClick={() => setContactTypeFilter(ct)}
-                  className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
-                    contactTypeFilter === ct
-                      ? 'bg-[#157A6E] text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {ct}
-                </button>
-              ))}
+            <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Territory Heat Map</p>
+            <div className="flex items-center gap-4 mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#16A34A' }} />
+                <span className="text-10px text-gray-600">Good</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#FBBF24' }} />
+                <span className="text-10px text-gray-600">Moderate</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#EF4444' }} />
+                <span className="text-10px text-gray-600">Poor</span>
+              </div>
             </div>
-            <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Partner Segments</p>
             <div className="flex flex-wrap gap-2">
-              {segments.map(seg => (
+              {heatMapData.slice(0, 12).map(data => {
+                const color = data.health === 'good' ? '#16A34A' : data.health === 'moderate' ? '#FBBF24' : '#EF4444';
+                const size = Math.min(20, 10 + data.count);
+                return (
+                  <div
+                    key={data.location}
+                    className="flex flex-col items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+                    title={`${data.location}: ${data.count} partners, $${(data.mrr / 1000).toFixed(0)}K MRR`}
+                  >
+                    <div
+                      className="rounded-full"
+                      style={{ width: `${size}px`, height: `${size}px`, backgroundColor: color }}
+                    />
+                    <span className="text-9px text-gray-600 text-center">{data.location.split(',')[0]}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Engagement Level Filter */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+            <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Engagement Levels</p>
+            <div className="flex flex-wrap gap-2">
+              {engagementSegments.map(seg => (
                 <button
                   key={seg.key}
                   onClick={() => setRelationshipFilter(seg.key)}
@@ -825,7 +891,6 @@ export default function LiveManagerPage() {
             <div className="text-12px text-gray-600 font-medium">
               Showing {sortedAdvisors.length} partners
               {territoryFilter && <span className="ml-1 text-[#157A6E]">in {territoryFilter}</span>}
-              {contactTypeFilter !== 'All' && <span className="ml-1 text-[#157A6E]">· {contactTypeFilter}</span>}
             </div>
             <div className="flex gap-2">
               <button
@@ -846,8 +911,8 @@ export default function LiveManagerPage() {
             </div>
           </div>
 
-          {/* Advisors List with inline White Space */}
-          <div className="space-y-2">
+          {/* Partner Cards — HubSpot-style */}
+          <div className="space-y-3">
             {sortedAdvisors.length === 0 ? (
               <div className="text-center py-8 text-gray-400">
                 <p className="text-12px">No partners match this filter</p>
@@ -856,25 +921,35 @@ export default function LiveManagerPage() {
               sortedAdvisors.map(a => {
                 const daysSince = getDaysSinceContact(a.lastContact);
                 const ws = whiteSpaceData.find(w => w.id === a.id);
-                const contactType = getContactType(a);
+                const stage = getRelationshipStage(a);
+                const initials = a.name.split(' ').map(n => n[0]).join('').slice(0, 2);
+                const coMarketingMatch = coMarketingOpportunities.find(opp => opp.advisor.id === a.id);
+
                 return (
                   <div
                     key={a.id}
-                    className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 hover:shadow-md cursor-pointer transition-all"
+                    className="bg-white rounded-[10px] border border-[#e8e5e1] p-5 hover:shadow-md cursor-pointer transition-all"
                     onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}
                   >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-13px font-semibold text-gray-900">{a.name}</p>
-                          <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 text-[10px] rounded font-medium">{contactType}</span>
+                    {/* Header: Avatar, Name, Stage Badge, MRR + Tier */}
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className="w-11 h-11 rounded-full flex items-center justify-center text-white text-13px font-bold flex-shrink-0"
+                          style={{ backgroundColor: '#157A6E' }}>
+                          {initials}
                         </div>
-                        <p className="text-11px text-gray-500">{a.company} · {a.title}</p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-13px font-semibold text-gray-900">{a.name}</p>
+                            <span className="px-2 py-0.5 bg-[#157A6E]/10 text-[#157A6E] text-[10px] rounded-full font-semibold">{stage}</span>
+                          </div>
+                          <p className="text-11px text-gray-500">{a.company} · {a.title}</p>
+                        </div>
                       </div>
-                      <div className="flex items-start gap-3">
+                      <div className="flex items-start gap-3 flex-shrink-0">
                         <button
                           onClick={(e) => { e.stopPropagation(); setEditingPartner(a); setShowPartnerModal(true); }}
-                          className="text-gray-400 hover:text-[#157A6E] transition-colors pt-0.5"
+                          className="text-gray-400 hover:text-[#157A6E] transition-colors pt-1"
                           title="Edit partner"
                         >
                           <Edit size={16} />
@@ -885,26 +960,63 @@ export default function LiveManagerPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 mt-2">
-                      <PulseBadge pulse={a.pulse} />
-                      <TrajectoryBadge trajectory={a.trajectory} />
-                      <FrictionBadge level={a.friction} />
-                      <span className="text-11px text-gray-500 ml-auto">
-                        Last contacted: {daysSince}d ago
-                      </span>
+
+                    {/* Action Items Row */}
+                    <div className="flex gap-2 mb-3 pb-3 border-b border-gray-100">
+                      <button className="text-11px font-medium text-[#157A6E] hover:bg-[#157A6E]/10 px-2 py-1 rounded transition-colors flex items-center gap-1">
+                        <Mail className="w-3 h-3" />
+                        Email
+                      </button>
+                      <button className="text-11px font-medium text-[#157A6E] hover:bg-[#157A6E]/10 px-2 py-1 rounded transition-colors flex items-center gap-1">
+                        <Phone className="w-3 h-3" />
+                        Call
+                      </button>
+                      <button className="text-11px font-medium text-[#157A6E] hover:bg-[#157A6E]/10 px-2 py-1 rounded transition-colors flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        Schedule
+                      </button>
+                      <button className="text-11px font-medium text-[#157A6E] hover:bg-[#157A6E]/10 px-2 py-1 rounded transition-colors flex items-center gap-1">
+                        <MessageCircle className="w-3 h-3" />
+                        Note
+                      </button>
                     </div>
-                    {/* Inline White Space indicator */}
-                    {ws && ws.opportunityProducts.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
-                        <div className="flex items-center gap-2">
-                          <LayoutGrid className="w-3 h-3 text-gray-400" />
-                          <span className="text-10px text-gray-500 font-medium">White Space:</span>
-                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${ws.crossSellScore}%` }} />
+
+                    {/* Engagement Indicators */}
+                    <div className="flex items-center gap-4 mb-3 pb-3 border-b border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <PulseBadge pulse={a.pulse} />
+                        <span className="text-10px text-gray-500">Pulse</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <TrajectoryBadge trajectory={a.trajectory} />
+                        <span className="text-10px text-gray-500">Trajectory</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <FrictionBadge level={a.friction} />
+                        <span className="text-10px text-gray-500">Friction</span>
+                      </div>
+                      <div className={`ml-auto text-11px font-semibold ${getLastContactColor(daysSince)}`}>
+                        {daysSince}d ago
+                      </div>
+                    </div>
+
+                    {/* Additional Opportunities Section */}
+                    {(ws || coMarketingMatch) && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        {ws && ws.opportunityProducts.length > 0 && (
+                          <div className="mb-2">
+                            <p className="text-11px font-semibold text-gray-700 mb-1">White Space Opportunities</p>
+                            <p className="text-10px text-gray-600">
+                              {ws.opportunityProducts.length} products · Est. {formatCurrency(ws.opportunityMRR)}
+                            </p>
                           </div>
-                          <span className="text-10px font-semibold text-gray-600">{ws.crossSellScore.toFixed(0)}%</span>
-                          <span className="text-10px text-gray-400">{ws.opportunityProducts.length} opps</span>
-                        </div>
+                        )}
+                        {coMarketingMatch && (
+                          <div>
+                            <p className="text-11px font-semibold text-gray-700 mb-1">Co-Marketing Eligible</p>
+                            <p className="text-10px text-gray-600">{coMarketingMatch.type}</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -983,11 +1095,36 @@ export default function LiveManagerPage() {
             </div>
           </div>
 
+          {/* Role Filter Pills */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+            <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Filter by Role</p>
+            <div className="flex flex-wrap gap-2">
+              {tsdRoles.map(role => (
+                <button
+                  key={role}
+                  onClick={() => setTsdRoleFilter(role)}
+                  className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
+                    tsdRoleFilter === role
+                      ? 'bg-[#157A6E] text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {role}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* TSD Company Cards */}
           <div className="space-y-3">
             {TSD_COMPANIES.map(company => {
               const isExpanded = expandedTsdCompany === company.name;
               const color = tsdColors[company.name] || '#157A6E';
+              const health = getTsdRelationshipHealth(company);
+              const filteredContacts = tsdRoleFilter === 'All'
+                ? company.contacts
+                : company.contacts.filter(c => c.role === tsdRoleFilter);
+
               return (
               <div key={company.name} className={`bg-white rounded-[10px] border transition-all ${isExpanded ? 'border-[#157A6E] shadow-md' : 'border-[#e8e5e1] hover:shadow-sm'}`}>
                 {/* Company Header — always visible */}
@@ -1003,6 +1140,10 @@ export default function LiveManagerPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
+                      <div style={{ color: health.color }} className="text-center">
+                        <p className="text-12px font-bold">{health.health}</p>
+                        <p className="text-9px text-gray-400">Health</p>
+                      </div>
                       <div className="text-right">
                         <p className="text-13px font-bold" style={{ color }}>{company.totalIntrosQTD} intros QTD</p>
                         <p className="text-10px text-gray-400">{company.totalIntrosAllTime} all-time</p>
@@ -1016,19 +1157,20 @@ export default function LiveManagerPage() {
                   </div>
                 </div>
 
-                {/* Expanded Content — contacts + partners */}
+                {/* Expanded Content — contacts grouped by role + partners */}
                 {isExpanded && (
                 <div className="border-t border-[#e8e5e1] px-5 pb-5">
-                  {/* Contacts */}
+                  {/* Contacts grouped by role */}
+                  {filteredContacts.length > 0 && (
                   <div className="pt-4 mb-4">
                     <div className="flex items-center justify-between mb-3">
-                      <p className="text-12px font-semibold text-gray-700 uppercase tracking-wide">Your Contacts at {company.name}</p>
+                      <p className="text-12px font-semibold text-gray-700 uppercase tracking-wide">Your Contacts ({filteredContacts.length})</p>
                       <button className="flex items-center gap-1 text-11px font-medium text-[#157A6E] hover:underline">
                         <UserPlus className="w-3 h-3" /> Add Contact
                       </button>
                     </div>
                     <div className="grid grid-cols-1 gap-2">
-                      {company.contacts.map(contact => {
+                      {filteredContacts.map(contact => {
                         const daysSince = Math.floor((new Date().getTime() - new Date(contact.lastContact).getTime()) / (1000 * 60 * 60 * 24));
                         return (
                         <div key={contact.id} className="flex items-center gap-4 p-3 bg-[#F7F5F2] rounded-lg hover:bg-[#f0ede9] transition-colors">
@@ -1038,7 +1180,10 @@ export default function LiveManagerPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-13px font-semibold text-gray-800">{contact.name}</p>
-                            <p className="text-11px text-gray-500">{contact.title}</p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-10px text-gray-500 px-1.5 py-0.5 bg-gray-200 rounded">{contact.role}</span>
+                              <p className="text-11px text-gray-500">{contact.title}</p>
+                            </div>
                           </div>
                           <div className="flex items-center gap-6 flex-shrink-0">
                             <div className="text-center">
@@ -1073,6 +1218,7 @@ export default function LiveManagerPage() {
                       })}
                     </div>
                   </div>
+                  )}
 
                   {/* Partners sourced through this TSD */}
                   {company.partners.length > 0 && (
@@ -1110,113 +1256,6 @@ export default function LiveManagerPage() {
         </div>
           );
         })()}
-
-        {/* ── TERRITORY MAP SUB-TAB ── */}
-        {relationshipViewMode === 'territory' && (
-        <div className="space-y-4">
-          {/* Full US Map with state markers */}
-          <USAMap
-            advisorsByCity={advisorsByCityMap}
-            onCityClick={handleCityClick}
-            selectedCity={null}
-            showAllStates={true}
-            stateData={stateDataMap}
-            onStateClick={(abbr) => setSelectedState(prev => prev === abbr ? null : abbr)}
-            selectedState={selectedState}
-          />
-
-          {/* Region Analysis */}
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Regional Analysis</h3>
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
-                <p className="text-10px text-gray-500 uppercase font-medium">Total MRR</p>
-                <p className="text-lg font-bold text-[#157A6E]">{formatCurrency(totalMRR)}</p>
-              </div>
-              <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
-                <p className="text-10px text-gray-500 uppercase font-medium">Pipeline by Region</p>
-                <p className="text-lg font-bold text-gray-800">{formatCurrency(pipelineMRR)}</p>
-              </div>
-              <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
-                <p className="text-10px text-gray-500 uppercase font-medium">Avg Deal Size</p>
-                <p className="text-lg font-bold text-gray-800">{closedWonDeals.length > 0 ? formatCurrency(closedWonMRR / closedWonDeals.length) : '—'}</p>
-              </div>
-            </div>
-            <table className="w-full text-12px">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left py-2 font-medium text-gray-500">Region</th>
-                  <th className="text-right py-2 font-medium text-gray-500">Partners</th>
-                  <th className="text-right py-2 font-medium text-gray-500">MRR</th>
-                  <th className="text-right py-2 font-medium text-gray-500">Pipeline</th>
-                  <th className="text-right py-2 font-medium text-gray-500">Avg Sold</th>
-                  <th className="text-right py-2 font-medium text-gray-500">Closed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {regionAnalysis.map(r => (
-                  <tr key={r.region} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="py-2 font-medium text-gray-800">{r.region}</td>
-                    <td className="py-2 text-right text-gray-600">{r.partners}</td>
-                    <td className="py-2 text-right font-semibold text-[#157A6E]">{formatCurrency(r.mrr)}</td>
-                    <td className="py-2 text-right text-gray-600">{formatCurrency(r.pipeline)}</td>
-                    <td className="py-2 text-right text-gray-600">{r.avgSold > 0 ? formatCurrency(r.avgSold) : '—'}</td>
-                    <td className="py-2 text-right text-gray-600">{r.closedCount}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* State detail (if selected) */}
-          {selectedState && stateDataMap[selectedState] && (
-            <div className="bg-white rounded-[10px] border border-[#157A6E]/30 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">
-                  {selectedState} Detail
-                </h3>
-                <button onClick={() => setSelectedState(null)} className="text-12px text-[#157A6E] hover:underline">Clear</button>
-              </div>
-              <div className="grid grid-cols-4 gap-4 mb-4">
-                <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
-                  <p className="text-10px text-gray-500">Partners</p>
-                  <p className="text-lg font-bold text-gray-800">{stateDataMap[selectedState].partners}</p>
-                </div>
-                <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
-                  <p className="text-10px text-gray-500">MRR</p>
-                  <p className="text-lg font-bold text-[#157A6E]">{formatCurrency(stateDataMap[selectedState].mrr)}</p>
-                </div>
-                <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
-                  <p className="text-10px text-gray-500">Pipeline</p>
-                  <p className="text-lg font-bold text-gray-800">{formatCurrency(stateDataMap[selectedState].pipeline)}</p>
-                </div>
-                <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
-                  <p className="text-10px text-gray-500">Deals</p>
-                  <p className="text-lg font-bold text-gray-800">{stateDataMap[selectedState].deals}</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                {advisorsWithDeals
-                  .filter(a => a.location?.toUpperCase().includes(`, ${selectedState}`))
-                  .sort((a, b) => b.mrr - a.mrr)
-                  .map(a => (
-                    <div key={a.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
-                      onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
-                      <div>
-                        <p className="text-13px font-medium text-gray-800">{a.name}</p>
-                        <p className="text-11px text-gray-500">{a.company} · {a.location}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <PulseBadge pulse={a.pulse} />
-                        <span className="text-13px font-semibold text-[#157A6E]">{formatCurrency(a.mrr)}</span>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          )}
-        </div>
-        )}
 
         {/* ── WHITE SPACE SUB-TAB ── */}
         {relationshipViewMode === 'white-space' && (
