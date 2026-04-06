@@ -20,7 +20,7 @@ import { DealHealthBadge } from '@/components/shared/DealHealthBadge';
 import { PulseBadge } from '@/components/shared/PulseBadge';
 import { FrictionBadge } from '@/components/shared/FrictionBadge';
 import { SentimentBadge } from '@/components/shared/SentimentBadge';
-import { SupplierAccountabilityCard, AdvisorSentimentFeed } from '@/components/shared/RatingsDisplay';
+import { SupplierAccountabilityCard, AdvisorSentimentFeed, PerAdvisorRating } from '@/components/shared/RatingsDisplay';
 import { TrajectoryBadge } from '@/components/shared/TrajectoryBadge';
 import { TierBadge } from '@/components/shared/TierBadge';
 import { DealModal } from '@/components/shared/DealModal';
@@ -61,7 +61,7 @@ export default function LiveManagerPage() {
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [showPartnerModal, setShowPartnerModal] = useState(false);
   const [editingPartner, setEditingPartner] = useState<Advisor | null>(null);
-  const [relationshipViewMode, setRelationshipViewMode] = useState<'partners' | 'tsds' | 'territory' | 'white-space'>('partners');
+  const [relationshipViewMode, setRelationshipViewMode] = useState<'partners' | 'tsds'>('partners');
   const [contactTypeFilter, setContactTypeFilter] = useState<string>('All');
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [pipelineMetricsView, setPipelineMetricsView] = useState<'kanban' | 'deals' | 'quotes-vs-sold' | 'by-advisor'>('kanban');
@@ -805,6 +805,297 @@ export default function LiveManagerPage() {
       return { health: 'Needs Work', color: '#EF4444' };
     };
 
+    // Render full-width advisor detail view
+    const renderAdvisorDetail = () => {
+      if (!selectedAdvisor) return <></>;
+
+      const advisorDeals = deals.filter(d => d.advisorId === selectedAdvisor.id);
+      const whiteSpace = whiteSpaceData.find(w => w.id === selectedAdvisor.id);
+      const coMarketingMatch = coMarketingOpportunities.find(opp => opp.advisor.id === selectedAdvisor.id);
+      const advisorRating = ratings?.find((r: any) => r.advisorId === selectedAdvisor.id);
+
+      // Mock personal intel data
+      const personalIntel = {
+        birthday: `${['January', 'February', 'March', 'April', 'May', 'June'][Math.floor(seededRandom(`${selectedAdvisor.id}-month`) * 6)]} ${Math.floor(seededRandom(`${selectedAdvisor.id}-day`) * 28) + 1}`,
+        education: [
+          { school: 'Stanford University', degree: 'MBA' },
+          { school: 'UC Berkeley', degree: 'BS Computer Science' }
+        ][Math.floor(seededRandom(`${selectedAdvisor.id}-edu`) * 2)],
+        family: `Married, ${Math.floor(seededRandom(`${selectedAdvisor.id}-kids`) * 3) + 1} kids`,
+        hobbies: ['Hiking', 'Photography', 'Golf', 'Cooking', 'Board games'][Math.floor(seededRandom(`${selectedAdvisor.id}-hobby`) * 5)],
+        funFact: 'Built a SaaS startup before joining this company',
+      };
+
+      return (
+        <div className="space-y-6">
+          {/* Header Section */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+            <button
+              onClick={() => { setPanelOpen(false); setSelectedAdvisor(null); }}
+              className="mb-4 flex items-center gap-1 text-12px font-medium text-[#157A6E] hover:text-[#0f5550] transition-colors"
+            >
+              ← Back to Partners
+            </button>
+
+            <div className="flex items-start gap-6 mb-6">
+              {/* Avatar */}
+              <div className="flex-shrink-0">
+                <div className="w-20 h-20 bg-[#157A6E] rounded-full flex items-center justify-center">
+                  <span className="text-white text-[28px] font-semibold font-['Newsreader']">
+                    {selectedAdvisor.name.split(' ').map(n => n[0]).join('')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Name, title, company */}
+              <div className="flex-1">
+                <h2 className="text-[28px] font-semibold font-['Newsreader'] text-gray-900 mb-1">{selectedAdvisor.name}</h2>
+                <p className="text-13px text-gray-600 mb-3">{selectedAdvisor.title || 'Partner'} at {selectedAdvisor.company}</p>
+
+                {/* Location & badges */}
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="px-3 py-1 bg-gray-100 text-11px font-medium text-gray-700 rounded-full">{selectedAdvisor.location || 'Unknown'}</span>
+                </div>
+
+                {/* Badge row */}
+                <div className="flex items-center gap-2 mb-4 flex-wrap">
+                  <PulseBadge pulse={selectedAdvisor.pulse} />
+                  <TrajectoryBadge trajectory={selectedAdvisor.trajectory} />
+                  <FrictionBadge level={selectedAdvisor.friction} />
+                  <TierBadge tier={selectedAdvisor.tier} />
+                </div>
+
+                {/* MRR */}
+                <div className="mb-4">
+                  <p className="text-11px text-gray-600 mb-1">Current MRR</p>
+                  <p className="text-[24px] font-semibold text-[#157A6E]">{formatCurrency(selectedAdvisor.mrr)}</p>
+                </div>
+              </div>
+
+              {/* Quick actions */}
+              <div className="flex gap-2">
+                <button className="px-3 py-2 text-11px font-medium border border-[#e8e5e1] text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Email</button>
+                <button className="px-3 py-2 text-11px font-medium border border-[#e8e5e1] text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Call</button>
+                <button className="px-3 py-2 text-11px font-medium border border-[#e8e5e1] text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Schedule</button>
+                <button className="px-3 py-2 text-11px font-medium border border-[#e8e5e1] text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Log Call</button>
+              </div>
+            </div>
+          </div>
+
+          {/* Two-column layout */}
+          <div className="grid grid-cols-3 gap-6">
+            {/* Left column (60%) */}
+            <div className="col-span-2 space-y-6">
+              {/* Relationship Overview Card */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Relationship Overview</h3>
+                <div className="grid grid-cols-4 gap-4 mb-4">
+                  <div className="text-center">
+                    <p className="text-11px text-gray-600 mb-2">Sentiment</p>
+                    <SentimentBadge tone={seededRandom(`${selectedAdvisor.id}-sent`) > 0.6 ? 'Warm' : seededRandom(`${selectedAdvisor.id}-sent`) > 0.3 ? 'Neutral' : 'Cool'} />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-11px text-gray-600 mb-2">Intent</p>
+                    <span className="inline-block px-2 py-1 bg-emerald-100 text-emerald-700 text-11px font-medium rounded">Expanding</span>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-11px text-gray-600 mb-2">Deal Health</p>
+                    <span className="inline-block px-2 py-1 bg-emerald-100 text-emerald-700 text-11px font-medium rounded">Good</span>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-11px text-gray-600 mb-2">Friction</p>
+                    <FrictionBadge level={selectedAdvisor.friction} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-11px text-gray-600 mb-1">Connected Since</p>
+                    <p className="text-12px font-medium text-gray-900">{Math.floor(seededRandom(`${selectedAdvisor.id}-connected`) * 24)} months</p>
+                  </div>
+                  <div>
+                    <p className="text-11px text-gray-600 mb-1">Last Contact</p>
+                    <p className="text-12px font-medium text-gray-900">{Math.floor(seededRandom(`${selectedAdvisor.id}-contact`) * 30)} days ago</p>
+                  </div>
+                  <div>
+                    <p className="text-11px text-gray-600 mb-1">Best Day</p>
+                    <p className="text-12px font-medium text-gray-900">{"Tuesday"}</p>
+                  </div>
+                  <div>
+                    <p className="text-11px text-gray-600 mb-1">Comm Pref</p>
+                    <p className="text-12px font-medium text-gray-900">Email</p>
+                  </div>
+                </div>
+                {selectedAdvisor.notes && (
+                  <div className="mt-4 p-4 bg-[#157A6E]/5 border-l-4 border-[#157A6E] rounded">
+                    <p className="text-12px italic text-gray-700">"{selectedAdvisor.notes}"</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Engagement Breakdown Card */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Engagement Dimensions</h3>
+                <div className="space-y-4">
+                  {[
+                    { label: 'Engagement', value: Math.floor(seededRandom(`${selectedAdvisor.id}-eng`) * 100) },
+                    { label: 'Pipeline Strength', value: Math.floor(seededRandom(`${selectedAdvisor.id}-pipe`) * 100) },
+                    { label: 'Responsiveness', value: Math.floor(seededRandom(`${selectedAdvisor.id}-resp`) * 100) },
+                    { label: 'Growth Potential', value: Math.floor(seededRandom(`${selectedAdvisor.id}-growth`) * 100) },
+                  ].map(dim => (
+                    <div key={dim.label}>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-12px font-medium text-gray-700">{dim.label}</p>
+                        <p className="text-12px font-bold text-[#157A6E]">{dim.value}%</p>
+                      </div>
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-[#157A6E] to-[#0f5550]" style={{ width: `${dim.value}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Deals Card */}
+              {advisorDeals.length > 0 && (
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                  <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Deals ({advisorDeals.length})</h3>
+                  <div className="space-y-3">
+                    {advisorDeals.map(deal => (
+                      <div key={deal.id} className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <p className="text-12px font-medium text-gray-900">{deal.name}</p>
+                            <p className="text-11px text-gray-600">{deal.stage} · {deal.daysInStage}d in stage</p>
+                          </div>
+                          <DealHealthBadge health={deal.health} />
+                        </div>
+                        <div className="flex items-center justify-between text-12px">
+                          <span className="font-semibold text-gray-900">{formatCurrency(deal.mrr)}</span>
+                          <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-[#157A6E]" style={{ width: `${deal.probability || 50}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Activity / Notes Card */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Notes & Activity</h3>
+                <div className="space-y-3">
+                  <textarea
+                    placeholder="Add a note..."
+                    className="w-full text-12px border border-[#e8e5e1] rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E]"
+                    rows={4}
+                  />
+                  <button className="px-4 py-2 text-12px font-medium bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] transition-colors">Save Note</button>
+                </div>
+              </div>
+            </div>
+
+            {/* Right column (40%) */}
+            <div className="space-y-6">
+              {/* Additional Opportunities Card */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Growth Opportunities</h3>
+
+                {/* White Space Analysis */}
+                {whiteSpace && (
+                  <div className="mb-5 pb-5 border-b border-[#e8e5e1]">
+                    <h4 className="text-12px font-semibold text-gray-900 mb-3">White Space Analysis</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-11px text-gray-600 mb-2">Products Selling ({whiteSpace.soldProducts.length})</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {whiteSpace.soldProducts.length > 0 ? whiteSpace.soldProducts.map(p => (
+                            <span key={p} className="px-2 py-1 bg-[#157A6E]/10 text-[#157A6E] text-10px font-medium rounded">{p}</span>
+                          )) : <span className="text-11px text-gray-500 italic">None</span>}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-11px text-gray-600 mb-2">Catalog Coverage</p>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-[#157A6E]" style={{ width: `${whiteSpace.crossSellScore}%` }} />
+                          </div>
+                          <span className="text-11px font-bold text-gray-900">{whiteSpace.crossSellScore.toFixed(0)}%</span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-11px text-gray-600 mb-2">Opportunities ({whiteSpace.opportunityProducts.length})</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {whiteSpace.opportunityProducts.slice(0, 3).map(p => (
+                            <span key={p} className="px-2 py-1 bg-amber-100 text-amber-700 text-10px font-medium rounded">{p}</span>
+                          ))}
+                          {whiteSpace.opportunityProducts.length > 3 && (
+                            <span className="text-10px text-gray-600 italic">+{whiteSpace.opportunityProducts.length - 3} more</span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-11px text-gray-600 mb-1">Est. Opportunity MRR</p>
+                        <p className="text-13px font-bold text-gray-900">{formatCurrency(whiteSpace.opportunityMRR)}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Co-Marketing */}
+                <div>
+                  <h4 className="text-12px font-semibold text-gray-900 mb-3">Co-Marketing</h4>
+                  {coMarketingMatch ? (
+                    <div className="space-y-3">
+                      <p className="text-11px text-gray-600">{coMarketingMatch.reason}</p>
+                      <div className="px-3 py-2 bg-[#157A6E]/5 rounded-lg">
+                        <p className="text-11px font-medium text-gray-900 mb-1">Type</p>
+                        <p className="text-12px font-semibold text-[#157A6E]">{coMarketingMatch.type}</p>
+                      </div>
+                      <button className="w-full px-3 py-2 text-11px font-medium bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] transition-colors">Launch Campaign</button>
+                    </div>
+                  ) : (
+                    <p className="text-11px text-gray-600">Not currently eligible for co-marketing campaigns</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Personal Intel Card */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Personal Intel</h3>
+                <div className="space-y-3">
+                  {[
+                    { label: 'Birthday', value: personalIntel.birthday },
+                    { label: 'Education', value: personalIntel.education?.degree },
+                    { label: 'Family', value: personalIntel.family },
+                    { label: 'Hobbies', value: personalIntel.hobbies },
+                  ].map(item => (
+                    <div key={item.label}>
+                      <p className="text-11px text-gray-600 mb-1">{item.label}</p>
+                      <p className="text-12px font-medium text-gray-900">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Supplier Rating Card */}
+              {ratings && (
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                  <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Rating</h3>
+                  <PerAdvisorRating data={ratings} advisorId={selectedAdvisor.id} />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // If an advisor is selected, show full-width detail instead of list
+    if (selectedAdvisor && panelOpen) {
+      return renderAdvisorDetail();
+    }
+
     return (
       <>
         {/* Sub-Tab Navigation */}
@@ -812,7 +1103,6 @@ export default function LiveManagerPage() {
           {[
             { key: 'partners', label: 'Partners', icon: Users },
             { key: 'tsds', label: `TSDs (${TSD_COMPANIES.length})`, icon: Building2 },
-            { key: 'white-space', label: 'White Space', icon: LayoutGrid },
           ].map(tab => (
             <button
               key={tab.key}
@@ -1058,15 +1348,6 @@ export default function LiveManagerPage() {
         </div>
         )}
 
-        {/* AdvisorPanel as overlay */}
-        {selectedAdvisor && (
-          <AdvisorPanel
-            advisor={selectedAdvisor}
-            deals={deals.filter(d => d.advisorId === selectedAdvisor.id)}
-            isOpen={panelOpen}
-            onClose={() => { setPanelOpen(false); setSelectedAdvisor(null); }}
-          />
-        )}
 
         {/* ── TSDs SUB-TAB ── */}
         {relationshipViewMode === 'tsds' && (() => {
@@ -1288,65 +1569,6 @@ export default function LiveManagerPage() {
           );
         })()}
 
-        {/* ── WHITE SPACE SUB-TAB ── */}
-        {relationshipViewMode === 'white-space' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-3 gap-4">
-            <KPICard label="Total White Space MRR" value={formatCurrency(whiteSpaceData.reduce((s, a) => s + a.opportunityMRR, 0))} change={`${whiteSpaceData.length} advisors`} changeType="positive" />
-            <KPICard label="Avg Cross-Sell" value={`${(whiteSpaceData.reduce((s, a) => s + a.crossSellScore, 0) / Math.max(whiteSpaceData.length, 1)).toFixed(0)}%`} change="of catalog covered" changeType="neutral" />
-            <KPICard label="Services in Catalog" value={`${SERVICE_CATALOG.length}`} change="available products" changeType="positive" />
-          </div>
-
-          <div className="space-y-4">
-            {[...whiteSpaceData].sort((a, b) => a.crossSellScore - b.crossSellScore).map(advisor => {
-              const colorClass = advisor.crossSellScore < 30 ? 'border-red-200 bg-red-50' : advisor.crossSellScore < 60 ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50';
-              const scoreColor = advisor.crossSellScore < 30 ? 'text-red-700' : advisor.crossSellScore < 60 ? 'text-amber-700' : 'text-emerald-700';
-              const statusBadgeClass = advisor.crossSellScore < 30 ? 'bg-red-100 text-red-700' : advisor.crossSellScore < 60 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
-
-              return (
-                <div key={advisor.id} className={`border rounded-[10px] p-5 ${colorClass}`}>
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <p className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">{advisor.name}</p>
-                      <p className="text-12px text-gray-600">{advisor.company} · {formatCurrency(advisor.mrr)} MRR</p>
-                    </div>
-                    <span className={`px-3 py-1.5 rounded-full text-13px font-bold ${statusBadgeClass}`}>
-                      {advisor.crossSellScore.toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <p className="text-12px font-semibold text-gray-700 mb-2">Products Sold ({advisor.soldProducts.length})</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {advisor.soldProducts.length > 0 ? advisor.soldProducts.map(p => (
-                          <span key={p} className="px-2 py-1 bg-white/70 rounded text-11px font-medium text-gray-700">{p}</span>
-                        )) : <span className="text-11px text-gray-500 italic">None</span>}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-12px font-semibold text-gray-700 mb-2">White Space ({advisor.opportunityProducts.length})</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {advisor.opportunityProducts.slice(0, 4).map(p => (
-                          <span key={p} className="px-2 py-1 bg-white/70 rounded text-10px text-gray-700 font-medium">{p}</span>
-                        ))}
-                        {advisor.opportunityProducts.length > 4 && (
-                          <span className="text-10px text-gray-600 italic">+{advisor.opportunityProducts.length - 4} more</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-white/50 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-[#157A6E] to-[#0f5550]" style={{ width: `${advisor.crossSellScore}%` }} />
-                    </div>
-                    <span className={`text-11px font-bold ${scoreColor}`}>{advisor.crossSellScore.toFixed(1)}%</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        )}
 
         {/* PartnerModal */}
         <PartnerModal
