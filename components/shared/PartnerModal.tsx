@@ -9,6 +9,7 @@ interface PartnerModalProps {
   onClose: () => void;
   editingPartner: Advisor | null;
   onSave: (advisor: Partial<Advisor>) => Promise<void>;
+  existingCompanies?: string[];
 }
 
 export function PartnerModal({
@@ -16,8 +17,11 @@ export function PartnerModal({
   onClose,
   editingPartner,
   onSave,
+  existingCompanies = [],
 }: PartnerModalProps) {
   const [loading, setLoading] = useState(false);
+  const [companyInputValue, setCompanyInputValue] = useState('');
+  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
   const [formData, setFormData] = useState<Partial<Advisor>>({
     name: '',
     title: '',
@@ -51,6 +55,7 @@ export function PartnerModal({
         referredBy: editingPartner.referredBy,
         personalIntel: editingPartner.personalIntel,
       });
+      setCompanyInputValue(editingPartner.company || '');
     } else {
       setFormData({
         name: '',
@@ -65,7 +70,9 @@ export function PartnerModal({
         referredBy: '',
         personalIntel: '',
       });
+      setCompanyInputValue('');
     }
+    setShowCompanyDropdown(false);
   }, [editingPartner, isOpen]);
 
   const handleChange = (field: string, value: any) => {
@@ -139,14 +146,54 @@ export function PartnerModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-12px font-medium text-gray-700 mb-2">Company *</label>
-              <input
-                type="text"
-                required
-                value={formData.company || ''}
-                onChange={(e) => handleChange('company', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-13px focus:outline-none focus:ring-2 focus:ring-[#157A6E] focus:border-transparent"
-                placeholder="Company name"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  value={companyInputValue}
+                  onChange={(e) => {
+                    setCompanyInputValue(e.target.value);
+                    setShowCompanyDropdown(true);
+                  }}
+                  onFocus={() => setShowCompanyDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowCompanyDropdown(false), 200)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-13px focus:outline-none focus:ring-2 focus:ring-[#157A6E] focus:border-transparent"
+                  placeholder="Company name"
+                />
+                {showCompanyDropdown && (companyInputValue || existingCompanies.length > 0) && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-[10px] shadow-md z-10 max-h-60 overflow-y-auto">
+                    {existingCompanies
+                      .filter(c => c.toLowerCase().includes(companyInputValue.toLowerCase()))
+                      .slice(0, 5)
+                      .map(company => (
+                        <button
+                          key={company}
+                          type="button"
+                          onClick={() => {
+                            setCompanyInputValue(company);
+                            handleChange('company', company);
+                            setShowCompanyDropdown(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-13px text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          {company}
+                        </button>
+                      ))}
+                    {companyInputValue && !existingCompanies.includes(companyInputValue) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleChange('company', companyInputValue);
+                          setShowCompanyDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-13px text-[#157A6E] font-medium hover:bg-[#157A6E]/5 transition-colors border-t border-gray-200"
+                      >
+                        + Create "{companyInputValue}"
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-12px font-medium text-gray-700 mb-2">Location (City, State)</label>

@@ -64,6 +64,7 @@ export default function LiveManagerPage() {
   const [relationshipViewMode, setRelationshipViewMode] = useState<'partners' | 'tsds'>('partners');
   const [contactTypeFilter, setContactTypeFilter] = useState<string>('All');
   const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [companyFilter, setCompanyFilter] = useState<string | null>(null);
   const [pipelineMetricsView, setPipelineMetricsView] = useState<'kanban' | 'deals' | 'quotes-vs-sold' | 'by-advisor'>('kanban');
   const [selectedTsdAdvisors, setSelectedTsdAdvisors] = useState<Advisor[]>([]);
   const [expandedTsdCompany, setExpandedTsdCompany] = useState<string | null>(null);
@@ -696,6 +697,11 @@ export default function LiveManagerPage() {
       filteredAdvisors = filteredAdvisors.filter(a => a.location?.trim() === territoryFilter);
     }
 
+    // Apply company filter
+    if (companyFilter) {
+      filteredAdvisors = filteredAdvisors.filter(a => a.company === companyFilter);
+    }
+
     // Apply sorting
     const sortedAdvisors = [...filteredAdvisors].sort((a, b) => {
       if (relationshipSort === 'mrr') return b.mrr - a.mrr;
@@ -850,7 +856,15 @@ export default function LiveManagerPage() {
               {/* Name, title, company */}
               <div className="flex-1">
                 <h2 className="text-[28px] font-semibold font-['Newsreader'] text-gray-900 mb-1">{selectedAdvisor.name}</h2>
-                <p className="text-13px text-gray-600 mb-3">{selectedAdvisor.title || 'Partner'} at {selectedAdvisor.company}</p>
+                <p className="text-13px text-gray-600 mb-3">
+                  {selectedAdvisor.title || 'Partner'} at{' '}
+                  <button
+                    onClick={() => { setCompanyFilter(selectedAdvisor.company); setPanelOpen(false); setSelectedAdvisor(null); }}
+                    className="text-[#157A6E] font-medium hover:underline transition-colors"
+                  >
+                    {selectedAdvisor.company}
+                  </button>
+                </p>
 
                 {/* Location & badges */}
                 <div className="flex items-center gap-3 mb-4">
@@ -1207,11 +1221,95 @@ export default function LiveManagerPage() {
             </div>
           </div>
 
+          {/* Company Filter */}
+          {(() => {
+            const existingCompanies = [...new Set(advisorsWithDeals.map(a => a.company).filter(Boolean))].sort();
+            const companyCounts: Record<string, number> = {};
+            advisorsWithDeals.forEach(a => {
+              if (a.company) {
+                companyCounts[a.company] = (companyCounts[a.company] || 0) + 1;
+              }
+            });
+
+            return (
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Companies</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setCompanyFilter(null)}
+                    className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
+                      companyFilter === null
+                        ? 'bg-[#157A6E] text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    All Companies
+                  </button>
+                  {existingCompanies.map(company => (
+                    <button
+                      key={company}
+                      onClick={() => setCompanyFilter(company)}
+                      className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
+                        companyFilter === company
+                          ? 'bg-[#157A6E] text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {company}
+                      <span className={`ml-1.5 ${companyFilter === company ? 'text-white/80' : 'text-gray-600'}`}>
+                        ({companyCounts[company] || 0})
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Company Detail Header (when company filter is active) */}
+          {companyFilter && (() => {
+            const companyAdvisors = sortedAdvisors;
+            const companyMRR = companyAdvisors.reduce((s, a) => s + a.mrr, 0);
+            const avgMRR = companyAdvisors.length > 0 ? companyMRR / companyAdvisors.length : 0;
+
+            return (
+              <div className="bg-white rounded-[10px] border border-[#157A6E]/30 p-6 mb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Building2 className="w-6 h-6 text-[#157A6E]" />
+                    <h3 className="text-[24px] font-semibold font-['Newsreader'] text-gray-900">{companyFilter}</h3>
+                  </div>
+                  <button
+                    onClick={() => setCompanyFilter(null)}
+                    className="px-3 py-1.5 text-12px font-medium border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Clear filter
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-11px text-gray-600 mb-1">Total Contacts</p>
+                    <p className="text-18px font-bold text-gray-900">{companyAdvisors.length}</p>
+                  </div>
+                  <div>
+                    <p className="text-11px text-gray-600 mb-1">Total MRR</p>
+                    <p className="text-18px font-bold text-[#157A6E]">{formatCurrency(companyMRR)}</p>
+                  </div>
+                  <div>
+                    <p className="text-11px text-gray-600 mb-1">Avg MRR per Contact</p>
+                    <p className="text-18px font-bold text-gray-900">{formatCurrency(avgMRR)}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Sort Controls & Add Button */}
           <div className="flex items-center justify-between">
             <div className="text-12px text-gray-600 font-medium">
               Showing {sortedAdvisors.length} partners
               {territoryFilter && <span className="ml-1 text-[#157A6E]">in {territoryFilter}</span>}
+              {companyFilter && <span className="ml-1 text-[#157A6E]">at {companyFilter}</span>}
             </div>
             <div className="flex gap-2">
               <button
@@ -1576,6 +1674,7 @@ export default function LiveManagerPage() {
           onClose={() => { setShowPartnerModal(false); setEditingPartner(null); }}
           editingPartner={editingPartner}
           onSave={handleSavePartner}
+          existingCompanies={[...new Set(advisorsWithDeals.map(a => a.company).filter(Boolean))].sort()}
         />
       </>
     );
