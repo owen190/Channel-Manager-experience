@@ -74,6 +74,8 @@ export default function LiveManagerPage() {
   const [playbookSteps, setPlaybookSteps] = useState<string[]>(['', '', '']);
   const [playbookPriority, setPlaybookPriority] = useState<'critical' | 'high' | 'medium'>('high');
   const [playbookDeadline, setPlaybookDeadline] = useState(14);
+  const [ccKpiDrill, setCcKpiDrill] = useState<string | null>(null);
+  const [showCoMarketingNotif, setShowCoMarketingNotif] = useState(true);
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -410,8 +412,6 @@ export default function LiveManagerPage() {
   // ════════════════════════════════════════════════
   // COMMAND CENTER
   // ════════════════════════════════════════════════
-  const [ccKpiDrill, setCcKpiDrill] = useState<string | null>(null);
-  const [showCoMarketingNotif, setShowCoMarketingNotif] = useState(true);
 
   const renderCommandCenter = () => (
     <div className="space-y-5">
