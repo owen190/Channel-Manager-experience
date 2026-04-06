@@ -64,7 +64,7 @@ export default function LiveManagerPage() {
   const [relationshipViewMode, setRelationshipViewMode] = useState<'partners' | 'tsds' | 'territory' | 'white-space'>('partners');
   const [contactTypeFilter, setContactTypeFilter] = useState<string>('All');
   const [selectedState, setSelectedState] = useState<string | null>(null);
-  const [pipelineMetricsView, setPipelineMetricsView] = useState<'deals' | 'quotes-vs-sold'>('deals');
+  const [pipelineMetricsView, setPipelineMetricsView] = useState<'kanban' | 'deals' | 'quotes-vs-sold' | 'by-advisor'>('kanban');
   const [selectedTsdAdvisors, setSelectedTsdAdvisors] = useState<Advisor[]>([]);
   const [expandedTsdCompany, setExpandedTsdCompany] = useState<string | null>(null);
   const [intelligenceSubTab, setIntelligenceSubTab] = useState<'overview' | 'signals' | 'playbooks' | 'diagnostics'>('overview');
@@ -1348,6 +1348,10 @@ export default function LiveManagerPage() {
 
         {/* Pipeline view toggle */}
         <div className="flex gap-2 border-b border-[#e8e5e1] pb-2">
+          <button onClick={() => setPipelineMetricsView('kanban')}
+            className={`px-4 py-2 text-13px font-medium rounded-t-lg transition-colors ${pipelineMetricsView === 'kanban' ? 'bg-[#157A6E] text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+            Kanban
+          </button>
           <button onClick={() => setPipelineMetricsView('deals')}
             className={`px-4 py-2 text-13px font-medium rounded-t-lg transition-colors ${pipelineMetricsView === 'deals' ? 'bg-[#157A6E] text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
             All Deals
@@ -1355,6 +1359,10 @@ export default function LiveManagerPage() {
           <button onClick={() => setPipelineMetricsView('quotes-vs-sold')}
             className={`px-4 py-2 text-13px font-medium rounded-t-lg transition-colors ${pipelineMetricsView === 'quotes-vs-sold' ? 'bg-[#157A6E] text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
             Quotes vs Sold
+          </button>
+          <button onClick={() => setPipelineMetricsView('by-advisor')}
+            className={`px-4 py-2 text-13px font-medium rounded-t-lg transition-colors ${pipelineMetricsView === 'by-advisor' ? 'bg-[#157A6E] text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+            By Advisor
           </button>
         </div>
 
@@ -1407,6 +1415,64 @@ export default function LiveManagerPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+        )}
+
+        {/* Kanban view */}
+        {pipelineMetricsView === 'kanban' && (
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <div className="overflow-x-auto">
+            <div className="flex gap-4 min-w-min pb-4">
+              {stages.map(stage => {
+                const stageDeals = deals.filter(d => d.stage === stage);
+                const stageMRR = stageDeals.reduce((s, d) => s + d.mrr, 0);
+                const stageColors: Record<DealStage, string> = {
+                  'Discovery': '#3B82F6',
+                  'Qualifying': '#06B6D4',
+                  'Proposal': '#8B5CF6',
+                  'Negotiating': '#F59E0B',
+                  'Closed Won': '#10B981',
+                  'Stalled': '#EF4444',
+                };
+                return (
+                  <div key={stage} className="flex-shrink-0 w-[240px]">
+                    <div className="bg-[#F7F5F2] rounded-lg overflow-hidden border border-[#e8e5e1]">
+                      <div className="border-t-4 p-4" style={{ borderTopColor: stageColors[stage] }}>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-13px font-semibold font-['Newsreader'] text-gray-800">{stage}</h4>
+                          <span className="text-11px bg-white px-2 py-1 rounded text-gray-600 font-medium">{stageDeals.length}</span>
+                        </div>
+                        <p className="text-11px text-gray-600 mb-3">{formatCurrency(stageMRR)} MRR</p>
+                        <div className="space-y-2">
+                          {stageDeals.map(d => {
+                            const adv = advisors.find(a => a.id === d.advisorId);
+                            return (
+                              <div key={d.id}
+                                onClick={() => { if (adv) { setSelectedAdvisor(adv); setPanelOpen(true); setActiveViewRaw('relationships'); } }}
+                                className="bg-white p-3 rounded-lg hover:shadow-md transition-shadow cursor-pointer border border-[#e8e5e1]">
+                                <p className="text-12px font-semibold text-gray-800 mb-1">{d.name}</p>
+                                <p className="text-10px text-gray-600 mb-2">{adv?.name || 'Unassigned'}</p>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-11px font-medium text-[#157A6E]">{formatCurrency(d.mrr)}</span>
+                                  <span className="text-10px text-gray-500">{d.daysInStage}d</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <DealHealthBadge health={d.health} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {stageDeals.length === 0 && (
+                            <p className="text-11px text-gray-400 italic py-4 text-center">No deals</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
         )}
@@ -1478,6 +1544,72 @@ export default function LiveManagerPage() {
               </tbody>
             </table>
           </div>
+        </div>
+        )}
+
+        {/* By Advisor view */}
+        {pipelineMetricsView === 'by-advisor' && (
+        <div className="space-y-4">
+          {advisorsWithDeals
+            .sort((a, b) => b.mrr - a.mrr)
+            .map(adv => {
+              const advisorDeals = deals.filter(d => d.advisorId === adv.id);
+              const advisorPipelineMRR = advisorDeals.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Stalled').reduce((s, d) => s + d.mrr, 0);
+              const isExpanded = expandedStage === adv.id;
+              return (
+                <div key={adv.id} className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
+                  <div
+                    onClick={() => setExpandedStage(isExpanded ? null : (adv.id as any))}
+                    className="p-5 cursor-pointer hover:bg-[#F7F5F2] transition-colors flex items-center justify-between"
+                  >
+                    <div className="flex-1">
+                      <h3 className="text-13px font-semibold font-['Newsreader'] text-gray-800 mb-1">{adv.name}</h3>
+                      <p className="text-11px text-gray-600 mb-3">{adv.company}</p>
+                      <div className="flex items-center gap-3">
+                        <span className="text-12px font-medium text-gray-700">
+                          Pipeline: <span className="text-[#157A6E] font-semibold">{formatCurrency(advisorPipelineMRR)}</span>
+                        </span>
+                        <span className="text-12px font-medium text-gray-700">
+                          Deals: <span className="text-gray-800 font-semibold">{advisorDeals.length}</span>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <PulseBadge pulse={adv.pulse} />
+                        <TrajectoryBadge trajectory={adv.trajectory} />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                      {isExpanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                    </div>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="border-t border-[#e8e5e1] p-4 bg-[#F7F5F2]">
+                      {advisorDeals.length === 0 ? (
+                        <p className="text-11px text-gray-400 italic">No deals for this advisor</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {advisorDeals.map(d => (
+                            <div key={d.id}
+                              onClick={() => { setSelectedAdvisor(adv); setPanelOpen(true); setActiveViewRaw('relationships'); }}
+                              className="flex items-center justify-between p-3 bg-white rounded-lg hover:bg-gray-50 cursor-pointer border border-[#e8e5e1] group">
+                              <div className="flex-1">
+                                <p className="text-12px font-medium text-gray-800">{d.name}</p>
+                                <p className="text-10px text-gray-500">{d.stage} · {d.daysInStage}d in stage</p>
+                              </div>
+                              <div className="flex items-center gap-2 ml-2">
+                                <DealHealthBadge health={d.health} />
+                                <span className="text-12px font-semibold text-gray-800 min-w-[60px] text-right">{formatCurrency(d.mrr)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
         </div>
         )}
       </div>
