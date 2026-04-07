@@ -79,6 +79,7 @@ export default function LiveManagerPage() {
   const [showCoMarketingNotif, setShowCoMarketingNotif] = useState(true);
   const [tsdRoleFilter, setTsdRoleFilter] = useState<string>('All');
   const [tsdCompanyFilter, setTsdCompanyFilter] = useState<string | null>(null);
+  const [tsdSearch, setTsdSearch] = useState('');
   const [partnersSubView, setPartnersSubView] = useState<'contacts' | 'companies'>('contacts');
   const [partnerSearch, setPartnerSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('All');
@@ -1507,7 +1508,7 @@ export default function LiveManagerPage() {
                                   {initials}
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-13px font-semibold text-gray-900 truncate">{a.name}</p>
+                                  <p className="text-13px font-semibold text-gray-900 truncate group-hover:text-[#157A6E] transition-colors">{a.name}</p>
                                   <p className="text-[10px] text-gray-400 truncate">
                                     <button
                                       onClick={(e) => { e.stopPropagation(); setCompanyFilter(a.company); }}
@@ -1629,7 +1630,7 @@ export default function LiveManagerPage() {
 
           const scoreInfo = getScoreBadge(avgRelationshipScore);
 
-          // Get all contacts and filter by role + company
+          // Get all contacts and filter by role + company + search
           const allTsdContacts = TSD_COMPANIES.flatMap(company =>
             company.contacts.map(contact => ({ ...contact, companyName: company.name, companyColor: tsdColors[company.name] || '#157A6E' }))
           );
@@ -1637,6 +1638,10 @@ export default function LiveManagerPage() {
           const filteredContacts = allTsdContacts.filter(contact => {
             if (tsdRoleFilter !== 'All' && contact.role !== tsdRoleFilter) return false;
             if (tsdCompanyFilter && contact.companyName !== tsdCompanyFilter) return false;
+            if (tsdSearch.trim()) {
+              const q = tsdSearch.toLowerCase();
+              if (!contact.name.toLowerCase().includes(q) && !contact.title.toLowerCase().includes(q) && !contact.companyName.toLowerCase().includes(q)) return false;
+            }
             return true;
           });
 
@@ -1670,181 +1675,171 @@ export default function LiveManagerPage() {
             </div>
           </div>
 
-          {/* Role Filter Pills */}
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
-            <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Filter by Role</p>
-            <div className="flex flex-wrap gap-2">
-              {tsdRoles.map(role => (
-                <button
-                  key={role}
-                  onClick={() => setTsdRoleFilter(role)}
-                  className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
-                    tsdRoleFilter === role
-                      ? 'bg-[#157A6E] text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {role}
-                </button>
+          {/* ── TOOLBAR ── */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 flex items-center gap-4 flex-wrap">
+            {/* Search */}
+            <div className="flex-1 min-w-[200px] relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={tsdSearch}
+                onChange={(e) => setTsdSearch(e.target.value)}
+                placeholder="Search TSD contacts..."
+                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-full text-12px font-['Inter'] focus:outline-none focus:border-[#157A6E] focus:ring-1 focus:ring-[#157A6E]/20"
+              />
+            </div>
+
+            {/* Role Dropdown */}
+            <select
+              value={tsdRoleFilter}
+              onChange={(e) => setTsdRoleFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-md text-12px font-['Inter'] text-gray-700 hover:border-[#157A6E] cursor-pointer"
+            >
+              <option value="All">All Roles</option>
+              <option value="Leadership">Leadership</option>
+              <option value="Channel Manager">Channel Manager</option>
+              <option value="PDM/SPDM">PDM/SPDM</option>
+              <option value="Sales Engineer">Sales Engineer</option>
+              <option value="Marketing">Marketing</option>
+              <option value="Ops">Ops</option>
+              <option value="Other">Other</option>
+            </select>
+
+            {/* Company Dropdown */}
+            <select
+              value={tsdCompanyFilter || ''}
+              onChange={(e) => setTsdCompanyFilter(e.target.value || null)}
+              className="px-3 py-2 border border-gray-200 rounded-md text-12px font-['Inter'] text-gray-700 hover:border-[#157A6E] cursor-pointer"
+            >
+              <option value="">All TSDs</option>
+              {TSD_COMPANIES.map(company => (
+                <option key={company.name} value={company.name}>{company.name}</option>
               ))}
-            </div>
+            </select>
+
+            {/* + Add TSD Button */}
+            <button
+              className="flex items-center gap-2 px-3 py-2 bg-[#157A6E] text-white rounded-md text-12px font-semibold hover:bg-[#126B5F] transition-colors"
+              title="Add a new TSD contact"
+            >
+              <Plus className="w-4 h-4" />
+              Add TSD
+            </button>
           </div>
 
-          {/* TSD Company Filter Pills */}
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
-            <p className="text-11px text-gray-600 mb-3 uppercase font-medium">TSD Company</p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setTsdCompanyFilter(null)}
-                className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
-                  tsdCompanyFilter === null
-                    ? 'bg-[#157A6E] text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                All
-              </button>
-              {TSD_COMPANIES.map(company => {
-                const companyContactCount = company.contacts.filter(c =>
-                  tsdRoleFilter === 'All' || c.role === tsdRoleFilter
-                ).length;
-                return (
-                  <button
-                    key={company.name}
-                    onClick={() => setTsdCompanyFilter(company.name)}
-                    className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
-                      tsdCompanyFilter === company.name
-                        ? 'text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                    style={tsdCompanyFilter === company.name ? { backgroundColor: tsdColors[company.name] || '#157A6E' } : {}}
-                  >
-                    {company.name}
-                    <span className={`ml-1.5 ${tsdCompanyFilter === company.name ? 'text-white/80' : 'text-gray-600'}`}>
-                      ({companyContactCount})
-                    </span>
-                  </button>
-                );
-              })}
-              <button
-                className="px-3 py-1.5 rounded-full text-12px font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors flex items-center gap-1"
-                title="Add a new TSD company"
-              >
-                <Plus className="w-3 h-3" /> Add TSD
-              </button>
-            </div>
-          </div>
+          {/* ── DATA TABLE ── */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-[#FAFAF8]">
+                  <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]" style={{ minWidth: 200 }}>Contact</th>
+                  <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Title</th>
+                  <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Company</th>
+                  <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Role</th>
+                  <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Phone</th>
+                  <th className="text-center px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Intros QTD</th>
+                  <th className="text-center px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">All-Time</th>
+                  <th className="text-right px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Revenue</th>
+                  <th className="text-center px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Contact</th>
+                  <th className="text-right px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedContacts.length === 0 ? (
+                  <tr><td colSpan={10} className="text-center py-8 text-12px text-gray-400">No TSD contacts match your filters</td></tr>
+                ) : (
+                  sortedContacts.map((contact, i) => {
+                    const daysSince = getDaysSinceContact(contact.lastContact);
+                    const initials = contact.name.split(' ').map(n => n[0]).join('').slice(0, 2);
 
-          {/* Per-Company Relationship Score Cards */}
-          {tsdCompanyFilter === null && (
-          <div className="grid grid-cols-5 gap-3">
-            {TSD_COMPANIES.map(company => {
-              const health = getTsdRelationshipHealth(company);
-              const color = tsdColors[company.name] || '#157A6E';
-              return (
-                <button
-                  key={company.name}
-                  onClick={() => setTsdCompanyFilter(company.name)}
-                  className="bg-white rounded-[10px] border border-[#e8e5e1] p-3 text-left hover:shadow-md hover:border-[#157A6E] transition-all cursor-pointer"
-                >
-                  <p className="text-12px font-semibold text-gray-900 mb-2">{company.name}</p>
-                  <div className="mb-2">
-                    <span className="text-10px font-medium text-white px-2 py-1 rounded-full" style={{ backgroundColor: health.color }}>
-                      {health.health}
-                    </span>
-                  </div>
-                  <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: '75%', backgroundColor: health.color }}
-                    />
-                  </div>
-                  <p className="text-11px text-gray-600">{company.contacts.length} contacts</p>
-                </button>
-              );
-            })}
-          </div>
-          )}
-
-          {/* Flat Contact List */}
-          <div className="space-y-3">
-            {sortedContacts.length === 0 ? (
-              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
-                <p className="text-12px text-gray-500">No contacts match the selected filters</p>
-              </div>
-            ) : (
-              sortedContacts.map(contact => {
-                const daysSince = getDaysSinceContact(contact.lastContact);
-                return (
-                  <div
-                    key={contact.id}
-                    className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 hover:shadow-md hover:border-[#157A6E] transition-all"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1">
-                        {/* Avatar with initials */}
-                        <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-white text-12px font-bold flex-shrink-0"
-                          style={{ backgroundColor: contact.companyColor }}
-                        >
-                          {contact.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                        </div>
-
-                        {/* Name, Title, and Badges */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="text-13px font-semibold text-gray-900">{contact.name}</p>
-                            {/* Company Tag */}
-                            <span
-                              className="text-9px font-medium text-white px-2 py-0.5 rounded-full"
+                    return (
+                      <tr
+                        key={contact.id}
+                        className={`group transition-colors hover:bg-[#F0F9F8] cursor-pointer ${i % 2 === 0 ? 'bg-white' : 'bg-[#FAFAF8]'}`}
+                        style={{ height: 52 }}
+                      >
+                        {/* Contact Cell */}
+                        <td className="px-4">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-10px font-bold flex-shrink-0"
                               style={{ backgroundColor: contact.companyColor }}
                             >
-                              {contact.companyName}
-                            </span>
+                              {initials}
+                            </div>
+                            <div>
+                              <p className="text-13px font-semibold text-gray-900 group-hover:text-[#157A6E]">{contact.name}</p>
+                              <p className="text-10px text-gray-500">{contact.companyName}</p>
+                            </div>
                           </div>
-                          <p className="text-11px text-gray-600 mb-1.5">{contact.title}</p>
-                          <div className="flex items-center gap-2">
-                            <span className="text-10px font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded">
-                              {contact.role}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Metrics and Actions */}
-                      <div className="flex items-center gap-6 flex-shrink-0 ml-4">
-                        <div className="text-center">
-                          <p className="text-12px font-bold text-[#157A6E]">{contact.introsQTD}</p>
-                          <p className="text-9px text-gray-400 uppercase">QTD</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-12px font-bold text-gray-700">{contact.introsAllTime}</p>
-                          <p className="text-9px text-gray-400 uppercase">All-Time</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-12px font-bold text-[#157A6E]">{formatCurrency(contact.revenueAttributed)}</p>
-                          <p className="text-9px text-gray-400 uppercase">Revenue</p>
-                        </div>
-                        <div className="text-center">
-                          <p className={`text-11px font-medium ${daysSince <= 3 ? 'text-green-600' : daysSince <= 7 ? 'text-yellow-600' : 'text-red-500'}`}>
+                        </td>
+                        {/* Title */}
+                        <td className="px-4 text-11px text-gray-600">{contact.title}</td>
+                        {/* Company */}
+                        <td className="px-4">
+                          <span
+                            className="inline-block text-10px font-semibold text-white px-2.5 py-1 rounded-full"
+                            style={{ backgroundColor: contact.companyColor }}
+                          >
+                            {contact.companyName}
+                          </span>
+                        </td>
+                        {/* Role */}
+                        <td className="px-4">
+                          <span className="inline-block text-10px font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded">
+                            {contact.role}
+                          </span>
+                        </td>
+                        {/* Phone */}
+                        <td className="px-4 text-11px text-gray-600">{contact.phone || '—'}</td>
+                        {/* Intros QTD */}
+                        <td className="px-4 text-center text-13px font-bold text-[#157A6E]">{contact.introsQTD}</td>
+                        {/* All-Time */}
+                        <td className="px-4 text-center text-13px font-bold text-gray-700">{contact.introsAllTime}</td>
+                        {/* Revenue */}
+                        <td className="px-4 text-right text-13px font-bold text-[#157A6E]">{formatCurrency(contact.revenueAttributed)}</td>
+                        {/* Contact Duration */}
+                        <td className="px-4 text-center">
+                          <span
+                            className={`inline-block text-11px font-semibold px-2.5 py-1 rounded-full text-white ${
+                              daysSince <= 3
+                                ? 'bg-green-500'
+                                : daysSince <= 7
+                                ? 'bg-yellow-500'
+                                : 'bg-red-500'
+                            }`}
+                          >
                             {daysSince}d
-                          </p>
-                          <p className="text-9px text-gray-400 uppercase">ago</p>
-                        </div>
-                        <div className="flex gap-1">
-                          <button className="p-1.5 rounded hover:bg-gray-100 transition-colors" title={contact.email}>
-                            <Mail className="w-4 h-4 text-gray-400 hover:text-[#157A6E]" />
-                          </button>
-                          <button className="p-1.5 rounded hover:bg-gray-100 transition-colors" title={contact.phone}>
-                            <Phone className="w-4 h-4 text-gray-400 hover:text-[#157A6E]" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                          </span>
+                        </td>
+                        {/* Actions */}
+                        <td className="px-4 text-right">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              className="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                              title={contact.email}
+                            >
+                              <Mail className="w-4 h-4 text-gray-400 hover:text-[#157A6E]" />
+                            </button>
+                            <button
+                              className="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                              title={contact.phone}
+                            >
+                              <Phone className="w-4 h-4 text-gray-400 hover:text-[#157A6E]" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Summary bar */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] px-5 py-3 text-center text-12px text-gray-500">
+            Showing <strong className="text-gray-800">{sortedContacts.length}</strong> of <strong className="text-gray-800">{totalTsdContacts}</strong> contacts · Total Revenue: <strong className="text-gray-800">{formatCurrency(sortedContacts.reduce((s, c) => s + c.revenueAttributed, 0))}</strong>
           </div>
         </div>
           );

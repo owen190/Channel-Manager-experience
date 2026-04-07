@@ -1,13 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  headers: async () => [
-    {
-      source: '/:path*',
-      headers: [
-        { key: 'Cache-Control', value: 'no-store, must-revalidate' },
-      ],
-    },
-  ],
+  // Generate unique build IDs to bust caches on deploy
+  generateBuildId: async () => `build-${Date.now()}`,
 };
 module.exports = nextConfig;
