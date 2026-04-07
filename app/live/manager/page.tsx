@@ -844,7 +844,6 @@ export default function LiveManagerPage() {
       const coMarketingMatch = coMarketingOpportunities.find(opp => opp.advisor.id === selectedAdvisor.id);
       const advisorRating = ratings?.advisorRatings?.find((r: any) => r.advisorId === selectedAdvisor.id);
 
-      // Mock personal intel data
       const personalIntel = {
         birthday: `${['January', 'February', 'March', 'April', 'May', 'June'][Math.floor(seededRandom(`${selectedAdvisor.id}-month`) * 6)]} ${Math.floor(seededRandom(`${selectedAdvisor.id}-day`) * 28) + 1}`,
         education: [
@@ -856,161 +855,265 @@ export default function LiveManagerPage() {
         funFact: 'Built a SaaS startup before joining this company',
       };
 
+      const connectedMonths = Math.floor(seededRandom(`${selectedAdvisor.id}-connected`) * 24);
+      const lastContactDays = Math.floor(seededRandom(`${selectedAdvisor.id}-contact`) * 30);
+
+      // Mock recent activity timeline
+      const activityTimeline = [
+        { id: 1, type: 'call' as const, icon: Phone, title: 'Quarterly Business Review', details: `Discussed Q2 targets and new product roadmap with ${selectedAdvisor.name}`, time: `${lastContactDays}d ago` },
+        { id: 2, type: 'email' as const, icon: Mail, title: 'Campaign Follow-up', details: 'Sent Q2 promotional materials and launch timeline', time: `${lastContactDays + 3}d ago` },
+        { id: 3, type: 'meeting' as const, icon: Calendar, title: 'Product Demo', details: `Presented new Analytics Suite with ${selectedAdvisor.name.split(' ')[0]} and team`, time: `${lastContactDays + 8}d ago` },
+        { id: 4, type: 'deal' as const, icon: FileText, title: 'Deal Update', details: advisorDeals[0] ? `${advisorDeals[0].name} moved to ${advisorDeals[0].stage}` : 'Deal stage updated', time: `${lastContactDays + 10}d ago` },
+        { id: 5, type: 'note' as const, icon: MessageCircle, title: 'Personal Note', details: `${selectedAdvisor.name.split(' ')[0]} mentioned upcoming family plans`, time: `${lastContactDays + 16}d ago` },
+        { id: 6, type: 'email' as const, icon: Mail, title: 'Initial Outreach', details: 'First contact email introducing partnership opportunities', time: '1mo ago' },
+      ];
+
+      // Mock action items
+      const actionItems = [
+        { id: 1, title: advisorDeals[0] ? `Send contract for ${advisorDeals[0].name}` : 'Send partnership contract', due: 'Tomorrow', status: 'overdue' as const },
+        { id: 2, title: 'Schedule Q2 planning session', due: 'Apr 15', status: 'pending' as const },
+        { id: 3, title: 'Follow up on pricing proposal', due: 'Apr 12', status: 'pending' as const },
+        { id: 4, title: 'Invite to user conference', due: 'Apr 20', status: 'low' as const },
+      ];
+
+      const activityIconColors: Record<string, string> = {
+        call: 'bg-blue-50 text-blue-600',
+        email: 'bg-purple-50 text-purple-600',
+        meeting: 'bg-emerald-50 text-emerald-600',
+        deal: 'bg-amber-50 text-amber-600',
+        note: 'bg-gray-100 text-gray-600',
+      };
+
       return (
-        <div className="space-y-6">
-          {/* Header Section */}
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-            <button
-              onClick={() => { setPanelOpen(false); setSelectedAdvisor(null); }}
-              className="mb-4 flex items-center gap-1 text-12px font-medium text-[#157A6E] hover:text-[#0f5550] transition-colors"
-            >
-              ← {companyFilter ? `Back to ${companyFilter}` : 'Back to Partners'}
-            </button>
+        <div>
+          {/* Back button */}
+          <button
+            onClick={() => { setPanelOpen(false); setSelectedAdvisor(null); }}
+            className="mb-5 flex items-center gap-1.5 text-12px font-medium text-[#157A6E] hover:text-[#0f5550] transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            {companyFilter ? `Back to ${companyFilter}` : 'Back to Partners'}
+          </button>
 
-            <div className="flex items-start gap-6 mb-6">
-              {/* Avatar */}
-              <div className="flex-shrink-0">
-                <div className="w-20 h-20 bg-[#157A6E] rounded-full flex items-center justify-center">
-                  <span className="text-white text-[28px] font-semibold font-['Newsreader']">
-                    {selectedAdvisor.name.split(' ').map(n => n[0]).join('')}
-                  </span>
+          {/* Flipped two-column: LEFT = sticky contact sidebar, RIGHT = scrollable content */}
+          <div className="grid grid-cols-12 gap-6">
+
+            {/* ═══ LEFT SIDEBAR (5 cols / ~40%) — Contact Card + Actions + Health + Intel ═══ */}
+            <div className="col-span-5">
+              <div className="sticky top-6 space-y-5">
+
+                {/* Contact Card */}
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                  {/* Avatar + Name */}
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-16 h-16 bg-[#157A6E] rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-[22px] font-semibold font-['Newsreader']">
+                        {selectedAdvisor.name.split(' ').map(n => n[0]).join('')}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="text-[22px] font-semibold font-['Newsreader'] text-gray-900 leading-tight">{selectedAdvisor.name}</h2>
+                      <p className="text-12px text-gray-600">
+                        {selectedAdvisor.title || 'Partner'} at{' '}
+                        <button
+                          onClick={() => { setCompanyFilter(selectedAdvisor.company); setPartnersSubView('contacts'); setPanelOpen(false); setSelectedAdvisor(null); }}
+                          className="text-[#157A6E] font-medium hover:underline"
+                        >{selectedAdvisor.company}</button>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Contact details */}
+                  <div className="space-y-2.5 mb-4 pb-4 border-b border-[#e8e5e1]">
+                    <div className="flex items-center gap-2.5 text-12px">
+                      <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                      <span className="text-gray-900 font-medium">{`(${Math.floor(seededRandom(`${selectedAdvisor.id}-area`) * 900 + 100)}) ${Math.floor(seededRandom(`${selectedAdvisor.id}-ph1`) * 900 + 100)}-${Math.floor(seededRandom(`${selectedAdvisor.id}-ph2`) * 9000 + 1000)}`}</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-12px">
+                      <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                      <span className="text-gray-900 font-medium truncate">{selectedAdvisor.name.toLowerCase().replace(' ', '.')}@{selectedAdvisor.company.toLowerCase().replace(/\s+/g, '')}.com</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-12px">
+                      <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                      <span className="text-gray-700">{selectedAdvisor.location || 'Unknown'}</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 text-12px">
+                      <Building2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                      <span className="text-gray-700">Connected {connectedMonths} months</span>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="grid grid-cols-4 gap-2 mb-2">
+                    {[
+                      { label: 'Email', icon: Mail },
+                      { label: 'Call', icon: Phone },
+                      { label: 'Schedule', icon: Calendar },
+                      { label: 'Log Call', icon: FileText },
+                    ].map(btn => (
+                      <button key={btn.label} className="flex flex-col items-center gap-1 px-2 py-2.5 border border-[#157A6E]/30 text-[#157A6E] rounded-lg hover:bg-[#157A6E]/5 transition-colors">
+                        <btn.icon className="w-4 h-4" />
+                        <span className="text-[10px] font-medium">{btn.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-gray-400 text-center">Links configured in Settings</p>
                 </div>
-              </div>
 
-              {/* Name, title, company */}
-              <div className="flex-1">
-                <h2 className="text-[28px] font-semibold font-['Newsreader'] text-gray-900 mb-1">{selectedAdvisor.name}</h2>
-                <p className="text-13px text-gray-600 mb-3">
-                  {selectedAdvisor.title || 'Partner'} at{' '}
-                  <button
-                    onClick={() => { setCompanyFilter(selectedAdvisor.company); setPartnersSubView('contacts'); setPanelOpen(false); setSelectedAdvisor(null); }}
-                    className="text-[#157A6E] font-medium hover:underline transition-colors"
-                  >
-                    {selectedAdvisor.company}
-                  </button>
-                </p>
-
-                {/* Location & badges */}
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="px-3 py-1 bg-gray-100 text-11px font-medium text-gray-700 rounded-full">{selectedAdvisor.location || 'Unknown'}</span>
+                {/* Key Metrics */}
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                      <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">MRR</p>
+                      <p className="text-[18px] font-bold text-[#157A6E]">{formatCurrency(selectedAdvisor.mrr)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Last Contact</p>
+                      <p className="text-13px font-semibold text-gray-900">{lastContactDays}d ago</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Next Action</p>
+                      <p className="text-13px font-semibold text-red-600">Tomorrow</p>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Badge row */}
-                <div className="flex items-center gap-2 mb-4 flex-wrap">
-                  <PulseBadge pulse={selectedAdvisor.pulse} />
-                  <TrajectoryBadge trajectory={selectedAdvisor.trajectory} />
-                  <FrictionBadge level={selectedAdvisor.friction} />
-                  <TierBadge tier={selectedAdvisor.tier} />
+                {/* Relationship Health */}
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                  <h3 className="text-13px font-semibold font-['Newsreader'] text-gray-900 mb-3">Relationship Health</h3>
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-11px text-gray-600">Pulse</span>
+                      <PulseBadge pulse={selectedAdvisor.pulse} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-11px text-gray-600">Trajectory</span>
+                      <TrajectoryBadge trajectory={selectedAdvisor.trajectory} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-11px text-gray-600">Friction</span>
+                      <FrictionBadge level={selectedAdvisor.friction} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-11px text-gray-600">Sentiment</span>
+                      <SentimentBadge tone={seededRandom(`${selectedAdvisor.id}-sent`) > 0.6 ? 'Warm' : seededRandom(`${selectedAdvisor.id}-sent`) > 0.3 ? 'Neutral' : 'Cool'} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-11px text-gray-600">Intent</span>
+                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-10px font-medium rounded">Expanding</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-11px text-gray-600">Tier</span>
+                      <TierBadge tier={selectedAdvisor.tier} />
+                    </div>
+                  </div>
                 </div>
 
-                {/* MRR */}
-                <div className="mb-4">
-                  <p className="text-11px text-gray-600 mb-1">Current MRR</p>
-                  <p className="text-[24px] font-semibold text-[#157A6E]">{formatCurrency(selectedAdvisor.mrr)}</p>
+                {/* Personal Intel */}
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                  <h3 className="text-13px font-semibold font-['Newsreader'] text-gray-900 mb-3">Personal Intel</h3>
+                  <div className="space-y-2.5">
+                    {[
+                      { icon: Cake, label: 'Birthday', value: selectedAdvisor.birthday || personalIntel.birthday },
+                      { icon: GraduationCap, label: 'Education', value: selectedAdvisor.education || personalIntel.education?.degree },
+                      { icon: Heart, label: 'Family', value: selectedAdvisor.family || personalIntel.family },
+                      { icon: Star, label: 'Hobbies', value: selectedAdvisor.hobbies || personalIntel.hobbies },
+                      { icon: Lightbulb, label: 'Fun Fact', value: selectedAdvisor.funFact || personalIntel.funFact },
+                    ].map(item => (
+                      <div key={item.label} className="flex items-start gap-2.5">
+                        <item.icon className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-[10px] text-gray-500">{item.label}</p>
+                          <p className="text-11px font-medium text-gray-900">{item.value}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-
-              {/* Quick actions */}
-              <div className="flex gap-2">
-                <button className="px-3 py-2 text-11px font-medium border border-[#e8e5e1] text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Email</button>
-                <button className="px-3 py-2 text-11px font-medium border border-[#e8e5e1] text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Call</button>
-                <button className="px-3 py-2 text-11px font-medium border border-[#e8e5e1] text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Schedule</button>
-                <button className="px-3 py-2 text-11px font-medium border border-[#e8e5e1] text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">Log Call</button>
               </div>
             </div>
-          </div>
 
-          {/* Two-column layout */}
-          <div className="grid grid-cols-3 gap-6">
-            {/* Left column (60%) */}
-            <div className="col-span-2 space-y-6">
-              {/* Relationship Overview Card */}
-              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Relationship Overview</h3>
-                <div className="grid grid-cols-4 gap-4 mb-4">
-                  <div className="text-center">
-                    <p className="text-11px text-gray-600 mb-2">Sentiment</p>
-                    <SentimentBadge tone={seededRandom(`${selectedAdvisor.id}-sent`) > 0.6 ? 'Warm' : seededRandom(`${selectedAdvisor.id}-sent`) > 0.3 ? 'Neutral' : 'Cool'} />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-11px text-gray-600 mb-2">Intent</p>
-                    <span className="inline-block px-2 py-1 bg-emerald-100 text-emerald-700 text-11px font-medium rounded">Expanding</span>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-11px text-gray-600 mb-2">Deal Health</p>
-                    <span className="inline-block px-2 py-1 bg-emerald-100 text-emerald-700 text-11px font-medium rounded">Good</span>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-11px text-gray-600 mb-2">Friction</p>
-                    <FrictionBadge level={selectedAdvisor.friction} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-11px text-gray-600 mb-1">Connected Since</p>
-                    <p className="text-12px font-medium text-gray-900">{Math.floor(seededRandom(`${selectedAdvisor.id}-connected`) * 24)} months</p>
-                  </div>
-                  <div>
-                    <p className="text-11px text-gray-600 mb-1">Last Contact</p>
-                    <p className="text-12px font-medium text-gray-900">{Math.floor(seededRandom(`${selectedAdvisor.id}-contact`) * 30)} days ago</p>
-                  </div>
-                  <div>
-                    <p className="text-11px text-gray-600 mb-1">Best Day</p>
-                    <p className="text-12px font-medium text-gray-900">{"Tuesday"}</p>
-                  </div>
-                  <div>
-                    <p className="text-11px text-gray-600 mb-1">Comm Pref</p>
-                    <p className="text-12px font-medium text-gray-900">Email</p>
-                  </div>
-                </div>
-                {selectedAdvisor.notes && (
-                  <div className="mt-4 p-4 bg-[#157A6E]/5 border-l-4 border-[#157A6E] rounded">
-                    <p className="text-12px italic text-gray-700">"{selectedAdvisor.notes}"</p>
-                  </div>
-                )}
-              </div>
+            {/* ═══ RIGHT CONTENT (7 cols / ~60%) — Activity, Action Items, Deals, Notes ═══ */}
+            <div className="col-span-7 space-y-5">
 
-              {/* Engagement Breakdown Card */}
-              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Engagement Dimensions</h3>
-                <div className="space-y-4">
-                  {[
-                    { label: 'Engagement', value: Math.floor(seededRandom(`${selectedAdvisor.id}-eng`) * 100) },
-                    { label: 'Pipeline Strength', value: Math.floor(seededRandom(`${selectedAdvisor.id}-pipe`) * 100) },
-                    { label: 'Responsiveness', value: Math.floor(seededRandom(`${selectedAdvisor.id}-resp`) * 100) },
-                    { label: 'Growth Potential', value: Math.floor(seededRandom(`${selectedAdvisor.id}-growth`) * 100) },
-                  ].map(dim => (
-                    <div key={dim.label}>
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-12px font-medium text-gray-700">{dim.label}</p>
-                        <p className="text-12px font-bold text-[#157A6E]">{dim.value}%</p>
+              {/* Action Items — pinned at top */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">Action Items</h3>
+                  <span className="text-10px font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">{actionItems.filter(a => a.status === 'overdue').length} overdue</span>
+                </div>
+                <div className="space-y-2">
+                  {actionItems.map(item => (
+                    <div key={item.id} className={`flex items-center gap-3 p-3 rounded-lg border-l-3 ${item.status === 'overdue' ? 'bg-red-50/50 border-l-red-400' : item.status === 'pending' ? 'bg-amber-50/30 border-l-amber-300' : 'bg-gray-50 border-l-gray-200'}`}>
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${item.status === 'overdue' ? 'border-red-400' : 'border-gray-300'}`}>
+                        {item.status === 'overdue' && <AlertCircle className="w-3 h-3 text-red-500" />}
                       </div>
-                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-[#157A6E] to-[#0f5550]" style={{ width: `${dim.value}%` }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-12px font-medium text-gray-900 truncate">{item.title}</p>
                       </div>
+                      <span className={`text-10px font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${item.status === 'overdue' ? 'bg-red-100 text-red-700' : item.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {item.due}
+                      </span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Deals Card */}
+              {/* Recent Activity Timeline */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Recent Activity</h3>
+                <div className="space-y-0">
+                  {activityTimeline.map((item, idx) => {
+                    const IconComp = item.icon;
+                    return (
+                      <div key={item.id} className="flex gap-3 relative">
+                        {/* Timeline line */}
+                        {idx < activityTimeline.length - 1 && (
+                          <div className="absolute left-[15px] top-[36px] bottom-0 w-[1.5px] bg-[#e8e5e1]" />
+                        )}
+                        {/* Icon circle */}
+                        <div className={`w-[32px] h-[32px] rounded-full flex items-center justify-center flex-shrink-0 z-10 ${activityIconColors[item.type] || 'bg-gray-100 text-gray-600'}`}>
+                          <IconComp className="w-4 h-4" />
+                        </div>
+                        {/* Content */}
+                        <div className={`flex-1 pb-5 ${idx < activityTimeline.length - 1 ? '' : ''}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-12px font-medium text-gray-900">{item.title}</p>
+                            <span className="text-[10px] text-gray-400 flex-shrink-0 mt-0.5">{item.time}</span>
+                          </div>
+                          <p className="text-11px text-gray-600 mt-0.5">{item.details}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Deals */}
               {advisorDeals.length > 0 && (
-                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-                  <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Deals ({advisorDeals.length})</h3>
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                  <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Active Deals ({advisorDeals.length})</h3>
                   <div className="space-y-3">
                     {advisorDeals.map(deal => (
-                      <div key={deal.id} className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+                      <div
+                        key={deal.id}
+                        onClick={() => { setSelectedDeal(deal); }}
+                        className="p-4 rounded-lg border border-[#e8e5e1] hover:border-[#157A6E]/30 hover:bg-[#F0F9F8] transition-all cursor-pointer"
+                      >
                         <div className="flex items-start justify-between mb-2">
                           <div>
-                            <p className="text-12px font-medium text-gray-900">{deal.name}</p>
-                            <p className="text-11px text-gray-600">{deal.stage} · {deal.daysInStage}d in stage</p>
+                            <p className="text-13px font-medium text-gray-900">{deal.name}</p>
+                            <p className="text-11px text-gray-600 mt-0.5">{deal.stage} · {deal.daysInStage}d in stage</p>
                           </div>
                           <DealHealthBadge health={deal.health} />
                         </div>
-                        <div className="flex items-center justify-between text-12px">
-                          <span className="font-semibold text-gray-900">{formatCurrency(deal.mrr)}</span>
-                          <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                            <div className="h-full bg-[#157A6E]" style={{ width: `${deal.probability || 50}%` }} />
+                        <div className="flex items-center justify-between">
+                          <span className="text-[15px] font-bold text-gray-900">{formatCurrency(deal.mrr)}</span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                              <div className="h-full bg-[#157A6E]" style={{ width: `${deal.probability || 50}%` }} />
+                            </div>
+                            <span className="text-10px text-gray-500">{deal.probability || 50}%</span>
                           </div>
                         </div>
                       </div>
@@ -1019,107 +1122,71 @@ export default function LiveManagerPage() {
                 </div>
               )}
 
-              {/* Activity / Notes Card */}
-              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Notes & Activity</h3>
-                <div className="space-y-3">
-                  <textarea
-                    placeholder="Add a note..."
-                    className="w-full text-12px border border-[#e8e5e1] rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E]"
-                    rows={4}
-                  />
-                  <button className="px-4 py-2 text-12px font-medium bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] transition-colors">Save Note</button>
-                </div>
-              </div>
-            </div>
-
-            {/* Right column (40%) */}
-            <div className="space-y-6">
-              {/* Additional Opportunities Card */}
-              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+              {/* Growth Opportunities */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
                 <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Growth Opportunities</h3>
-
-                {/* White Space Analysis */}
-                {whiteSpace && (
-                  <div className="mb-5 pb-5 border-b border-[#e8e5e1]">
-                    <h4 className="text-12px font-semibold text-gray-900 mb-3">White Space Analysis</h4>
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-11px text-gray-600 mb-2">Products Selling ({whiteSpace.soldProducts.length})</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {whiteSpace.soldProducts.length > 0 ? whiteSpace.soldProducts.map(p => (
-                            <span key={p} className="px-2 py-1 bg-[#157A6E]/10 text-[#157A6E] text-10px font-medium rounded">{p}</span>
-                          )) : <span className="text-11px text-gray-500 italic">None</span>}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-11px text-gray-600 mb-2">Catalog Coverage</p>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div className="grid grid-cols-2 gap-5">
+                  {/* White Space */}
+                  {whiteSpace && (
+                    <div>
+                      <h4 className="text-12px font-semibold text-gray-900 mb-3">White Space Analysis</h4>
+                      <div className="space-y-3">
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <p className="text-11px text-gray-600">Catalog Coverage</p>
+                            <span className="text-11px font-bold text-gray-900">{whiteSpace.crossSellScore.toFixed(0)}%</span>
+                          </div>
+                          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                             <div className="h-full bg-[#157A6E]" style={{ width: `${whiteSpace.crossSellScore}%` }} />
                           </div>
-                          <span className="text-11px font-bold text-gray-900">{whiteSpace.crossSellScore.toFixed(0)}%</span>
                         </div>
-                      </div>
-                      <div>
-                        <p className="text-11px text-gray-600 mb-2">Opportunities ({whiteSpace.opportunityProducts.length})</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {whiteSpace.opportunityProducts.slice(0, 3).map(p => (
-                            <span key={p} className="px-2 py-1 bg-amber-100 text-amber-700 text-10px font-medium rounded">{p}</span>
-                          ))}
-                          {whiteSpace.opportunityProducts.length > 3 && (
-                            <span className="text-10px text-gray-600 italic">+{whiteSpace.opportunityProducts.length - 3} more</span>
-                          )}
+                        <div>
+                          <p className="text-11px text-gray-600 mb-1.5">Opportunities</p>
+                          <div className="flex flex-wrap gap-1">
+                            {whiteSpace.opportunityProducts.slice(0, 4).map(p => (
+                              <span key={p} className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-medium rounded">{p}</span>
+                            ))}
+                            {whiteSpace.opportunityProducts.length > 4 && <span className="text-[10px] text-gray-500">+{whiteSpace.opportunityProducts.length - 4}</span>}
+                          </div>
                         </div>
-                      </div>
-                      <div>
-                        <p className="text-11px text-gray-600 mb-1">Est. Opportunity MRR</p>
-                        <p className="text-13px font-bold text-gray-900">{formatCurrency(whiteSpace.opportunityMRR)}</p>
+                        <p className="text-11px text-gray-600">Est. Opportunity: <span className="font-bold text-gray-900">{formatCurrency(whiteSpace.opportunityMRR)}</span></p>
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {/* Co-Marketing */}
-                <div>
-                  <h4 className="text-12px font-semibold text-gray-900 mb-3">Co-Marketing</h4>
-                  {coMarketingMatch ? (
-                    <div className="space-y-3">
-                      <p className="text-11px text-gray-600">{coMarketingMatch.reason}</p>
-                      <div className="px-3 py-2 bg-[#157A6E]/5 rounded-lg">
-                        <p className="text-11px font-medium text-gray-900 mb-1">Type</p>
-                        <p className="text-12px font-semibold text-[#157A6E]">{coMarketingMatch.type}</p>
-                      </div>
-                      <button className="w-full px-3 py-2 text-11px font-medium bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] transition-colors">Launch Campaign</button>
-                    </div>
-                  ) : (
-                    <p className="text-11px text-gray-600">Not currently eligible for co-marketing campaigns</p>
                   )}
+                  {/* Co-Marketing */}
+                  <div>
+                    <h4 className="text-12px font-semibold text-gray-900 mb-3">Co-Marketing</h4>
+                    {coMarketingMatch ? (
+                      <div className="space-y-3">
+                        <p className="text-11px text-gray-600">{coMarketingMatch.reason}</p>
+                        <div className="px-3 py-2 bg-[#157A6E]/5 rounded-lg">
+                          <p className="text-[10px] text-gray-500 mb-0.5">Campaign Type</p>
+                          <p className="text-12px font-semibold text-[#157A6E]">{coMarketingMatch.type}</p>
+                        </div>
+                        <button className="w-full px-3 py-2 text-11px font-medium bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] transition-colors">Launch Campaign</button>
+                      </div>
+                    ) : (
+                      <p className="text-11px text-gray-600">Not currently eligible for co-marketing campaigns</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Personal Intel Card */}
-              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Personal Intel</h3>
-                <div className="space-y-3">
-                  {[
-                    { label: 'Birthday', value: personalIntel.birthday },
-                    { label: 'Education', value: personalIntel.education?.degree },
-                    { label: 'Family', value: personalIntel.family },
-                    { label: 'Hobbies', value: personalIntel.hobbies },
-                  ].map(item => (
-                    <div key={item.label}>
-                      <p className="text-11px text-gray-600 mb-1">{item.label}</p>
-                      <p className="text-12px font-medium text-gray-900">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
+              {/* Notes & Activity */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-3">Add a Note</h3>
+                <textarea
+                  placeholder={`Write a note about ${selectedAdvisor.name.split(' ')[0]}...`}
+                  className="w-full text-12px border border-[#e8e5e1] rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E] mb-3"
+                  rows={3}
+                />
+                <button className="px-4 py-2 text-12px font-medium bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] transition-colors">Save Note</button>
               </div>
 
-              {/* Supplier Rating Card */}
+              {/* Supplier Rating */}
               {ratings && (
-                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-                  <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Rating</h3>
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                  <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Supplier Rating</h3>
                   <PerAdvisorRating data={ratings} advisorId={selectedAdvisor.id} />
                 </div>
               )}
