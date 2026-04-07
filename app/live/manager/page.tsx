@@ -842,7 +842,7 @@ export default function LiveManagerPage() {
       const advisorDeals = deals.filter(d => d.advisorId === selectedAdvisor.id);
       const whiteSpace = whiteSpaceData.find(w => w.id === selectedAdvisor.id);
       const coMarketingMatch = coMarketingOpportunities.find(opp => opp.advisor.id === selectedAdvisor.id);
-      const advisorRating = ratings?.find((r: any) => r.advisorId === selectedAdvisor.id);
+      const advisorRating = ratings?.advisorRatings?.find((r: any) => r.advisorId === selectedAdvisor.id);
 
       // Mock personal intel data
       const personalIntel = {
