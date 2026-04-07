@@ -78,7 +78,7 @@ export default function LiveManagerPage() {
   const [playbookDeadline, setPlaybookDeadline] = useState(14);
   const [selectedPlaybookTemplate, setSelectedPlaybookTemplate] = useState<string | null>(null);
   const [playbookAssignees, setPlaybookAssignees] = useState<string[]>([]);
-  const [launchedPlaybooks, setLaunchedPlaybooks] = useState<Array<{templateId: string; advisorId: string; advisorName: string; launchedAt: string; priority: 'critical' | 'high' | 'medium'; completedSteps: number[]; skippedSteps: number[]; customSteps?: Array<{day: number; label: string; desc: string; phase: string}>; notes?: string}>>([]);
+  const [launchedPlaybooks, setLaunchedPlaybooks] = useState<Array<{templateId: string; advisorId: string; advisorName: string; launchedAt: string; priority: 'critical' | 'high' | 'medium'; completedSteps: number[]; skippedSteps: number[]; customSteps?: Array<{day: number; label: string; desc: string; phase: string}>; notes?: string; playbookName?: string}>>([]);
   const [editingPlaybookIdx, setEditingPlaybookIdx] = useState<number | null>(null);
   const [ccKpiDrill, setCcKpiDrill] = useState<string | null>(null);
   const [showCoMarketingNotif, setShowCoMarketingNotif] = useState(true);
@@ -697,12 +697,16 @@ Also include a brief conversational explanation before or after the JSON. Ask cl
 
     // Playbook: next step for each launched playbook
     launchedPlaybooks.forEach(pb => {
-      const tmplSteps = pb.customSteps;
-      if (!tmplSteps) return;
+      const tmplSteps = pb.customSteps || playbookTemplates.find(t => t.id === pb.templateId)?.steps;
+      if (!tmplSteps || tmplSteps.length === 0) return;
       const nextIdx = tmplSteps.findIndex((_, idx) => !pb.completedSteps.includes(idx) && !pb.skippedSteps.includes(idx));
       if (nextIdx === -1) return;
       const step = tmplSteps[nextIdx];
-      todayActions.push({ id: `pb-${pb.templateId}-${pb.advisorId}`, title: `${step.label}`, context: `${pb.advisorName} · ${step.desc}`, tag: pb.templateId.replace('-', ' '), type: 'playbook', advisorId: pb.advisorId, mrrImpact: advisors.find(a => a.id === pb.advisorId)?.mrr || 0, impactType: 'growth' });
+      const pbName = pb.playbookName || playbookTemplates.find(t => t.id === pb.templateId)?.title || pb.templateId.replace('-', ' ');
+      const totalSteps = tmplSteps.length;
+      const completedCount = pb.completedSteps.length;
+      const stepNumber = nextIdx + 1;
+      todayActions.push({ id: `pb-${pb.templateId}-${pb.advisorId}`, title: `${step.label}`, context: `${pb.advisorName} · ${pbName} (step ${stepNumber}/${totalSteps}) · ${step.desc}`, tag: pbName, type: 'playbook', advisorId: pb.advisorId, mrrImpact: advisors.find(a => a.id === pb.advisorId)?.mrr || 0, impactType: 'growth' });
     });
 
     // Cadence: overdue contacts by tier
@@ -1006,7 +1010,7 @@ Also include a brief conversational explanation before or after the JSON. Ask cl
                     <div key={idx} className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 rounded-lg p-1 -m-1 transition-colors" onClick={() => { setActiveView('intelligence'); setIntelligenceSubTab('playbooks'); setEditingPlaybookIdx(idx); }}>
                       <div className={`w-2 h-full min-h-[32px] rounded-full shrink-0 ${pb.priority === 'critical' ? 'bg-red-400' : pb.priority === 'high' ? 'bg-amber-400' : 'bg-blue-400'}`} />
                       <div className="flex-1 min-w-0">
-                        <div className="text-[11px] font-semibold text-gray-800 truncate">{pb.templateId.replace('-', ' ')} — {pb.advisorName}</div>
+                        <div className="text-[11px] font-semibold text-gray-800 truncate">{pb.playbookName || playbookTemplates.find(t => t.id === pb.templateId)?.title || pb.templateId.replace('-', ' ')} — {pb.advisorName}</div>
                         <div className="flex items-center gap-2 mt-1">
                           <div className="flex-1 h-[4px] bg-gray-100 rounded-full overflow-hidden">
                             <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${pct}%` }} />
@@ -3546,8 +3550,22 @@ Also include a brief conversational explanation before or after the JSON. Ask cl
       if (editingPlaybookIdx !== null) {
         const editPb = launchedPlaybooks[editingPlaybookIdx];
         if (!editPb) { setEditingPlaybookIdx(null); return null; }
-        const editTmpl = playbookTemplates.find(t => t.id === editPb.templateId);
-        if (!editTmpl) { setEditingPlaybookIdx(null); return null; }
+        const editTmplRaw = playbookTemplates.find(t => t.id === editPb.templateId);
+        const isCustomOrAi = editPb.templateId === 'custom' || editPb.templateId === 'ai-generated';
+        const editTmpl = editTmplRaw || {
+          id: editPb.templateId,
+          icon: isCustomOrAi ? (editPb.templateId === 'ai-generated' ? '✦' : '✎') : '📋',
+          title: editPb.playbookName || editPb.templateId.replace('-', ' '),
+          subtitle: isCustomOrAi ? `${editPb.templateId === 'ai-generated' ? 'AI-generated' : 'Custom'} playbook` : 'Playbook',
+          category: editPb.templateId === 'ai-generated' ? 'AI-Built' : 'Custom',
+          duration: `${(editPb.customSteps || []).length} steps`,
+          steps: editPb.customSteps || [],
+          bgColor: 'bg-[#F7F5F2]',
+          borderColor: 'border-l-[#157A6E]',
+          tagColor: 'bg-teal-100 text-teal-800',
+          color: '#157A6E',
+          applicableTo: 'All Partners',
+        };
         const editAdvisor = advisors.find(a => a.id === editPb.advisorId);
         const activeSteps = editPb.customSteps || editTmpl.steps;
 
@@ -4127,42 +4145,54 @@ Also include a brief conversational explanation before or after the JSON. Ask cl
                   </div>
                 );
               })}
-              {/* Launched playbooks from assignment */}
+              {/* Launched playbooks from assignment (template, custom, and AI) */}
               {launchedPlaybooks.map((lp, lpi) => {
                 const lpTemplate = playbookTemplates.find(t => t.id === lp.templateId);
                 const lpAdvisor = advisors.find(a => a.id === lp.advisorId);
-                if (!lpTemplate || !lpAdvisor) return null;
-                const lpEffective = lpTemplate.steps.length - lp.skippedSteps.length;
+                if (!lpAdvisor) return null;
+                const lpSteps = lp.customSteps || lpTemplate?.steps || [];
+                if (lpSteps.length === 0) return null;
+                const lpEffective = lpSteps.length - lp.skippedSteps.length;
                 const lpPct = lpEffective > 0 ? Math.round((lp.completedSteps.length / lpEffective) * 100) : 100;
+                const isCustomOrAi = lp.templateId === 'custom' || lp.templateId === 'ai-generated';
+                const displayName = lp.playbookName || lpTemplate?.title || lp.templateId.replace('-', ' ');
+                const displayColor = lpTemplate?.color || '#157A6E';
+                const displayBorder = lpTemplate?.borderColor || 'border-l-[#157A6E]';
+                const displayBg = lpTemplate?.bgColor || '';
+                const displayTag = lpTemplate?.tagColor || 'bg-teal-100 text-teal-800';
+                const displayCategory = lpTemplate?.category || (lp.templateId === 'ai-generated' ? 'AI-Built' : 'Custom');
+                const displayDuration = lpTemplate?.duration || `${lpSteps.length} steps`;
+
                 return (
-                  <div key={`lp-${lpi}`} onClick={() => setEditingPlaybookIdx(lpi)} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 border-l-4 cursor-pointer hover:shadow-md transition-all ${lpTemplate.borderColor}`}>
+                  <div key={`lp-${lpi}`} onClick={() => setEditingPlaybookIdx(lpi)} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 border-l-4 cursor-pointer hover:shadow-md transition-all ${displayBorder}`}>
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${lp.priority === 'critical' ? 'bg-red-100 text-red-800' : lp.priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
                             {lp.priority}
                           </span>
-                          <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${lpTemplate.tagColor}`}>{lpTemplate.category}</span>
+                          <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${displayTag}`}>{displayCategory}</span>
                           <span className="inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-[#F0FAF8] text-[#157A6E]">Launched</span>
+                          {isCustomOrAi && <span className="inline-block px-2 py-0.5 rounded text-[9px] font-medium bg-purple-50 text-purple-700">{lp.templateId === 'ai-generated' ? '✦ AI' : '✎ Custom'}</span>}
                           {lp.skippedSteps.length > 0 && <span className="inline-block px-2 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-500">{lp.skippedSteps.length} skipped</span>}
                         </div>
-                        <h3 className="text-[15px] font-bold text-gray-800 font-serif">{lpTemplate.title}: {lpAdvisor.name}</h3>
-                        <p className="text-[12px] text-gray-500 mt-1">{lpTemplate.subtitle} — {formatCurrency(lpAdvisor.mrr)} MRR</p>
+                        <h3 className="text-[15px] font-bold text-gray-800 font-serif">{displayName}: {lpAdvisor.name}</h3>
+                        <p className="text-[12px] text-gray-500 mt-1">{lpSteps.length} action steps — {formatCurrency(lpAdvisor.mrr)} MRR</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <div className="text-[18px] font-bold" style={{ color: lpTemplate.color }}>{formatCurrency(lpAdvisor.mrr)}</div>
-                        <div className="text-[10px] text-gray-400">{lpTemplate.duration}</div>
+                        <div className="text-[18px] font-bold" style={{ color: displayColor }}>{formatCurrency(lpAdvisor.mrr)}</div>
+                        <div className="text-[10px] text-gray-400">{displayDuration}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 mb-4">
                       <div className="flex-1 h-[6px] bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all" style={{ width: `${lpPct}%`, backgroundColor: lpTemplate.color }} />
+                        <div className="h-full rounded-full transition-all" style={{ width: `${lpPct}%`, backgroundColor: displayColor }} />
                       </div>
-                      <span className="text-[11px] font-bold" style={{ color: lpTemplate.color }}>{lpPct}%</span>
+                      <span className="text-[11px] font-bold" style={{ color: displayColor }}>{lpPct}%</span>
                     </div>
                     <div className="space-y-2">
                       <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Action Steps</h4>
-                      {lpTemplate.steps.map((step, si) => {
+                      {lpSteps.map((step, si) => {
                         const isDone = lp.completedSteps.includes(si);
                         const isSkipped = lp.skippedSteps.includes(si);
                         const isActive = !isDone && !isSkipped && (si === 0 || lp.completedSteps.includes(si - 1) || lp.skippedSteps.includes(si - 1));
@@ -4176,7 +4206,7 @@ Also include a brief conversational explanation before or after the JSON. Ask cl
                           <div key={si} className="flex items-start gap-3 group">
                             <div onClick={(e) => { e.stopPropagation(); setLaunchedPlaybooks(prev => prev.map((p, pi) => pi === lpi ? { ...p, completedSteps: isDone ? p.completedSteps.filter(x => x !== si) : [...p.completedSteps, si] } : p)); }}
                               className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 cursor-pointer transition-all ${isDone ? 'bg-green-100 text-green-700 hover:bg-green-200' : isActive ? 'text-white hover:opacity-80' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
-                              style={isActive ? { backgroundColor: lpTemplate.color } : {}}>
+                              style={isActive ? { backgroundColor: displayColor } : {}}>
                               {isDone ? '✓' : si + 1}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -5032,6 +5062,7 @@ Also include a brief conversational explanation before or after the JSON. Ask cl
                       completedSteps: [],
                       skippedSteps: [],
                       customSteps: customPlaybookSteps.map(s => ({ ...s, phase: 'Action' })),
+                      playbookName: customPlaybookName,
                     }]);
                     setShowPlaybookModal(false);
                     setCustomPlaybookName('');
@@ -5045,6 +5076,7 @@ Also include a brief conversational explanation before or after the JSON. Ask cl
               {playbookModalMode === 'ai' && aiGeneratedSteps && playbookModalAdvisor && (
                 <button
                   onClick={() => {
+                    const aiName = `AI Playbook: ${playbookModalAdvisor.name}`;
                     setLaunchedPlaybooks(prev => [...prev, {
                       templateId: 'ai-generated',
                       advisorId: playbookModalAdvisor.id,
@@ -5054,6 +5086,7 @@ Also include a brief conversational explanation before or after the JSON. Ask cl
                       completedSteps: [],
                       skippedSteps: [],
                       customSteps: aiGeneratedSteps,
+                      playbookName: aiName,
                     }]);
                     setShowPlaybookModal(false);
                     setAiPlaybookMessages([]);
