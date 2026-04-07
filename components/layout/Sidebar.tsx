@@ -1,6 +1,6 @@
 'use client';
 
-import { Zap, Brain, Handshake, DollarSign, TrendingUp, BarChart3, Users, Hexagon, Target, MapPin, Megaphone, Shield, LayoutGrid, Settings } from 'lucide-react';
+import { Zap, Brain, Handshake, DollarSign, TrendingUp, BarChart3, Users, Hexagon, Target, MapPin, Megaphone, Shield, LayoutGrid, Settings, PlayCircle } from 'lucide-react';
 import { type LucideIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -18,6 +18,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Megaphone,
   Shield,
   Grid: LayoutGrid,
+  PlayCircle,
 };
 
 export interface NavItem {

@@ -77,7 +77,7 @@ export default function LiveManagerPage() {
   const [playbookDeadline, setPlaybookDeadline] = useState(14);
   const [selectedPlaybookTemplate, setSelectedPlaybookTemplate] = useState<string | null>(null);
   const [playbookAssignees, setPlaybookAssignees] = useState<string[]>([]);
-  const [launchedPlaybooks, setLaunchedPlaybooks] = useState<Array<{templateId: string; advisorId: string; advisorName: string; launchedAt: string; priority: 'critical' | 'high' | 'medium'; completedSteps: number[]; customSteps?: Array<{day: number; label: string; desc: string; phase: string}>; notes?: string}>>([]);
+  const [launchedPlaybooks, setLaunchedPlaybooks] = useState<Array<{templateId: string; advisorId: string; advisorName: string; launchedAt: string; priority: 'critical' | 'high' | 'medium'; completedSteps: number[]; skippedSteps: number[]; customSteps?: Array<{day: number; label: string; desc: string; phase: string}>; notes?: string}>>([]);
   const [editingPlaybookIdx, setEditingPlaybookIdx] = useState<number | null>(null);
   const [ccKpiDrill, setCcKpiDrill] = useState<string | null>(null);
   const [showCoMarketingNotif, setShowCoMarketingNotif] = useState(true);
@@ -90,6 +90,8 @@ export default function LiveManagerPage() {
   const [stageFilter, setStageFilter] = useState<string>('All');
   const [pipelineSearch, setPipelineSearch] = useState('');
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+  const [completedActions, setCompletedActions] = useState<string[]>([]);
+  const [actionFilter, setActionFilter] = useState<'all' | 'critical' | 'playbook' | 'cadence' | 'deals'>('all');
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -428,212 +430,176 @@ export default function LiveManagerPage() {
   // COMMAND CENTER
   // ════════════════════════════════════════════════
 
-  const renderCommandCenter = () => (
-    <div className="space-y-5">
-      {/* Co-Marketing Notification Banner (dismissible) */}
-      {showCoMarketingNotif && coMarketingOpportunities.length > 0 && (
-        <div className="flex items-center gap-3 px-4 py-3 bg-[#F0FAF8] border border-[#157A6E]/20 rounded-lg">
-          <Megaphone className="w-4 h-4 text-[#157A6E] shrink-0" />
-          <p className="text-[12px] text-gray-700 flex-1">
-            <span className="font-semibold text-[#157A6E]">{coMarketingOpportunities.length} co-marketing opportunities</span> identified —{' '}
-            {coMarketingOpportunities.slice(0, 2).map(o => o.advisor.name).join(', ')}{coMarketingOpportunities.length > 2 ? ` +${coMarketingOpportunities.length - 2} more` : ''}
-          </p>
-          <button onClick={() => { setActiveView('relationships'); }} className="text-[11px] font-semibold text-[#157A6E] hover:underline whitespace-nowrap">View in profiles →</button>
-          <button onClick={() => setShowCoMarketingNotif(false)} className="text-gray-400 hover:text-gray-600 shrink-0"><X className="w-3.5 h-3.5" /></button>
-        </div>
-      )}
+  const renderCommandCenter = () => {
+    const getDaysSinceContact = (lastContactDate: string): number => {
+      const last = new Date(lastContactDate);
+      const now = new Date();
+      return Math.floor((now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
+    };
 
-      {/* KPI Row — Clickable */}
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          { key: 'mrr', label: 'Portfolio MRR', value: formatCurrency(totalMRR), change: `${advisors.length} partners`, changeType: 'positive' as const },
-          { key: 'pipeline', label: 'Active Pipeline', value: formatCurrency(pipelineMRR), change: `${activePipeline.length} deals`, changeType: 'positive' as const },
-          { key: 'atrisk', label: 'At-Risk MRR', value: formatCurrency(atRiskMRR), change: `${atRiskAdvisors.length} partners`, changeType: (atRiskAdvisors.length > 0 ? 'negative' : 'neutral') as 'negative' | 'neutral' },
-          { key: 'won', label: 'Closed Won QTD', value: formatCurrency(closedWonMRR), change: `${closedWonDeals.length} deals`, changeType: 'positive' as const },
-        ].map(kpi => (
-          <div key={kpi.key} className="cursor-pointer" onClick={() => setCcKpiDrill(ccKpiDrill === kpi.key ? null : kpi.key)}>
-            <KPICard label={kpi.label} value={kpi.value} change={kpi.change} changeType={kpi.changeType} />
-          </div>
-        ))}
-      </div>
+    // ── Build today's action list from real data ──
+    type TodayAction = { id: string; title: string; context: string; tag: string; type: 'critical' | 'playbook' | 'cadence' | 'deals'; advisorId?: string; mrrImpact: number; impactType: 'risk' | 'pipeline' | 'growth' };
+    const todayActions: TodayAction[] = [];
 
-      {/* KPI Drill-Down (conditional) */}
-      {ccKpiDrill === 'mrr' && (
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 animate-in">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-[12px] font-semibold text-gray-700">MRR by Tier</h4>
-            <button onClick={() => setCcKpiDrill(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
-          </div>
-          <div className="grid grid-cols-4 gap-3">
-            {['platinum', 'gold', 'silver', 'onboarding'].map(tier => {
-              const tierAdvisors = advisors.filter(a => a.tier === tier);
-              const tierMRR = tierAdvisors.reduce((s, a) => s + a.mrr, 0);
-              return (
-                <div key={tier} className="bg-gray-50 rounded-lg p-3">
-                  <div className="text-[10px] text-gray-400 uppercase font-medium">{tier === 'platinum' ? 'Platinum' : tier === 'gold' ? 'Gold' : tier === 'silver' ? 'Silver' : 'Onboarding'}</div>
-                  <div className="text-[16px] font-bold text-gray-800 mt-1">{formatCurrency(tierMRR)}</div>
-                  <div className="text-[10px] text-gray-500">{tierAdvisors.length} partners</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      {ccKpiDrill === 'pipeline' && (
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-[12px] font-semibold text-gray-700">Pipeline Breakdown</h4>
-            <button onClick={() => setCcKpiDrill(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
-          </div>
-          <div className="flex h-5 rounded-md overflow-hidden gap-[2px]">
-            {stageDistribution.filter(s => s.count > 0 && s.stage !== 'Closed Won' && s.stage !== 'Stalled').map(s => {
-              const colors: Record<string, string> = { Discovery: '#3B82F6', Qualifying: '#06B6D4', Proposal: '#8B5CF6', Negotiating: '#F59E0B' };
-              return <div key={s.stage} className="flex items-center justify-center text-[9px] font-bold text-white" style={{ width: `${(s.mrr / pipelineMRR) * 100}%`, backgroundColor: colors[s.stage] || '#9CA3AF', minWidth: 30 }}>{s.count}</div>;
-            })}
-          </div>
-          <div className="flex gap-3 mt-2 flex-wrap">
-            {stageDistribution.filter(s => s.count > 0 && s.stage !== 'Closed Won' && s.stage !== 'Stalled').map(s => {
-              const colors: Record<string, string> = { Discovery: '#3B82F6', Qualifying: '#06B6D4', Proposal: '#8B5CF6', Negotiating: '#F59E0B' };
-              return <div key={s.stage} className="flex items-center gap-1.5 text-[10px] text-gray-500"><div className="w-2 h-2 rounded-sm" style={{backgroundColor: colors[s.stage]}} />{s.stage}: {s.count} · {formatCurrency(s.mrr)}</div>;
-            })}
-          </div>
-        </div>
-      )}
-      {ccKpiDrill === 'atrisk' && atRiskAdvisors.length > 0 && (
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-[12px] font-semibold text-gray-700">At-Risk Partners</h4>
-            <button onClick={() => setCcKpiDrill(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {atRiskAdvisors.map(a => (
-              <div key={a.id} className="bg-red-50 rounded-lg p-3 cursor-pointer hover:bg-red-100" onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
-                <div className="text-[12px] font-semibold text-gray-800">{a.name}</div>
-                <div className="text-[11px] font-bold text-red-500 mt-0.5">{formatCurrency(a.mrr)}</div>
-                <div className="text-[10px] text-gray-500 mt-0.5">{a.trajectory} · {a.friction} friction</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {ccKpiDrill === 'won' && closedWonDeals.length > 0 && (
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-[12px] font-semibold text-gray-700">Closed Won This Quarter</h4>
-            <button onClick={() => setCcKpiDrill(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
-          </div>
-          {closedWonDeals.map(d => {
-            const adv = advisors.find(a => a.id === d.advisorId);
-            return (
-              <div key={d.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-b-0">
-                <div><div className="text-[12px] font-medium text-gray-800">{d.name}</div><div className="text-[10px] text-gray-500">{adv?.name || 'Unknown'}</div></div>
-                <span className="text-[13px] font-bold text-green-600">{formatCurrency(d.mrr)}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
+    // Critical: at-risk advisors
+    atRiskAdvisors.forEach(a => {
+      todayActions.push({ id: `risk-${a.id}`, title: `Reach out to ${a.name}`, context: `${a.trajectory} trajectory · ${a.friction} friction · Last contact ${getDaysSinceContact(a.lastContact)}d ago`, tag: 'Win-Back', type: 'critical', advisorId: a.id, mrrImpact: a.mrr, impactType: 'risk' });
+    });
 
-      {/* Two Column Layout */}
-      <div className="grid grid-cols-2 gap-5">
-        {/* Signal Alerts — Now shows diagnosis/reason */}
+    // Critical: stalled deals
+    stalledDeals.forEach(d => {
+      const adv = advisors.find(a => a.id === d.advisorId);
+      todayActions.push({ id: `stall-${d.id}`, title: `Unstall: ${d.name}`, context: `${adv?.name || 'Unknown'} · Stuck in ${d.stage} for ${d.daysInStage} days · ${formatCurrency(d.mrr)} MRR`, tag: 'Deal Stall', type: 'deals', advisorId: adv?.id, mrrImpact: d.mrr, impactType: 'pipeline' });
+    });
+
+    // Playbook: next step for each launched playbook
+    launchedPlaybooks.forEach(pb => {
+      const tmplSteps = pb.customSteps;
+      if (!tmplSteps) return;
+      const nextIdx = tmplSteps.findIndex((_, idx) => !pb.completedSteps.includes(idx) && !pb.skippedSteps.includes(idx));
+      if (nextIdx === -1) return;
+      const step = tmplSteps[nextIdx];
+      todayActions.push({ id: `pb-${pb.templateId}-${pb.advisorId}`, title: `${step.label}`, context: `${pb.advisorName} · ${step.desc}`, tag: pb.templateId.replace('-', ' '), type: 'playbook', advisorId: pb.advisorId, mrrImpact: advisors.find(a => a.id === pb.advisorId)?.mrr || 0, impactType: 'growth' });
+    });
+
+    // Cadence: overdue contacts by tier
+    const platinumOverdue = advisors.filter(a => a.tier === 'platinum' && getDaysSinceContact(a.lastContact) > 7);
+    const goldOverdue = advisors.filter(a => a.tier === 'gold' && getDaysSinceContact(a.lastContact) > 14);
+    const silverOverdue = advisors.filter(a => a.tier === 'silver' && getDaysSinceContact(a.lastContact) > 30);
+    [...platinumOverdue, ...goldOverdue, ...silverOverdue].forEach(a => {
+      if (todayActions.some(act => act.advisorId === a.id)) return; // don't duplicate
+      todayActions.push({ id: `cadence-${a.id}`, title: `Check in with ${a.name}`, context: `${a.tier === 'platinum' ? 'Platinum' : a.tier === 'gold' ? 'Gold' : 'Silver'} · Last contact ${getDaysSinceContact(a.lastContact)} days ago · ${a.tier === 'platinum' ? 'Weekly' : a.tier === 'gold' ? 'Bi-weekly' : 'Monthly'} cadence overdue`, tag: 'Cadence', type: 'cadence', advisorId: a.id, mrrImpact: a.mrr, impactType: 'growth' });
+    });
+
+    // Growth: accelerating/climbing advisors not already in actions
+    advisors.filter(a => (a.trajectory === 'Accelerating' || a.trajectory === 'Climbing') && !todayActions.some(act => act.advisorId === a.id)).forEach(a => {
+      todayActions.push({ id: `growth-${a.id}`, title: `Explore expansion: ${a.name}`, context: `${a.trajectory} trajectory · ${a.pulse} pulse · Cross-sell or tier upgrade opportunity`, tag: 'Growth', type: 'deals', advisorId: a.id, mrrImpact: a.mrr, impactType: 'growth' });
+    });
+
+    // Filter + sort
+    const filteredActions = actionFilter === 'all' ? todayActions : todayActions.filter(a => a.type === actionFilter);
+    const activeActions = filteredActions.filter(a => !completedActions.includes(a.id));
+    const doneActions = filteredActions.filter(a => completedActions.includes(a.id));
+    const criticalCount = todayActions.filter(a => a.type === 'critical').length;
+
+    // ── Portfolio snapshot data ──
+    const frictionCritical = advisors.filter(a => a.friction === 'Critical').length;
+    const frictionHigh = advisors.filter(a => a.friction === 'High').length;
+    const healthy = advisors.filter(a => a.friction === 'Low' && (a.pulse === 'Strong' || a.pulse === 'Steady')).length;
+    const tierCounts = {
+      platinum: advisors.filter(a => a.tier === 'platinum').length,
+      gold: advisors.filter(a => a.tier === 'gold').length,
+      silver: advisors.filter(a => a.tier === 'silver').length,
+      onboarding: advisors.filter(a => a.tier === 'onboarding').length,
+    };
+
+    // Cadence compliance
+    const cadenceData = (['platinum', 'gold', 'silver'] as const).map(tier => {
+      const tierAdvs = advisors.filter(a => a.tier === tier);
+      const threshold = tier === 'platinum' ? 7 : tier === 'gold' ? 14 : 30;
+      const onPace = tierAdvs.filter(a => getDaysSinceContact(a.lastContact) <= threshold).length;
+      return { tier, total: tierAdvs.length, onPace, pct: tierAdvs.length > 0 ? Math.round((onPace / tierAdvs.length) * 100) : 100 };
+    });
+
+    const tagColor = (type: string) => {
+      switch (type) {
+        case 'critical': return 'bg-red-100 text-red-800';
+        case 'playbook': return 'bg-[#D1FAE5] text-[#065F46]';
+        case 'cadence': return 'bg-blue-100 text-blue-800';
+        case 'deals': return 'bg-amber-100 text-amber-800';
+        default: return 'bg-gray-100 text-gray-600';
+      }
+    };
+
+    return (
+      <div className="space-y-5">
+        {/* ── PORTFOLIO SNAPSHOT ── */}
+        <div className="grid grid-cols-5 gap-3">
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Portfolio MRR</div>
+            <div className="text-[20px] font-bold text-gray-800 mt-1 font-['Newsreader']">{formatCurrency(totalMRR)}</div>
+            <div className="text-[10px] text-gray-500 mt-0.5">{advisors.length} partners</div>
+          </div>
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Active Pipeline</div>
+            <div className="text-[20px] font-bold text-[#157A6E] mt-1 font-['Newsreader']">{formatCurrency(pipelineMRR)}</div>
+            <div className="text-[10px] text-gray-500 mt-0.5">{activePipeline.length} deals</div>
+          </div>
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">At-Risk MRR</div>
+            <div className={`text-[20px] font-bold mt-1 font-['Newsreader'] ${atRiskAdvisors.length > 0 ? 'text-red-500' : 'text-gray-800'}`}>{formatCurrency(atRiskMRR)}</div>
+            <div className="text-[10px] text-gray-500 mt-0.5">{atRiskAdvisors.length} partners</div>
+          </div>
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Closed Won QTD</div>
+            <div className="text-[20px] font-bold text-[#157A6E] mt-1 font-['Newsreader']">{formatCurrency(closedWonMRR)}</div>
+            <div className="text-[10px] text-gray-500 mt-0.5">{closedWonDeals.length} deals</div>
+          </div>
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Partner Health</div>
+            <div className="flex items-baseline gap-1.5 mt-1">
+              <span className="text-[20px] font-bold text-[#157A6E] font-['Newsreader']">{healthy}</span>
+              <span className="text-[11px] text-gray-400">healthy</span>
+            </div>
+            <div className="text-[10px] text-gray-500 mt-0.5">{frictionCritical > 0 ? `${frictionCritical} critical · ` : ''}{frictionHigh > 0 ? `${frictionHigh} high friction` : 'No friction issues'}</div>
+          </div>
+        </div>
+
+        {/* ── ADVISOR HEALTH AT A GLANCE ── */}
         <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Signal Alerts</h3>
-            <button onClick={() => { setActiveView('intelligence'); setIntelligenceSubTab('signals'); }} className="text-[10px] text-[#157A6E] font-semibold hover:underline">View all →</button>
+            <h3 className="text-[11px] font-bold uppercase tracking-[1.5px] text-gray-500">Advisor Snapshot</h3>
+            <button onClick={() => setActiveView('relationships')} className="text-[10px] text-[#157A6E] font-semibold hover:underline">View all →</button>
           </div>
-          <div className="space-y-2">
-            {atRiskAdvisors.length > 0 ? atRiskAdvisors.map(a => (
-              <div key={a.id} className="p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100 transition-colors"
-                   onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
-                <div className="flex items-start gap-2.5">
-                  <AlertTriangle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[12px] font-semibold text-gray-800">{a.name}</p>
-                      <span className="text-[11px] font-bold text-red-500">{formatCurrency(a.mrr)}</span>
-                    </div>
-                    <p className="text-[11px] text-gray-600 mt-0.5 line-clamp-2">{a.diagnosis || `${a.trajectory} trajectory with ${a.friction.toLowerCase()} friction. Engagement declining.`}</p>
+          <div className="grid grid-cols-2 gap-4">
+            {/* Top partners by MRR */}
+            <div>
+              <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Top Partners</div>
+              <div className="space-y-1.5">
+                {[...advisors].sort((a, b) => b.mrr - a.mrr).slice(0, 6).map(a => (
+                  <div key={a.id} className="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
+                    <div className={`w-2 h-2 rounded-sm shrink-0 ${a.tier === 'platinum' ? 'bg-[#157A6E]' : a.tier === 'gold' ? 'bg-amber-400' : a.tier === 'silver' ? 'bg-gray-400' : 'bg-blue-400'}`} />
+                    <span className="text-[12px] font-medium text-gray-800 flex-1 truncate">{a.name}</span>
+                    <PulseBadge pulse={a.pulse} />
+                    <span className="text-[11px] font-bold text-gray-700 tabular-nums">{formatCurrency(a.mrr)}</span>
                   </div>
-                </div>
+                ))}
               </div>
-            )) : (
-              <p className="text-[12px] text-gray-400 italic">No at-risk partners currently</p>
-            )}
-            {stalledDeals.length > 0 && stalledDeals.slice(0, 3).map(d => {
-              const adv = advisors.find(a => a.id === d.advisorId);
-              return (
-                <div key={d.id} className="p-3 bg-amber-50 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors"
-                     onClick={() => { if (adv) { setSelectedAdvisor(adv); setPanelOpen(true); } }}>
-                  <div className="flex items-start gap-2.5">
-                    <Clock className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="text-[12px] font-semibold text-gray-800">{d.name}</p>
-                        <span className="text-[11px] font-bold text-amber-600">{formatCurrency(d.mrr)}</span>
-                      </div>
-                      <p className="text-[11px] text-gray-600 mt-0.5">{adv?.name || 'Unknown'} · Stuck in {d.stage} for {d.daysInStage} days</p>
+            </div>
+            {/* Needs attention */}
+            <div>
+              <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Needs Attention</div>
+              {advisors.filter(a => a.friction === 'Critical' || a.friction === 'High' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall').length > 0 ? (
+                <div className="space-y-1.5">
+                  {advisors.filter(a => a.friction === 'Critical' || a.friction === 'High' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall').slice(0, 6).map(a => (
+                    <div key={a.id} className={`flex items-center gap-2.5 py-1.5 px-2 rounded-lg cursor-pointer transition-colors ${a.friction === 'Critical' ? 'bg-red-50 hover:bg-red-100' : 'bg-amber-50 hover:bg-amber-100'}`} onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
+                      <AlertTriangle className={`w-3 h-3 shrink-0 ${a.friction === 'Critical' ? 'text-red-500' : 'text-amber-500'}`} />
+                      <span className="text-[12px] font-medium text-gray-800 flex-1 truncate">{a.name}</span>
+                      <FrictionBadge level={a.friction} />
+                      <span className="text-[11px] font-bold text-gray-700 tabular-nums">{formatCurrency(a.mrr)}</span>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              );
-            })}
+              ) : (
+                <p className="text-[11px] text-gray-400 italic py-2">All partners healthy</p>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Pipeline by Stage — Friendlier expand */}
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Pipeline by Stage</h3>
-            <button onClick={() => setActiveView('pipeline')} className="text-[10px] text-[#157A6E] font-semibold hover:underline">Full pipeline →</button>
-          </div>
-          <div className="space-y-2.5">
-            {stageDistribution.filter(s => s.count > 0).map(s => {
-              const colors: Record<string, string> = {
-                Discovery: '#3B82F6', Qualifying: '#06B6D4', Proposal: '#8B5CF6',
-                Negotiating: '#F59E0B', 'Closed Won': '#10B981', Stalled: '#EF4444',
-              };
-              const bgColors: Record<string, string> = {
-                Discovery: 'bg-blue-50', Qualifying: 'bg-cyan-50', Proposal: 'bg-violet-50',
-                Negotiating: 'bg-amber-50', 'Closed Won': 'bg-green-50', Stalled: 'bg-red-50',
-              };
-              const isExpanded = expandedStage === s.stage;
+          {/* Tier distribution + cadence compliance inline */}
+          <div className="grid grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">
+            {(['platinum', 'gold', 'silver', 'onboarding'] as const).map(tier => {
+              const cd = cadenceData.find(c => c.tier === tier);
               return (
-                <div key={s.stage}>
-                  <div className="cursor-pointer rounded-lg p-2.5 hover:bg-gray-50 transition-colors" onClick={() => setExpandedStage(isExpanded ? null : s.stage as DealStage)}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: colors[s.stage] || '#9CA3AF' }} />
-                        <span className="text-[12px] font-semibold text-gray-700">{s.stage}</span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: colors[s.stage] + '18', color: colors[s.stage] }}>{s.count}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[12px] font-bold text-gray-700">{formatCurrency(s.mrr)}</span>
-                        {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
-                      </div>
-                    </div>
-                    <div className="h-[6px] bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${(s.mrr / maxStageMRR) * 100}%`, backgroundColor: colors[s.stage] || '#9CA3AF' }} />
-                    </div>
+                <div key={tier} className="flex items-center gap-3 bg-gray-50 rounded-lg p-2.5">
+                  <div className={`w-3 h-3 rounded-sm ${tier === 'platinum' ? 'bg-[#157A6E]' : tier === 'gold' ? 'bg-amber-400' : tier === 'silver' ? 'bg-gray-400' : 'bg-blue-400'}`} />
+                  <div className="flex-1">
+                    <div className="text-[11px] font-semibold text-gray-700 capitalize">{tier}</div>
+                    <div className="text-[10px] text-gray-500">{tierCounts[tier]} partners</div>
                   </div>
-                  {isExpanded && (
-                    <div className={`mt-1 ml-2 mr-2 mb-1 rounded-lg p-3 ${bgColors[s.stage] || 'bg-gray-50'}`}>
-                      {deals.filter(d => d.stage === s.stage).map(d => {
-                        const adv = advisors.find(a => a.id === d.advisorId);
-                        return (
-                          <div key={d.id} className="flex items-center justify-between py-2 border-b border-white/50 last:border-b-0 cursor-pointer hover:opacity-80"
-                               onClick={() => { if (adv) { setSelectedAdvisor(adv); setPanelOpen(true); setActiveViewRaw('relationships'); } }}>
-                            <div>
-                              <p className="text-[11px] font-semibold text-gray-700">{d.name}</p>
-                              <p className="text-[10px] text-gray-500">{adv?.name || 'Unassigned'} · {d.daysInStage}d in stage</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <DealHealthBadge health={d.health} />
-                              <span className="text-[12px] font-bold text-gray-700">{formatCurrency(d.mrr)}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
+                  {cd && tier !== 'onboarding' && (
+                    <div className={`text-[11px] font-bold ${cd.pct >= 80 ? 'text-[#157A6E]' : cd.pct >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                      {cd.pct}%
                     </div>
                   )}
                 </div>
@@ -641,9 +607,161 @@ export default function LiveManagerPage() {
             })}
           </div>
         </div>
+
+        {/* ── TODAY'S ACTIONS ── */}
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Today&apos;s Actions</span>
+          <div className="flex-1 h-px bg-[#e8e5e1]" />
+          <span className="text-[12px] font-semibold text-gray-500">{activeActions.length} remaining{criticalCount > 0 ? ` · ${criticalCount} critical` : ''}</span>
+        </div>
+
+        {/* Filter pills */}
+        <div className="flex gap-1.5">
+          {([
+            { key: 'all' as const, label: 'All', count: todayActions.length },
+            { key: 'critical' as const, label: 'Critical', count: todayActions.filter(a => a.type === 'critical').length },
+            { key: 'playbook' as const, label: 'Playbook', count: todayActions.filter(a => a.type === 'playbook').length },
+            { key: 'cadence' as const, label: 'Cadence', count: todayActions.filter(a => a.type === 'cadence').length },
+            { key: 'deals' as const, label: 'Deals', count: todayActions.filter(a => a.type === 'deals').length },
+          ]).filter(f => f.count > 0 || f.key === 'all').map(f => (
+            <button key={f.key} onClick={() => setActionFilter(f.key)}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-medium border transition-colors ${actionFilter === f.key ? 'bg-[#157A6E] text-white border-[#157A6E]' : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>
+              {f.label}<span className="ml-1 text-[10px] font-bold">{f.count}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Action cards */}
+        <div className="space-y-2">
+          {activeActions.map(action => {
+            const advisor = action.advisorId ? advisors.find(a => a.id === action.advisorId) : null;
+            return (
+              <div key={action.id} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-4 flex items-start gap-3 transition-all hover:shadow-sm ${action.type === 'critical' ? 'border-l-4 border-l-red-400' : ''}`}>
+                {/* Checkbox */}
+                <button onClick={() => setCompletedActions(prev => [...prev, action.id])}
+                  className="w-5 h-5 rounded border-2 border-gray-300 hover:border-[#157A6E] flex items-center justify-center shrink-0 mt-0.5 transition-colors" />
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${tagColor(action.type)}`}>{action.tag}</span>
+                    {advisor && (
+                      <span className="text-[10px] text-gray-500 flex items-center gap-1">
+                        <span className={`w-1.5 h-1.5 rounded-sm ${advisor.tier === 'platinum' ? 'bg-[#157A6E]' : advisor.tier === 'gold' ? 'bg-amber-400' : advisor.tier === 'silver' ? 'bg-gray-400' : 'bg-blue-400'}`} />
+                        {advisor.name} · {advisor.company}
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="text-[13px] font-semibold text-gray-800">{action.title}</h4>
+                  <p className="text-[11px] text-gray-500 mt-0.5">{action.context}</p>
+                </div>
+                {/* MRR impact */}
+                <div className="text-right shrink-0">
+                  <div className={`text-[14px] font-bold ${action.impactType === 'risk' ? 'text-red-500' : action.impactType === 'pipeline' ? 'text-amber-600' : 'text-[#157A6E]'}`}>
+                    {formatCurrency(action.mrrImpact)}
+                  </div>
+                  <div className="text-[9px] text-gray-400">{action.impactType === 'risk' ? 'at risk' : action.impactType === 'pipeline' ? 'pipeline' : 'MRR'}</div>
+                </div>
+              </div>
+            );
+          })}
+          {activeActions.length === 0 && (
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
+              <CheckCircle className="w-8 h-8 text-[#157A6E] mx-auto mb-2" />
+              <p className="text-[13px] font-semibold text-gray-700">All caught up</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">{actionFilter !== 'all' ? 'No actions in this category' : 'No actions for today'}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Completed actions */}
+        {doneActions.length > 0 && (
+          <>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-gray-400 whitespace-nowrap">Completed ({doneActions.length})</span>
+              <div className="flex-1 h-px bg-[#e8e5e1]" />
+            </div>
+            <div className="space-y-1.5">
+              {doneActions.map(action => (
+                <div key={action.id} className="bg-gray-50 rounded-[10px] border border-gray-100 p-3 flex items-center gap-3 opacity-60">
+                  <button onClick={() => setCompletedActions(prev => prev.filter(id => id !== action.id))}
+                    className="w-5 h-5 rounded bg-[#157A6E] flex items-center justify-center shrink-0">
+                    <CheckCircle className="w-3 h-3 text-white" />
+                  </button>
+                  <span className="text-[12px] text-gray-500 line-through flex-1">{action.title}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* ── PIPELINE + PLAYBOOK STATUS ── */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Pipeline by Stage (compact) */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[11px] font-bold uppercase tracking-[1.5px] text-gray-500">Pipeline by Stage</h3>
+              <button onClick={() => setActiveView('pipeline')} className="text-[10px] text-[#157A6E] font-semibold hover:underline">Full pipeline →</button>
+            </div>
+            <div className="space-y-2">
+              {stageDistribution.filter(s => s.count > 0 && s.stage !== 'Closed Won').map(s => {
+                const colors: Record<string, string> = { Discovery: '#3B82F6', Qualifying: '#06B6D4', Proposal: '#8B5CF6', Negotiating: '#F59E0B', Stalled: '#EF4444' };
+                return (
+                  <div key={s.stage} className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: colors[s.stage] || '#9CA3AF' }} />
+                    <span className="text-[11px] font-medium text-gray-700 w-24">{s.stage}</span>
+                    <div className="flex-1 h-[5px] bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${(s.mrr / maxStageMRR) * 100}%`, backgroundColor: colors[s.stage] || '#9CA3AF' }} />
+                    </div>
+                    <span className="text-[11px] font-bold text-gray-600 tabular-nums w-16 text-right">{formatCurrency(s.mrr)}</span>
+                    <span className="text-[10px] text-gray-400 w-4 text-right">{s.count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Active Playbooks (compact) */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[11px] font-bold uppercase tracking-[1.5px] text-gray-500">Active Playbooks</h3>
+              <button onClick={() => { setActiveView('intelligence'); setIntelligenceSubTab('playbooks'); }} className="text-[10px] text-[#157A6E] font-semibold hover:underline">Manage →</button>
+            </div>
+            {launchedPlaybooks.length > 0 ? (
+              <div className="space-y-3">
+                {launchedPlaybooks.slice(0, 4).map((pb, idx) => {
+                  const tmplSteps = pb.customSteps || [];
+                  const effective = tmplSteps.length - pb.skippedSteps.length;
+                  const pct = effective > 0 ? Math.round((pb.completedSteps.length / effective) * 100) : 100;
+                  const advisor = advisors.find(a => a.id === pb.advisorId);
+                  return (
+                    <div key={idx} className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 rounded-lg p-1 -m-1 transition-colors" onClick={() => { setActiveView('intelligence'); setIntelligenceSubTab('playbooks'); setEditingPlaybookIdx(idx); }}>
+                      <div className={`w-2 h-full min-h-[32px] rounded-full shrink-0 ${pb.priority === 'critical' ? 'bg-red-400' : pb.priority === 'high' ? 'bg-amber-400' : 'bg-blue-400'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-semibold text-gray-800 truncate">{pb.templateId.replace('-', ' ')} — {pb.advisorName}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-1 h-[4px] bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-[10px] font-bold text-[#157A6E]">{pct}%</span>
+                        </div>
+                      </div>
+                      {advisor && <span className="text-[10px] text-gray-400 shrink-0">{formatCurrency(advisor.mrr)}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <PlayCircle className="w-6 h-6 text-gray-300 mx-auto mb-1" />
+                <p className="text-[11px] text-gray-400">No active playbooks</p>
+                <button onClick={() => { setActiveView('intelligence'); setIntelligenceSubTab('playbooks'); }} className="text-[10px] text-[#157A6E] font-semibold mt-1 hover:underline">Assign one →</button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // ════════════════════════════════════════════════
   // RELATIONSHIPS (with sub-tabs: Partners, TSDs, White Space)
@@ -3306,7 +3424,8 @@ export default function LiveManagerPage() {
           return acc;
         }, []);
 
-        const editPct = Math.round((editPb.completedSteps.length / activeSteps.length) * 100);
+        const effectiveSteps = activeSteps.length - editPb.skippedSteps.length;
+        const editPct = effectiveSteps > 0 ? Math.round((editPb.completedSteps.length / effectiveSteps) * 100) : 100;
 
         return (
           <div className="space-y-5">
@@ -3344,7 +3463,7 @@ export default function LiveManagerPage() {
                 <div className="flex-1 h-[8px] bg-white/60 rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all" style={{ width: `${editPct}%`, backgroundColor: editTmpl.color }} />
                 </div>
-                <span className="text-[12px] font-bold" style={{ color: editTmpl.color }}>{editPb.completedSteps.length}/{activeSteps.length}</span>
+                <span className="text-[12px] font-bold" style={{ color: editTmpl.color }}>{editPb.completedSteps.length}/{effectiveSteps}{editPb.skippedSteps.length > 0 ? ` (${editPb.skippedSteps.length} skipped)` : ''}</span>
               </div>
             </div>
 
@@ -3377,18 +3496,20 @@ export default function LiveManagerPage() {
                         {phase.steps.map((step, si) => {
                           const stepIdx = globalIdx + si;
                           const isDone = editPb.completedSteps.includes(stepIdx);
-                          const isNext = !isDone && (stepIdx === 0 || editPb.completedSteps.includes(stepIdx - 1));
+                          const isSkipped = editPb.skippedSteps.includes(stepIdx);
+                          const isNext = !isDone && !isSkipped && (stepIdx === 0 || editPb.completedSteps.includes(stepIdx - 1) || editPb.skippedSteps.includes(stepIdx - 1));
 
                           return (
-                            <div key={si} className="flex gap-3 relative group">
+                            <div key={si} className={`flex gap-3 relative group ${isSkipped ? 'opacity-40' : ''}`}>
                               <div className="flex flex-col items-center">
                                 <div onClick={() => {
+                                  if (isSkipped) return;
                                   setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? {
                                     ...p, completedSteps: isDone ? p.completedSteps.filter(x => x !== stepIdx) : [...p.completedSteps, stepIdx]
                                   } : p));
-                                }} className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 cursor-pointer transition-all border-2 ${isDone ? 'bg-green-100 text-green-700 border-green-300 hover:bg-green-200' : isNext ? 'text-white hover:opacity-80 border-transparent' : 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200'}`}
+                                }} className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 cursor-pointer transition-all border-2 ${isSkipped ? 'bg-gray-100 text-gray-300 border-dashed border-gray-300' : isDone ? 'bg-green-100 text-green-700 border-green-300 hover:bg-green-200' : isNext ? 'text-white hover:opacity-80 border-transparent' : 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200'}`}
                                   style={isNext ? { backgroundColor: editTmpl.color } : {}}>
-                                  {isDone ? '✓' : step.day}
+                                  {isSkipped ? '—' : isDone ? '✓' : step.day}
                                 </div>
                                 {si < phase.steps.length - 1 && <div className="w-px flex-1 min-h-[20px]" style={{ backgroundColor: `${editTmpl.color}30` }} />}
                               </div>
@@ -3403,30 +3524,44 @@ export default function LiveManagerPage() {
                                         updated[stepIdx] = { ...updated[stepIdx], label: e.target.value };
                                         setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? { ...p, customSteps: updated } : p));
                                       }}
-                                      className={`text-[13px] font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-[#157A6E] focus:outline-none w-full transition-colors ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`}
+                                      className={`text-[13px] font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-[#157A6E] focus:outline-none w-full transition-colors ${isSkipped ? 'text-gray-300 line-through italic' : isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`}
                                     />
-                                    <textarea
-                                      value={step.desc}
-                                      onChange={(e) => {
-                                        const updated = [...activeSteps];
-                                        updated[stepIdx] = { ...updated[stepIdx], desc: e.target.value };
-                                        setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? { ...p, customSteps: updated } : p));
-                                      }}
-                                      rows={2}
-                                      className="text-[11px] text-gray-500 mt-0.5 leading-relaxed bg-transparent border border-transparent hover:border-gray-200 focus:border-[#157A6E] focus:outline-none w-full rounded px-1 -mx-1 resize-none transition-colors"
-                                    />
+                                    {!isSkipped && (
+                                      <textarea
+                                        value={step.desc}
+                                        onChange={(e) => {
+                                          const updated = [...activeSteps];
+                                          updated[stepIdx] = { ...updated[stepIdx], desc: e.target.value };
+                                          setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? { ...p, customSteps: updated } : p));
+                                        }}
+                                        rows={2}
+                                        className="text-[11px] text-gray-500 mt-0.5 leading-relaxed bg-transparent border border-transparent hover:border-gray-200 focus:border-[#157A6E] focus:outline-none w-full rounded px-1 -mx-1 resize-none transition-colors"
+                                      />
+                                    )}
                                   </div>
-                                  <button onClick={() => {
-                                    const updated = activeSteps.filter((_, idx) => idx !== stepIdx);
-                                    const updatedCompleted = editPb.completedSteps.filter(x => x !== stepIdx).map(x => x > stepIdx ? x - 1 : x);
-                                    setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? { ...p, customSteps: updated, completedSteps: updatedCompleted } : p));
-                                  }} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all mt-1">
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all mt-1">
+                                    <button onClick={() => {
+                                      setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? {
+                                        ...p,
+                                        skippedSteps: isSkipped ? p.skippedSteps.filter(x => x !== stepIdx) : [...p.skippedSteps, stepIdx],
+                                        completedSteps: isSkipped ? p.completedSteps : p.completedSteps.filter(x => x !== stepIdx),
+                                      } : p));
+                                    }} className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${isSkipped ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50'}`}>
+                                      {isSkipped ? 'Unskip' : 'Skip'}
+                                    </button>
+                                    <button onClick={() => {
+                                      const updated = activeSteps.filter((_, idx) => idx !== stepIdx);
+                                      const updatedCompleted = editPb.completedSteps.filter(x => x !== stepIdx).map(x => x > stepIdx ? x - 1 : x);
+                                      const updatedSkipped = editPb.skippedSteps.filter(x => x !== stepIdx).map(x => x > stepIdx ? x - 1 : x);
+                                      setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? { ...p, customSteps: updated, completedSteps: updatedCompleted, skippedSteps: updatedSkipped } : p));
+                                    }} className="text-gray-300 hover:text-red-400">
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
                                 </div>
                                 <div className="flex items-center gap-2 mt-1">
-                                  <span className={`text-[9px] font-medium ${isDone ? 'text-green-500' : isNext ? 'font-bold' : 'text-gray-300'}`} style={isNext ? { color: editTmpl.color } : {}}>
-                                    {isDone ? 'Completed' : isNext ? 'Current step' : `Day ${step.day}`}
+                                  <span className={`text-[9px] font-medium ${isSkipped ? 'text-gray-300 italic' : isDone ? 'text-green-500' : isNext ? 'font-bold' : 'text-gray-300'}`} style={isNext ? { color: editTmpl.color } : {}}>
+                                    {isSkipped ? 'Skipped for this advisor' : isDone ? 'Completed' : isNext ? 'Current step' : `Day ${step.day}`}
                                   </span>
                                 </div>
                               </div>
@@ -3494,8 +3629,8 @@ export default function LiveManagerPage() {
                   <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-3">Progress</h4>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { label: 'Completed', value: `${editPb.completedSteps.length}/${activeSteps.length}` },
-                      { label: 'Remaining', value: `${activeSteps.length - editPb.completedSteps.length}` },
+                      { label: 'Completed', value: `${editPb.completedSteps.length}/${effectiveSteps}` },
+                      { label: 'Skipped', value: `${editPb.skippedSteps.length}` },
                       { label: 'Progress', value: `${editPct}%` },
                       { label: 'Duration', value: editTmpl.duration },
                     ].map((stat, si) => (
@@ -3715,7 +3850,7 @@ export default function LiveManagerPage() {
                     onClick={() => {
                       const newLaunched = playbookAssignees.map(id => {
                         const a = advisors.find(x => x.id === id);
-                        return { templateId: tmpl.id, advisorId: id, advisorName: a?.name || '', launchedAt: new Date().toISOString(), priority: (matchingRec?.urgency || 'high') as 'critical' | 'high' | 'medium', completedSteps: [] as number[] };
+                        return { templateId: tmpl.id, advisorId: id, advisorName: a?.name || '', launchedAt: new Date().toISOString(), priority: (matchingRec?.urgency || 'high') as 'critical' | 'high' | 'medium', completedSteps: [] as number[], skippedSteps: [] as number[] };
                       });
                       setLaunchedPlaybooks(prev => [...prev, ...newLaunched]);
                       setPlaybookAssignees([]);
@@ -3863,7 +3998,8 @@ export default function LiveManagerPage() {
                 const lpTemplate = playbookTemplates.find(t => t.id === lp.templateId);
                 const lpAdvisor = advisors.find(a => a.id === lp.advisorId);
                 if (!lpTemplate || !lpAdvisor) return null;
-                const lpPct = Math.round((lp.completedSteps.length / lpTemplate.steps.length) * 100);
+                const lpEffective = lpTemplate.steps.length - lp.skippedSteps.length;
+                const lpPct = lpEffective > 0 ? Math.round((lp.completedSteps.length / lpEffective) * 100) : 100;
                 return (
                   <div key={`lp-${lpi}`} onClick={() => setEditingPlaybookIdx(lpi)} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 border-l-4 cursor-pointer hover:shadow-md transition-all ${lpTemplate.borderColor}`}>
                     <div className="flex justify-between items-start mb-3">
@@ -3874,6 +4010,7 @@ export default function LiveManagerPage() {
                           </span>
                           <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${lpTemplate.tagColor}`}>{lpTemplate.category}</span>
                           <span className="inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-[#F0FAF8] text-[#157A6E]">Launched</span>
+                          {lp.skippedSteps.length > 0 && <span className="inline-block px-2 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-500">{lp.skippedSteps.length} skipped</span>}
                         </div>
                         <h3 className="text-[15px] font-bold text-gray-800 font-serif">{lpTemplate.title}: {lpAdvisor.name}</h3>
                         <p className="text-[12px] text-gray-500 mt-1">{lpTemplate.subtitle} — {formatCurrency(lpAdvisor.mrr)} MRR</p>
@@ -3893,7 +4030,14 @@ export default function LiveManagerPage() {
                       <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Action Steps</h4>
                       {lpTemplate.steps.map((step, si) => {
                         const isDone = lp.completedSteps.includes(si);
-                        const isActive = !isDone && (si === 0 || lp.completedSteps.includes(si - 1));
+                        const isSkipped = lp.skippedSteps.includes(si);
+                        const isActive = !isDone && !isSkipped && (si === 0 || lp.completedSteps.includes(si - 1) || lp.skippedSteps.includes(si - 1));
+                        if (isSkipped) return (
+                          <div key={si} className="flex items-start gap-3 opacity-30">
+                            <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 bg-gray-100 text-gray-300 border border-dashed border-gray-300">—</div>
+                            <span className="text-[12px] text-gray-300 line-through italic">{step.label}</span>
+                          </div>
+                        );
                         return (
                           <div key={si} className="flex items-start gap-3 group">
                             <div onClick={(e) => { e.stopPropagation(); setLaunchedPlaybooks(prev => prev.map((p, pi) => pi === lpi ? { ...p, completedSteps: isDone ? p.completedSteps.filter(x => x !== si) : [...p.completedSteps, si] } : p)); }}
@@ -4254,7 +4398,7 @@ export default function LiveManagerPage() {
                   <ArrowLeft className="w-3 h-3" /> Admin
                 </a>
                 <h1 className="text-xl font-semibold font-['Newsreader'] text-gray-800">
-                  {NAV_ITEMS_MANAGER.find(n => n.id === activeView)?.label || 'Dashboard'}
+                  {activeView === 'command-center' ? 'Today' : NAV_ITEMS_MANAGER.find(n => n.id === activeView)?.label || 'Dashboard'}
                 </h1>
                 <span className="text-10px font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">LIVE</span>
               </div>
