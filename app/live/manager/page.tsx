@@ -80,6 +80,7 @@ export default function LiveManagerPage() {
   const [tsdRoleFilter, setTsdRoleFilter] = useState<string>('All');
   const [tsdCompanyFilter, setTsdCompanyFilter] = useState<string | null>(null);
   const [tsdSearch, setTsdSearch] = useState('');
+  const [selectedTsdContact, setSelectedTsdContact] = useState<any>(null);
   const [partnersSubView, setPartnersSubView] = useState<'contacts' | 'companies'>('contacts');
   const [partnerSearch, setPartnerSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('All');
@@ -285,9 +286,9 @@ export default function LiveManagerPage() {
         logo: '🟦',
         description: 'Largest privately-held technology solutions distributor',
         contacts: [
-          { id: 'tel-1', name: 'Sarah Mitchell', title: 'Channel Development Manager', role: 'Channel Manager', email: 's.mitchell@telarus.com', phone: '(801) 555-4821', lastContact: '2026-03-29', introsQTD: 8, introsAllTime: 47, revenueAttributed: 142000 },
-          { id: 'tel-2', name: 'James Thornton', title: 'Solutions Engineer', role: 'Sales Engineer', email: 'j.thornton@telarus.com', phone: '(801) 555-3392', lastContact: '2026-03-25', introsQTD: 5, introsAllTime: 31, revenueAttributed: 88000 },
-          { id: 'tel-3', name: 'Rachael Nguyen', title: 'Partner Success Lead', role: 'Channel Manager', email: 'r.nguyen@telarus.com', phone: '(801) 555-1104', lastContact: '2026-04-01', introsQTD: 12, introsAllTime: 63, revenueAttributed: 215000 },
+          { id: 'tel-1', name: 'Sarah Mitchell', title: 'Channel Development Manager', role: 'Channel Manager', email: 's.mitchell@telarus.com', phone: '(801) 555-4821', lastContact: '2026-03-29', introsQTD: 8, introsAllTime: 47, revenueAttributed: 142000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Proactively sending intro leads — 3 new ones this week', signalType: 'positive' as const, location: 'Salt Lake City, UT', commPref: 'Slack', notes: 'Key ally at Telarus. Always responds same-day. Advocates for Aptum in internal supplier reviews.' },
+          { id: 'tel-2', name: 'James Thornton', title: 'Solutions Engineer', role: 'Sales Engineer', email: 'j.thornton@telarus.com', phone: '(801) 555-3392', lastContact: '2026-03-25', introsQTD: 5, introsAllTime: 31, revenueAttributed: 88000, responsiveness: 'Moderate' as const, sentiment: 'Neutral' as const, engagement: 'Medium' as const, signal: 'Requested updated technical docs for SD-WAN — possible upcoming RFP', signalType: 'info' as const, location: 'Salt Lake City, UT', commPref: 'Email', notes: 'Strong technical knowledge. Prefers detailed spec sheets over marketing collateral.' },
+          { id: 'tel-3', name: 'Rachael Nguyen', title: 'Partner Success Lead', role: 'Channel Manager', email: 'r.nguyen@telarus.com', phone: '(801) 555-1104', lastContact: '2026-04-01', introsQTD: 12, introsAllTime: 63, revenueAttributed: 215000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Top intro source this quarter — asked to co-host a webinar', signalType: 'positive' as const, location: 'Austin, TX', commPref: 'Slack', notes: 'Our #1 champion at Telarus. Drives more intros than anyone. Nominated us for Supplier of the Year.' },
         ],
       },
       {
@@ -295,8 +296,8 @@ export default function LiveManagerPage() {
         logo: '🟧',
         description: 'Leading channel platform for IT decision making',
         contacts: [
-          { id: 'av-1', name: 'Derek Paulson', title: 'Channel Account Manager', role: 'Channel Manager', email: 'd.paulson@avant.com', phone: '(312) 555-6678', lastContact: '2026-03-31', introsQTD: 10, introsAllTime: 52, revenueAttributed: 178000 },
-          { id: 'av-2', name: 'Monica Reeves', title: 'Solutions Architect', role: 'Sales Engineer', email: 'm.reeves@avant.com', phone: '(312) 555-2241', lastContact: '2026-03-28', introsQTD: 6, introsAllTime: 28, revenueAttributed: 95000 },
+          { id: 'av-1', name: 'Derek Paulson', title: 'Channel Account Manager', role: 'Channel Manager', email: 'd.paulson@avant.com', phone: '(312) 555-6678', lastContact: '2026-03-31', introsQTD: 10, introsAllTime: 52, revenueAttributed: 178000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Pushing Aptum for 2 net-new enterprise accounts this month', signalType: 'positive' as const, location: 'Chicago, IL', commPref: 'Email', notes: 'Very results-driven. Responds well to SPIFs and incentive programs. Always hits his intro targets.' },
+          { id: 'av-2', name: 'Monica Reeves', title: 'Solutions Architect', role: 'Sales Engineer', email: 'm.reeves@avant.com', phone: '(312) 555-2241', lastContact: '2026-03-28', introsQTD: 6, introsAllTime: 28, revenueAttributed: 95000, responsiveness: 'Moderate' as const, sentiment: 'Neutral' as const, engagement: 'Medium' as const, signal: 'Joined a competitor webinar last week — monitor for mindshare drift', signalType: 'warning' as const, location: 'Chicago, IL', commPref: 'Email', notes: 'Great technical depth. Helps close complex deals. Schedules are tight — book 2 weeks ahead.' },
         ],
       },
       {
@@ -304,8 +305,8 @@ export default function LiveManagerPage() {
         logo: '🟩',
         description: 'Technology advisory and distribution platform',
         contacts: [
-          { id: 'bp-1', name: 'Kevin Marsh', title: 'VP Channel Partnerships', role: 'Leadership', email: 'k.marsh@bridgepointe.com', phone: '(925) 555-8812', lastContact: '2026-03-22', introsQTD: 4, introsAllTime: 19, revenueAttributed: 67000 },
-          { id: 'bp-2', name: 'Alicia Tran', title: 'Partner Development Rep', role: 'PDM/SPDM', email: 'a.tran@bridgepointe.com', phone: '(925) 555-3350', lastContact: '2026-03-27', introsQTD: 7, introsAllTime: 34, revenueAttributed: 112000 },
+          { id: 'bp-1', name: 'Kevin Marsh', title: 'VP Channel Partnerships', role: 'Leadership', email: 'k.marsh@bridgepointe.com', phone: '(925) 555-8812', lastContact: '2026-03-22', introsQTD: 4, introsAllTime: 19, revenueAttributed: 67000, responsiveness: 'Slow' as const, sentiment: 'Cool' as const, engagement: 'Low' as const, signal: 'Hasn\'t responded to last 2 emails — relationship cooling', signalType: 'warning' as const, location: 'San Ramon, CA', commPref: 'Phone', notes: 'C-level relationship — strategic but hard to reach. Best approached through Alicia first.' },
+          { id: 'bp-2', name: 'Alicia Tran', title: 'Partner Development Rep', role: 'PDM/SPDM', email: 'a.tran@bridgepointe.com', phone: '(925) 555-3350', lastContact: '2026-03-27', introsQTD: 7, introsAllTime: 34, revenueAttributed: 112000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Scheduled joint training session for advisors next week', signalType: 'positive' as const, location: 'San Ramon, CA', commPref: 'Slack', notes: 'Day-to-day contact at Bridgepointe. Very organized. Keeps detailed notes on advisor preferences.' },
         ],
       },
       {
@@ -313,9 +314,9 @@ export default function LiveManagerPage() {
         logo: '🟪',
         description: 'Telecommunications master agent and solutions distributor',
         contacts: [
-          { id: 'in-1', name: 'Robert Cianci', title: 'Channel Director', role: 'Leadership', email: 'r.cianci@intelisys.com', phone: '(203) 555-9901', lastContact: '2026-03-30', introsQTD: 9, introsAllTime: 41, revenueAttributed: 156000 },
-          { id: 'in-2', name: 'Patricia Dunn', title: 'Sales Engineer', role: 'Sales Engineer', email: 'p.dunn@intelisys.com', phone: '(203) 555-4478', lastContact: '2026-03-18', introsQTD: 3, introsAllTime: 22, revenueAttributed: 71000 },
-          { id: 'in-3', name: 'Tyler Washington', title: 'Partner Enablement Manager', role: 'Channel Manager', email: 't.washington@intelisys.com', phone: '(203) 555-6632', lastContact: '2026-04-01', introsQTD: 11, introsAllTime: 55, revenueAttributed: 198000 },
+          { id: 'in-1', name: 'Robert Cianci', title: 'Channel Director', role: 'Leadership', email: 'r.cianci@intelisys.com', phone: '(203) 555-9901', lastContact: '2026-03-30', introsQTD: 9, introsAllTime: 41, revenueAttributed: 156000, responsiveness: 'Moderate' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Invited us to Intelisys supplier summit — keynote opportunity', signalType: 'positive' as const, location: 'Petaluma, CA', commPref: 'Phone', notes: 'Senior leader with strong influence. Sets strategic direction for which suppliers get prioritized.' },
+          { id: 'in-2', name: 'Patricia Dunn', title: 'Sales Engineer', role: 'Sales Engineer', email: 'p.dunn@intelisys.com', phone: '(203) 555-4478', lastContact: '2026-03-18', introsQTD: 3, introsAllTime: 22, revenueAttributed: 71000, responsiveness: 'Slow' as const, sentiment: 'Neutral' as const, engagement: 'Low' as const, signal: 'Low intro volume — may need enablement refresh on our solutions', signalType: 'info' as const, location: 'Milford, CT', commPref: 'Email', notes: 'Technically capable but not proactive. Needs regular check-ins to stay engaged.' },
+          { id: 'in-3', name: 'Tyler Washington', title: 'Partner Enablement Manager', role: 'Channel Manager', email: 't.washington@intelisys.com', phone: '(203) 555-6632', lastContact: '2026-04-01', introsQTD: 11, introsAllTime: 55, revenueAttributed: 198000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Created custom Aptum battlecard for advisors — high advocacy', signalType: 'positive' as const, location: 'Petaluma, CA', commPref: 'Slack', notes: 'Enablement-focused. Loves co-branded content. Great at arming advisors with our talking points.' },
         ],
       },
       {
@@ -323,8 +324,8 @@ export default function LiveManagerPage() {
         logo: '🔵',
         description: 'B2B subscription commerce platform and marketplace',
         contacts: [
-          { id: 'ad-1', name: 'Yuki Tanaka', title: 'Partner Growth Manager', role: 'Channel Manager', email: 'y.tanaka@appdirect.com', phone: '(415) 555-7723', lastContact: '2026-03-26', introsQTD: 6, introsAllTime: 25, revenueAttributed: 83000 },
-          { id: 'ad-2', name: 'Chris Brennan', title: 'Solutions Consultant', role: 'Sales Engineer', email: 'c.brennan@appdirect.com', phone: '(415) 555-1198', lastContact: '2026-03-20', introsQTD: 2, introsAllTime: 14, revenueAttributed: 45000 },
+          { id: 'ad-1', name: 'Yuki Tanaka', title: 'Partner Growth Manager', role: 'Channel Manager', email: 'y.tanaka@appdirect.com', phone: '(415) 555-7723', lastContact: '2026-03-26', introsQTD: 6, introsAllTime: 25, revenueAttributed: 83000, responsiveness: 'Moderate' as const, sentiment: 'Neutral' as const, engagement: 'Medium' as const, signal: 'Requested updated pricing matrix — potential deal in pipeline', signalType: 'info' as const, location: 'San Francisco, CA', commPref: 'Email', notes: 'Newer relationship. Methodical and data-driven. Appreciates ROI-focused messaging.' },
+          { id: 'ad-2', name: 'Chris Brennan', title: 'Solutions Consultant', role: 'Sales Engineer', email: 'c.brennan@appdirect.com', phone: '(415) 555-1198', lastContact: '2026-03-20', introsQTD: 2, introsAllTime: 14, revenueAttributed: 45000, responsiveness: 'Slow' as const, sentiment: 'Cool' as const, engagement: 'Low' as const, signal: 'Engagement dropping — last meeting was cancelled twice', signalType: 'warning' as const, location: 'San Francisco, CA', commPref: 'Phone', notes: 'Was more engaged 6 months ago. May be shifting focus to other suppliers. Needs re-engagement.' },
         ],
       },
     ];
@@ -1693,7 +1694,6 @@ export default function LiveManagerPage() {
 
           const scoreInfo = getScoreBadge(avgRelationshipScore);
 
-          // Get all contacts and filter by role + company + search
           const allTsdContacts = TSD_COMPANIES.flatMap(company =>
             company.contacts.map(contact => ({ ...contact, companyName: company.name, companyColor: tsdColors[company.name] || '#157A6E' }))
           );
@@ -1708,14 +1708,222 @@ export default function LiveManagerPage() {
             return true;
           });
 
-          // Sort by most recent contact date
           const sortedContacts = [...filteredContacts].sort((a, b) =>
             new Date(b.lastContact).getTime() - new Date(a.lastContact).getTime()
           );
 
+          const engagementColors: Record<string, string> = { High: 'bg-emerald-100 text-emerald-700', Medium: 'bg-amber-100 text-amber-700', Low: 'bg-red-100 text-red-700' };
+          const sentimentColors: Record<string, string> = { Warm: 'text-emerald-600', Neutral: 'text-gray-500', Cool: 'text-red-500' };
+          const responsivenessColors: Record<string, string> = { Fast: 'text-emerald-600', Moderate: 'text-amber-600', Slow: 'text-red-500' };
+          const signalTypeColors: Record<string, string> = { positive: 'bg-emerald-50 border-l-emerald-400 text-emerald-800', warning: 'bg-amber-50 border-l-amber-400 text-amber-800', info: 'bg-blue-50 border-l-blue-400 text-blue-800' };
+
+          // ═══ TSD CONTACT DETAIL VIEW ═══
+          if (selectedTsdContact) {
+            const tc = selectedTsdContact;
+            const tsdCompany = TSD_COMPANIES.find(c => c.contacts.some(ct => ct.id === tc.id));
+            const companyPartners = tsdCompany?.partners || [];
+            const daysSince = getDaysSinceContact(tc.lastContact);
+
+            // Mock activity for this TSD contact
+            const tsdActivity = [
+              { id: 1, icon: Phone, title: `Call with ${tc.name}`, details: 'Discussed pipeline and upcoming advisor introductions', time: `${daysSince}d ago`, type: 'call' },
+              { id: 2, icon: Mail, title: 'Email: Intro for Barry Bazen', details: `${tc.name} introduced Barry Bazen for SD-WAN opportunity`, time: `${daysSince + 3}d ago`, type: 'email' },
+              { id: 3, icon: Calendar, title: 'Joint Training Session', details: `Co-hosted enablement session with ${tc.companyName} advisors`, time: `${daysSince + 8}d ago`, type: 'meeting' },
+              { id: 4, icon: Mail, title: 'Email: SPIF Update', details: `Sent updated SPIF program details to ${tc.name}`, time: `${daysSince + 14}d ago`, type: 'email' },
+              { id: 5, icon: MessageCircle, title: 'Slack: Quick Check-in', details: `${tc.name} flagged a deal needing technical support`, time: `${daysSince + 18}d ago`, type: 'note' },
+            ];
+
+            const actIconColors: Record<string, string> = {
+              call: 'bg-blue-50 text-blue-600', email: 'bg-purple-50 text-purple-600',
+              meeting: 'bg-emerald-50 text-emerald-600', note: 'bg-gray-100 text-gray-600',
+            };
+
+            return (
+              <div>
+                <button
+                  onClick={() => setSelectedTsdContact(null)}
+                  className="mb-5 flex items-center gap-1.5 text-12px font-medium text-[#157A6E] hover:text-[#0f5550] transition-colors"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  Back to TSDs
+                </button>
+
+                <div className="grid grid-cols-12 gap-6">
+                  {/* LEFT — Contact Card */}
+                  <div className="col-span-5 space-y-5">
+                    <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-[22px] font-semibold font-['Newsreader'] flex-shrink-0" style={{ backgroundColor: tc.companyColor }}>
+                          {tc.name.split(' ').map((n: string) => n[0]).join('')}
+                        </div>
+                        <div className="min-w-0">
+                          <h2 className="text-[22px] font-semibold font-['Newsreader'] text-gray-900 leading-tight">{tc.name}</h2>
+                          <p className="text-12px text-gray-600">{tc.title} at <span className="font-semibold" style={{ color: tc.companyColor }}>{tc.companyName}</span></p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2.5 mb-4 pb-4 border-b border-[#e8e5e1]">
+                        <div className="flex items-center gap-2.5 text-12px"><Phone className="w-3.5 h-3.5 text-gray-400" /><span className="text-gray-900 font-medium">{tc.phone}</span></div>
+                        <div className="flex items-center gap-2.5 text-12px"><Mail className="w-3.5 h-3.5 text-gray-400" /><span className="text-gray-900 font-medium">{tc.email}</span></div>
+                        <div className="flex items-center gap-2.5 text-12px"><MapPin className="w-3.5 h-3.5 text-gray-400" /><span className="text-gray-700">{tc.location}</span></div>
+                        <div className="flex items-center gap-2.5 text-12px"><Building2 className="w-3.5 h-3.5 text-gray-400" /><span className="text-gray-700">{tc.companyName}</span></div>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2 mb-2">
+                        {[
+                          { label: 'Email', icon: Mail }, { label: 'Call', icon: Phone },
+                          { label: 'Schedule', icon: Calendar }, { label: 'Log Call', icon: FileText },
+                        ].map(btn => (
+                          <button key={btn.label} className="flex flex-col items-center gap-1 px-2 py-2.5 border border-[#157A6E]/30 text-[#157A6E] rounded-lg hover:bg-[#157A6E]/5 transition-colors">
+                            <btn.icon className="w-4 h-4" />
+                            <span className="text-[10px] font-medium">{btn.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[9px] text-gray-400 text-center">Links configured in Settings</p>
+                    </div>
+
+                    {/* Key Metrics */}
+                    <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Revenue</p>
+                          <p className="text-[18px] font-bold text-[#157A6E]">{formatCurrency(tc.revenueAttributed)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Intros QTD</p>
+                          <p className="text-[18px] font-bold text-gray-900">{tc.introsQTD}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">All-Time</p>
+                          <p className="text-[18px] font-bold text-gray-900">{tc.introsAllTime}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Engagement & Signals */}
+                    <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                      <h3 className="text-13px font-semibold font-['Newsreader'] text-gray-900 mb-3">Engagement</h3>
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-11px text-gray-600">Engagement</span>
+                          <span className={`px-2 py-0.5 text-10px font-medium rounded ${engagementColors[tc.engagement] || ''}`}>{tc.engagement}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-11px text-gray-600">Sentiment</span>
+                          <span className={`text-11px font-semibold ${sentimentColors[tc.sentiment] || ''}`}>{tc.sentiment}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-11px text-gray-600">Responsiveness</span>
+                          <span className={`text-11px font-semibold ${responsivenessColors[tc.responsiveness] || ''}`}>{tc.responsiveness}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-11px text-gray-600">Last Contact</span>
+                          <span className={`text-11px font-semibold ${daysSince <= 7 ? 'text-emerald-600' : daysSince <= 14 ? 'text-amber-600' : 'text-red-500'}`}>{daysSince}d ago</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-11px text-gray-600">Comm Pref</span>
+                          <span className="text-11px font-medium text-gray-900">{tc.commPref}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Notes */}
+                    {tc.notes && (
+                      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                        <h3 className="text-13px font-semibold font-['Newsreader'] text-gray-900 mb-3">Notes</h3>
+                        <p className="text-12px text-gray-700 leading-relaxed">{tc.notes}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* RIGHT — Signal, Activity, Partners */}
+                  <div className="col-span-7 space-y-5">
+                    {/* Active Signal */}
+                    {tc.signal && (
+                      <div className={`rounded-[10px] border-l-4 p-4 ${signalTypeColors[tc.signalType] || 'bg-gray-50 border-l-gray-300 text-gray-700'}`}>
+                        <div className="flex items-start gap-2">
+                          <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-12px font-semibold mb-0.5">Signal</p>
+                            <p className="text-12px">{tc.signal}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Activity Timeline */}
+                    <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                      <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Recent Activity</h3>
+                      <div className="space-y-0">
+                        {tsdActivity.map((item, idx) => {
+                          const IconComp = item.icon;
+                          return (
+                            <div key={item.id} className="flex gap-3 relative">
+                              {idx < tsdActivity.length - 1 && <div className="absolute left-[15px] top-[36px] bottom-0 w-[1.5px] bg-[#e8e5e1]" />}
+                              <div className={`w-[32px] h-[32px] rounded-full flex items-center justify-center flex-shrink-0 z-10 ${actIconColors[item.type] || 'bg-gray-100 text-gray-600'}`}>
+                                <IconComp className="w-4 h-4" />
+                              </div>
+                              <div className="flex-1 pb-5">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="text-12px font-medium text-gray-900">{item.title}</p>
+                                  <span className="text-[10px] text-gray-400 flex-shrink-0 mt-0.5">{item.time}</span>
+                                </div>
+                                <p className="text-11px text-gray-600 mt-0.5">{item.details}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Partners via this TSD */}
+                    {companyPartners.length > 0 && (
+                      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                        <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Partners via {tc.companyName} ({companyPartners.length})</h3>
+                        <div className="space-y-2">
+                          {companyPartners.slice(0, 8).map(p => (
+                            <div
+                              key={p.id}
+                              onClick={() => { setSelectedAdvisor(p); setPanelOpen(true); setSelectedTsdContact(null); }}
+                              className="flex items-center justify-between p-3 rounded-lg hover:bg-[#F0F9F8] cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-[#157A6E] rounded-full flex items-center justify-center text-white text-[10px] font-bold">
+                                  {p.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                                </div>
+                                <div>
+                                  <p className="text-12px font-medium text-gray-900">{p.name}</p>
+                                  <p className="text-[10px] text-gray-500">{p.company}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-12px font-semibold text-[#157A6E]">{formatCurrency(p.mrr)}</span>
+                                <PulseBadge pulse={p.pulse} />
+                                <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
+                              </div>
+                            </div>
+                          ))}
+                          {companyPartners.length > 8 && <p className="text-11px text-gray-400 text-center pt-2">+{companyPartners.length - 8} more partners</p>}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Add Note */}
+                    <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                      <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-3">Add a Note</h3>
+                      <textarea placeholder={`Write a note about ${tc.name.split(' ')[0]}...`} className="w-full text-12px border border-[#e8e5e1] rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E] mb-3" rows={3} />
+                      <button className="px-4 py-2 text-12px font-medium bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] transition-colors">Save Note</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // ═══ TSD LIST VIEW ═══
           return (
         <div className="space-y-4">
-          {/* KPI Row */}
           <div className="grid grid-cols-4 gap-4">
             <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
               <p className="text-10px text-gray-500 uppercase font-medium">Intros This Quarter</p>
@@ -1738,159 +1946,89 @@ export default function LiveManagerPage() {
             </div>
           </div>
 
-          {/* ── TOOLBAR ── */}
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 flex items-center gap-4 flex-wrap">
-            {/* Search */}
             <div className="flex-1 min-w-[200px] relative">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={tsdSearch}
-                onChange={(e) => setTsdSearch(e.target.value)}
-                placeholder="Search TSD contacts..."
-                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-full text-12px font-['Inter'] focus:outline-none focus:border-[#157A6E] focus:ring-1 focus:ring-[#157A6E]/20"
-              />
+              <input type="text" value={tsdSearch} onChange={(e) => setTsdSearch(e.target.value)} placeholder="Search TSD contacts..." className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-full text-12px font-['Inter'] focus:outline-none focus:border-[#157A6E] focus:ring-1 focus:ring-[#157A6E]/20" />
             </div>
-
-            {/* Role Dropdown */}
-            <select
-              value={tsdRoleFilter}
-              onChange={(e) => setTsdRoleFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-md text-12px font-['Inter'] text-gray-700 hover:border-[#157A6E] cursor-pointer"
-            >
+            <select value={tsdRoleFilter} onChange={(e) => setTsdRoleFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-md text-12px font-['Inter'] text-gray-700 hover:border-[#157A6E] cursor-pointer">
               <option value="All">All Roles</option>
               <option value="Leadership">Leadership</option>
               <option value="Channel Manager">Channel Manager</option>
               <option value="PDM/SPDM">PDM/SPDM</option>
               <option value="Sales Engineer">Sales Engineer</option>
-              <option value="Marketing">Marketing</option>
-              <option value="Ops">Ops</option>
-              <option value="Other">Other</option>
             </select>
-
-            {/* Company Dropdown */}
-            <select
-              value={tsdCompanyFilter || ''}
-              onChange={(e) => setTsdCompanyFilter(e.target.value || null)}
-              className="px-3 py-2 border border-gray-200 rounded-md text-12px font-['Inter'] text-gray-700 hover:border-[#157A6E] cursor-pointer"
-            >
+            <select value={tsdCompanyFilter || ''} onChange={(e) => setTsdCompanyFilter(e.target.value || null)} className="px-3 py-2 border border-gray-200 rounded-md text-12px font-['Inter'] text-gray-700 hover:border-[#157A6E] cursor-pointer">
               <option value="">All TSDs</option>
-              {TSD_COMPANIES.map(company => (
-                <option key={company.name} value={company.name}>{company.name}</option>
-              ))}
+              {TSD_COMPANIES.map(company => <option key={company.name} value={company.name}>{company.name}</option>)}
             </select>
-
-            {/* + Add TSD Button */}
-            <button
-              className="flex items-center gap-2 px-3 py-2 bg-[#157A6E] text-white rounded-md text-12px font-semibold hover:bg-[#126B5F] transition-colors"
-              title="Add a new TSD contact"
-            >
-              <Plus className="w-4 h-4" />
-              Add TSD
+            <button className="flex items-center gap-2 px-3 py-2 bg-[#157A6E] text-white rounded-md text-12px font-semibold hover:bg-[#126B5F] transition-colors" title="Add a new TSD contact">
+              <Plus className="w-4 h-4" /> Add TSD
             </button>
           </div>
 
-          {/* ── DATA TABLE ── */}
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-[#FAFAF8]">
                   <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]" style={{ minWidth: 200 }}>Contact</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Title</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Company</th>
                   <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Role</th>
+                  <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Engagement</th>
+                  <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]" style={{ minWidth: 220 }}>Signal</th>
                   <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Phone</th>
-                  <th className="text-center px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Intros QTD</th>
-                  <th className="text-center px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">All-Time</th>
+                  <th className="text-center px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Intros</th>
                   <th className="text-right px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Revenue</th>
                   <th className="text-center px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Contact</th>
-                  <th className="text-right px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedContacts.length === 0 ? (
-                  <tr><td colSpan={10} className="text-center py-8 text-12px text-gray-400">No TSD contacts match your filters</td></tr>
+                  <tr><td colSpan={8} className="text-center py-8 text-12px text-gray-400">No TSD contacts match your filters</td></tr>
                 ) : (
                   sortedContacts.map((contact, i) => {
                     const daysSince = getDaysSinceContact(contact.lastContact);
-                    const initials = contact.name.split(' ').map(n => n[0]).join('').slice(0, 2);
-
+                    const initials = contact.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2);
                     return (
                       <tr
                         key={contact.id}
+                        onClick={() => setSelectedTsdContact(contact)}
                         className={`group transition-colors hover:bg-[#F0F9F8] cursor-pointer ${i % 2 === 0 ? 'bg-white' : 'bg-[#FAFAF8]'}`}
                         style={{ height: 52 }}
                       >
-                        {/* Contact Cell */}
                         <td className="px-4">
                           <div className="flex items-center gap-3">
-                            <div
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-10px font-bold flex-shrink-0"
-                              style={{ backgroundColor: contact.companyColor }}
-                            >
-                              {initials}
-                            </div>
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-10px font-bold flex-shrink-0" style={{ backgroundColor: contact.companyColor }}>{initials}</div>
                             <div>
-                              <p className="text-13px font-semibold text-gray-900 group-hover:text-[#157A6E]">{contact.name}</p>
-                              <p className="text-10px text-gray-500">{contact.companyName}</p>
+                              <p className="text-13px font-semibold text-gray-900 group-hover:text-[#157A6E] transition-colors">{contact.name}</p>
+                              <p className="text-10px text-gray-500">{contact.title} · <span style={{ color: contact.companyColor }} className="font-medium">{contact.companyName}</span></p>
                             </div>
                           </div>
                         </td>
-                        {/* Title */}
-                        <td className="px-4 text-11px text-gray-600">{contact.title}</td>
-                        {/* Company */}
                         <td className="px-4">
-                          <span
-                            className="inline-block text-10px font-semibold text-white px-2.5 py-1 rounded-full"
-                            style={{ backgroundColor: contact.companyColor }}
-                          >
-                            {contact.companyName}
-                          </span>
+                          <span className="inline-block text-10px font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded">{contact.role}</span>
                         </td>
-                        {/* Role */}
                         <td className="px-4">
-                          <span className="inline-block text-10px font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded">
-                            {contact.role}
-                          </span>
-                        </td>
-                        {/* Phone */}
-                        <td className="px-4 text-11px text-gray-600">{contact.phone || '—'}</td>
-                        {/* Intros QTD */}
-                        <td className="px-4 text-center text-13px font-bold text-[#157A6E]">{contact.introsQTD}</td>
-                        {/* All-Time */}
-                        <td className="px-4 text-center text-13px font-bold text-gray-700">{contact.introsAllTime}</td>
-                        {/* Revenue */}
-                        <td className="px-4 text-right text-13px font-bold text-[#157A6E]">{formatCurrency(contact.revenueAttributed)}</td>
-                        {/* Contact Duration */}
-                        <td className="px-4 text-center">
-                          <span
-                            className={`inline-block text-11px font-semibold px-2.5 py-1 rounded-full text-white ${
-                              daysSince <= 3
-                                ? 'bg-green-500'
-                                : daysSince <= 7
-                                ? 'bg-yellow-500'
-                                : 'bg-red-500'
-                            }`}
-                          >
-                            {daysSince}d
-                          </span>
-                        </td>
-                        {/* Actions */}
-                        <td className="px-4 text-right">
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              className="p-1.5 rounded hover:bg-gray-100 transition-colors"
-                              title={contact.email}
-                            >
-                              <Mail className="w-4 h-4 text-gray-400 hover:text-[#157A6E]" />
-                            </button>
-                            <button
-                              className="p-1.5 rounded hover:bg-gray-100 transition-colors"
-                              title={contact.phone}
-                            >
-                              <Phone className="w-4 h-4 text-gray-400 hover:text-[#157A6E]" />
-                            </button>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 text-10px font-medium rounded ${engagementColors[(contact as any).engagement] || 'bg-gray-100 text-gray-600'}`}>{(contact as any).engagement}</span>
+                            <span className={`text-10px font-medium ${sentimentColors[(contact as any).sentiment] || ''}`}>{(contact as any).sentiment}</span>
                           </div>
+                        </td>
+                        <td className="px-4">
+                          {(contact as any).signal && (
+                            <p className="text-[10px] text-gray-600 truncate max-w-[220px]" title={(contact as any).signal}>
+                              <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${(contact as any).signalType === 'positive' ? 'bg-emerald-500' : (contact as any).signalType === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`} />
+                              {(contact as any).signal}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-4 text-11px text-gray-600">{contact.phone}</td>
+                        <td className="px-4 text-center">
+                          <span className="text-13px font-bold text-[#157A6E]">{contact.introsQTD}</span>
+                          <span className="text-[10px] text-gray-400 ml-1">/ {contact.introsAllTime}</span>
+                        </td>
+                        <td className="px-4 text-right text-13px font-bold text-[#157A6E]">{formatCurrency(contact.revenueAttributed)}</td>
+                        <td className="px-4 text-center">
+                          <span className={`inline-block text-11px font-semibold px-2.5 py-1 rounded-full text-white ${daysSince <= 3 ? 'bg-green-500' : daysSince <= 7 ? 'bg-yellow-500' : 'bg-red-500'}`}>{daysSince}d</span>
                         </td>
                       </tr>
                     );
@@ -1900,7 +2038,6 @@ export default function LiveManagerPage() {
             </table>
           </div>
 
-          {/* Summary bar */}
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] px-5 py-3 text-center text-12px text-gray-500">
             Showing <strong className="text-gray-800">{sortedContacts.length}</strong> of <strong className="text-gray-800">{totalTsdContacts}</strong> contacts · Total Revenue: <strong className="text-gray-800">{formatCurrency(sortedContacts.reduce((s, c) => s + c.revenueAttributed, 0))}</strong>
           </div>
