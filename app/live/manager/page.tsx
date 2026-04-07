@@ -8,6 +8,7 @@ import {
   Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle, RefreshCw,
   Megaphone, Star, TrendingUp as TrendingUpIcon, CheckCircle, AlertCircle as AlertCircleIcon, Edit, Plus,
   LayoutGrid, Map, FileText, Mail, Building2, ArrowUpRight, BarChart3, UserPlus, Calendar, Shield, PlayCircle, ChevronRight, Search,
+  Send, Loader2,
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -93,7 +94,11 @@ export default function LiveManagerPage() {
   const [completedActions, setCompletedActions] = useState<string[]>([]);
   const [actionFilter, setActionFilter] = useState<'all' | 'critical' | 'playbook' | 'cadence' | 'deals'>('all');
   const [playbookModalAdvisor, setPlaybookModalAdvisor] = useState<Advisor | null>(null);
-  const [playbookModalMode, setPlaybookModalMode] = useState<'template' | 'custom'>('template');
+  const [playbookModalMode, setPlaybookModalMode] = useState<'template' | 'custom' | 'ai'>('template');
+  const [aiPlaybookMessages, setAiPlaybookMessages] = useState<Array<{type: 'user' | 'assistant'; text: string}>>([]);
+  const [aiPlaybookInput, setAiPlaybookInput] = useState('');
+  const [aiPlaybookLoading, setAiPlaybookLoading] = useState(false);
+  const [aiGeneratedSteps, setAiGeneratedSteps] = useState<Array<{day: number; label: string; desc: string; phase: string}> | null>(null);
   const [customPlaybookName, setCustomPlaybookName] = useState('');
   const [customPlaybookSteps, setCustomPlaybookSteps] = useState<Array<{label: string; desc: string; day: number}>>([{label: '', desc: '', day: 1}]);
   const [showAbandonModal, setShowAbandonModal] = useState<{advisorId: string; advisorName: string; company: string; tier: PartnerTier; mrr: number} | null>(null);
@@ -285,6 +290,62 @@ export default function LiveManagerPage() {
 
   const reigniteAdvisor = (advisorId: string) => {
     setFlatlinedAdvisorIds(prev => prev.filter(id => id !== advisorId));
+  };
+
+  // AI Playbook generation
+  const sendAiPlaybookMessage = async (text: string) => {
+    if (!text.trim()) return;
+    const advisor = playbookModalAdvisor;
+    const updatedMessages = [...aiPlaybookMessages, { type: 'user' as const, text }];
+    setAiPlaybookMessages(updatedMessages);
+    setAiPlaybookInput('');
+    setAiPlaybookLoading(true);
+
+    try {
+      const systemContext = advisor
+        ? `You are helping a channel manager create a playbook for their partner advisor. The advisor is ${advisor.name} at ${advisor.company}, ${advisor.tier} tier, ${formatCurrency(advisor.mrr)} MRR, ${advisor.trajectory} trajectory, ${advisor.pulse} pulse, ${advisor.friction} friction. ${advisor.diagnosis || ''}
+
+When the user describes what they want, generate a playbook as a JSON array of steps. Each step has: day (number), label (short action title), desc (detailed description), phase (grouping label like "Week 1", "Diagnose", "Execute", etc).
+
+ALWAYS include your playbook as a JSON code block like:
+\`\`\`json
+[{"day": 1, "label": "Step title", "desc": "Step description", "phase": "Phase name"}]
+\`\`\`
+
+Also include a brief conversational explanation before or after the JSON. Ask clarifying questions if the user's intent is unclear. Suggest improvements.`
+        : `You are helping a channel manager create a custom playbook. Generate steps as JSON when ready.`;
+
+      const res = await fetch('/api/live/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          role: 'manager',
+          advisorId: advisor?.id,
+          systemPrompt: systemContext,
+          conversationHistory: updatedMessages.map(m => ({ type: m.type, text: m.text })),
+        }),
+      });
+      const data = await res.json();
+      const responseText = data.response || 'I couldn\'t generate a response. Try describing what you want this playbook to accomplish.';
+
+      setAiPlaybookMessages(prev => [...prev, { type: 'assistant', text: responseText }]);
+
+      // Try to extract JSON steps from the response
+      const jsonMatch = responseText.match(/```json\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        try {
+          const steps = JSON.parse(jsonMatch[1]);
+          if (Array.isArray(steps) && steps.length > 0 && steps[0].label) {
+            setAiGeneratedSteps(steps);
+          }
+        } catch {}
+      }
+    } catch (err) {
+      setAiPlaybookMessages(prev => [...prev, { type: 'assistant', text: 'Could not reach AI service. Try again or create steps manually.' }]);
+    }
+
+    setAiPlaybookLoading(false);
   };
 
   // Fetch live data
@@ -4529,6 +4590,12 @@ export default function LiveManagerPage() {
               >
                 Create Custom
               </button>
+              <button
+                onClick={() => { setPlaybookModalMode('ai'); if (aiPlaybookMessages.length === 0) { setAiPlaybookMessages([{ type: 'assistant', text: playbookModalAdvisor ? `I can help you build a playbook for ${playbookModalAdvisor.name}. Tell me what you're trying to accomplish — are you looking to retain them, grow the relationship, re-engage, or something else?` : 'Tell me about the advisor and what you want this playbook to accomplish. I\'ll generate the steps for you.' }]); } }}
+                className={`px-6 py-3 text-[13px] font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${playbookModalMode === 'ai' ? 'text-[#157A6E] border-[#157A6E]' : 'text-gray-500 border-transparent hover:text-gray-700'}`}
+              >
+                <Sparkles className="w-3.5 h-3.5" /> AI Assistant
+              </button>
             </div>
 
             {/* Content */}
@@ -4706,7 +4773,7 @@ export default function LiveManagerPage() {
                     </>
                   )}
                 </>
-              ) : (
+              ) : playbookModalMode === 'custom' ? (
                 <>
                   {/* Custom Playbook Creation */}
                   <div>
@@ -4797,11 +4864,128 @@ export default function LiveManagerPage() {
                   </div>
 
                   <button
-                    onClick={() => { /* Open AIChat with prompt */ setShowPlaybookModal(false); }}
-                    className="w-full px-4 py-2 text-[12px] font-medium text-[#157A6E] border border-[#157A6E] rounded-lg hover:bg-teal-50"
+                    onClick={() => setPlaybookModalMode('ai')}
+                    className="w-full px-4 py-2 text-[12px] font-medium text-[#157A6E] border border-[#157A6E] rounded-lg hover:bg-teal-50 flex items-center justify-center gap-2"
                   >
-                    Ask AI for Help
+                    <Sparkles className="w-3.5 h-3.5" /> Let AI Help Build This
                   </button>
+                </>
+              ) : (
+                <>
+                  {/* AI Assistant Chat */}
+                  <div className="flex flex-col h-[400px]">
+                    {/* Chat Messages */}
+                    <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-1">
+                      {aiPlaybookMessages.map((msg, i) => (
+                        <div key={i} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[85%] rounded-xl px-4 py-2.5 ${msg.type === 'user'
+                            ? 'bg-[#157A6E] text-white'
+                            : 'bg-[#F7F5F2] text-gray-800 border border-[#e8e5e1]'}`}
+                          >
+                            <p className="text-[12px] leading-relaxed whitespace-pre-wrap">{msg.text.replace(/```json[\s\S]*?```/g, '[Playbook steps generated — see below]')}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {aiPlaybookLoading && (
+                        <div className="flex justify-start">
+                          <div className="bg-[#F7F5F2] border border-[#e8e5e1] rounded-xl px-4 py-3 flex items-center gap-2">
+                            <Loader2 className="w-3.5 h-3.5 text-[#157A6E] animate-spin" />
+                            <span className="text-[12px] text-gray-500">Building your playbook...</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Generated Steps Review */}
+                    {aiGeneratedSteps && (
+                      <div className="border border-[#157A6E]/30 bg-teal-50/50 rounded-xl p-4 mb-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-[#157A6E]" />
+                            <h4 className="text-[13px] font-semibold text-[#157A6E]">Generated Playbook — {aiGeneratedSteps.length} Steps</h4>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setAiGeneratedSteps(null);
+                                setAiPlaybookMessages(prev => [...prev, { type: 'user', text: 'Please revise this playbook.' }]);
+                                sendAiPlaybookMessage('Please revise this playbook. I want changes.');
+                              }}
+                              className="px-3 py-1 text-[10px] font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+                            >
+                              Revise
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                          {aiGeneratedSteps.map((step, i) => (
+                            <div key={i} className="bg-white rounded-lg p-3 border border-[#e8e5e1]">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[10px] font-bold text-[#157A6E] bg-teal-100 px-2 py-0.5 rounded">Day {step.day}</span>
+                                <span className="text-[9px] text-gray-400 uppercase">{step.phase}</span>
+                              </div>
+                              <input
+                                type="text"
+                                value={step.label}
+                                onChange={e => {
+                                  const updated = [...aiGeneratedSteps];
+                                  updated[i] = { ...updated[i], label: e.target.value };
+                                  setAiGeneratedSteps(updated);
+                                }}
+                                className="w-full text-[12px] font-semibold text-gray-800 bg-transparent border-none focus:outline-none focus:bg-gray-50 rounded px-1 -mx-1"
+                              />
+                              <textarea
+                                value={step.desc}
+                                onChange={e => {
+                                  const updated = [...aiGeneratedSteps];
+                                  updated[i] = { ...updated[i], desc: e.target.value };
+                                  setAiGeneratedSteps(updated);
+                                }}
+                                className="w-full text-[11px] text-gray-600 bg-transparent border-none focus:outline-none focus:bg-gray-50 rounded px-1 -mx-1 resize-none"
+                                rows={2}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3">
+                          <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Priority</label>
+                          <div className="flex gap-2 mt-1">
+                            {(['critical', 'high', 'medium'] as const).map(p => (
+                              <button
+                                key={p}
+                                onClick={() => setPlaybookPriority(p)}
+                                className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${playbookPriority === p
+                                  ? p === 'critical' ? 'bg-red-100 text-red-800 border border-red-200' : p === 'high' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                  : 'bg-gray-100 text-gray-500 border border-gray-200'}`}
+                              >
+                                {p.charAt(0).toUpperCase() + p.slice(1)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Chat Input */}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={aiPlaybookInput}
+                        onChange={e => setAiPlaybookInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAiPlaybookMessage(aiPlaybookInput); } }}
+                        placeholder={aiGeneratedSteps ? 'Ask for revisions...' : 'Describe the playbook you need...'}
+                        className="flex-1 px-4 py-2.5 border border-[#e8e5e1] rounded-xl text-[13px] focus:outline-none focus:border-[#157A6E] bg-white"
+                        disabled={aiPlaybookLoading}
+                      />
+                      <button
+                        onClick={() => sendAiPlaybookMessage(aiPlaybookInput)}
+                        disabled={!aiPlaybookInput.trim() || aiPlaybookLoading}
+                        className="px-4 py-2.5 bg-[#157A6E] text-white rounded-xl hover:bg-[#126a5f] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
@@ -4856,6 +5040,29 @@ export default function LiveManagerPage() {
                   className="px-4 py-2 text-[12px] font-semibold text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f]"
                 >
                   Assign to {playbookModalAdvisor.name}
+                </button>
+              )}
+              {playbookModalMode === 'ai' && aiGeneratedSteps && playbookModalAdvisor && (
+                <button
+                  onClick={() => {
+                    setLaunchedPlaybooks(prev => [...prev, {
+                      templateId: 'ai-generated',
+                      advisorId: playbookModalAdvisor.id,
+                      advisorName: playbookModalAdvisor.name,
+                      launchedAt: new Date().toISOString(),
+                      priority: playbookPriority,
+                      completedSteps: [],
+                      skippedSteps: [],
+                      customSteps: aiGeneratedSteps,
+                    }]);
+                    setShowPlaybookModal(false);
+                    setAiPlaybookMessages([]);
+                    setAiGeneratedSteps(null);
+                    setAiPlaybookInput('');
+                  }}
+                  className="px-4 py-2 text-[12px] font-semibold text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f] flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Assign to {playbookModalAdvisor.name}
                 </button>
               )}
             </div>

@@ -159,3 +159,80 @@ All foreign keys use `ON DELETE CASCADE` — deleting an advisor removes their d
 - Both can coexist — demo for pitch decks, live for actual demos
 - The admin UI at `/live` has "Manager View" and "Leader View" buttons in the header
 - Data persists across deploys (it's in Postgres, not the filesystem)
+
+---
+
+## New Features (v2)
+
+### PWA (Progressive Web App) Support
+- Service Worker for offline caching and background sync
+- Installable on mobile as a native-like app
+- Cache-first strategy for static assets, network-first for API calls
+- Offline support for previously accessed pages
+- See `FEATURES.md` for details
+
+### Admin Console (`/admin`)
+- Multi-tab dashboard for system administration
+- Users, Organization, Integrations, Billing, and Audit Log tabs
+- User management with invite system
+- Organization settings and usage tracking
+- Integration status monitoring and configuration
+- Plan management and billing history
+- Complete audit trail of system changes
+- See `FEATURES.md` for details
+
+### Integration Management System
+- Pre-built connectors for Salesforce, HubSpot, Gmail, Google Calendar, Gong, Fireflies, Slack
+- OAuth flows for CRM and communication platforms
+- Webhook receivers for meeting transcripts
+- Meeting intelligence extraction (transcript parsing, sentiment analysis)
+- Contact and deal sync helpers from Salesforce/HubSpot
+- See `FEATURES.md` for details
+
+### Mobile Responsive Design
+- Bottom tab navigation on mobile (<768px)
+- Fully responsive admin console and manager views
+- Touch-friendly tap targets (min 44px)
+- Optimized layouts for small screens
+- See `FEATURES.md` for details
+
+### Database Schema Updates
+- New tables: `integrations`, `audit_log`, `transcripts`, `users`
+- Indices for performance optimization
+- Run migration: `migrations/001-integrations-schema.sql`
+- See `FEATURES.md` for setup instructions
+
+---
+
+## Configuration for New Features
+
+### Environment Variables (Optional)
+```
+# OAuth Provider Credentials (for integration OAuth flows)
+SALESFORCE_CLIENT_ID=your_client_id
+SALESFORCE_CLIENT_SECRET=your_client_secret
+HUBSPOT_CLIENT_ID=your_client_id
+HUBSPOT_CLIENT_SECRET=your_client_secret
+SLACK_CLIENT_ID=your_client_id
+SLACK_CLIENT_SECRET=your_client_secret
+
+# Redirect URIs (base them on your domain)
+SALESFORCE_REDIRECT_URI=https://yourdomain.com/api/integrations/salesforce/callback
+HUBSPOT_REDIRECT_URI=https://yourdomain.com/api/integrations/hubspot/callback
+SLACK_REDIRECT_URI=https://yourdomain.com/api/integrations/slack/callback
+```
+
+Note: These are optional. The system works with placeholder values during development.
+
+### Database Migration
+When ready to use integrations, apply the schema:
+```bash
+psql $DATABASE_PUBLIC_URL < migrations/001-integrations-schema.sql
+```
+
+Or run the migration script:
+```bash
+node scripts/run-migration.mjs
+```
+
+See `FEATURES.md` for complete details on all new features.
