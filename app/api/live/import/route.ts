@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
           title: row.title?.trim() || '',
           company: row.company?.trim() || '',
           location: row.location?.trim() || undefined,
-          tier: (row.tier?.toLowerCase() || 'other') as any,
+          tier: (row.tier?.toLowerCase() || 'silver') as any,
           mrr,
           commPreference: row.commPreference?.trim() || undefined,
           personalIntel: row.personalIntel?.trim() || undefined,

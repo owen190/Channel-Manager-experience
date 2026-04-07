@@ -101,7 +101,7 @@ export const leaderBriefing = {
       advisorName: 'Sarah Chen',
       dealName: 'Long-term Partnership Expansion',
       mrrAtRisk: 42000,
-      action: 'Sarah is top10 partner showing acceleration trajectory. Schedule strategic planning session to define multi-year roadmap and expansion opportunities.',
+      action: 'Sarah is platinum partner showing acceleration trajectory. Schedule strategic planning session to define multi-year roadmap and expansion opportunities.',
       personalHook: 'Sarah mentors young professionals - explore co-marketing and thought leadership opportunities that align with her brand.'
     },
     {

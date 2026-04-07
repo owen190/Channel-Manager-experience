@@ -108,20 +108,20 @@ export default function ManagerPage() {
 
   const getTierColor = (tier: string): string => {
     const colorMap: Record<string, string> = {
-      'top10': '#157A6E',
-      'next20': '#2563eb',
-      'other': '#9ca3af',
+      'platinum': '#157A6E',
+      'gold': '#2563eb',
+      'silver': '#9ca3af',
     };
     return colorMap[tier] || '#9ca3af';
   };
 
   const calculateQuotesData = (advisor: Advisor): { submitted: number; won: number } => {
     const tierMultiplier: Record<string, number> = {
-      'top10': 45,
-      'next20': 28,
-      'other': 12,
+      'platinum': 45,
+      'gold': 28,
+      'silver': 12,
     };
-    const tier = advisor.tier || 'other';
+    const tier = advisor.tier || 'silver';
     const baseFactor = tierMultiplier[tier] || 12;
     const submitted = Math.floor(5 + (baseFactor * (advisor.mrr / 10000)));
     const conversionRate = 0.3 + ((advisor.mrr % 7) / 7) * 0.4;
@@ -370,10 +370,10 @@ export default function ManagerPage() {
     switch (relationshipFilter) {
       case 'At Risk':
         return advisors.filter(a => ['Slipping', 'Freefall'].includes(a.trajectory) || ['Fading', 'Flatline'].includes(a.pulse));
-      case 'Top 10':
-        return advisors.filter(a => a.tier === 'top10');
+      case 'Platinum':
+        return advisors.filter(a => a.tier === 'platinum');
       case 'Rising Stars':
-        return advisors.filter(a => a.tier === 'next20' && ['Climbing', 'Accelerating'].includes(a.trajectory) && ['Strong', 'Rising'].includes(a.pulse));
+        return advisors.filter(a => a.tier === 'gold' && ['Climbing', 'Accelerating'].includes(a.trajectory) && ['Strong', 'Rising'].includes(a.pulse));
       case 'New':
         return advisors.filter(a => {
           const connected = new Date(a.connectedSince);
@@ -949,7 +949,7 @@ export default function ManagerPage() {
                 {relationshipsView === 'list' && (
                   <div className="flex flex-col bg-white rounded-xl border border-[#e8e5e1] h-full">
                     <div className="px-6 py-4 border-b border-[#f0ede9] flex gap-2 flex-wrap">
-                      {['All', 'At Risk', 'Top 10', 'Rising Stars', 'New'].map(filter => (
+                      {['All', 'At Risk', 'Platinum', 'Rising Stars', 'New'].map(filter => (
                         <button
                           key={filter}
                           onClick={() => setRelationshipFilter(filter)}
@@ -1574,7 +1574,7 @@ export default function ManagerPage() {
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-5">
                     <p className="text-10px uppercase font-semibold text-[#888] mb-1">Advisors</p>
                     <p className="text-2xl font-bold text-gray-900">{advisors.length}</p>
-                    <p className="text-11px text-[#157A6E] mt-1">{advisors.filter(a => a.tier === 'top10').length} Top 10</p>
+                    <p className="text-11px text-[#157A6E] mt-1">{advisors.filter(a => a.tier === 'platinum').length} Platinum</p>
                   </div>
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-5">
                     <p className="text-10px uppercase font-semibold text-[#888] mb-1">Portfolio MRR</p>
@@ -1613,7 +1613,7 @@ export default function ManagerPage() {
                           const engagementScore = calculateEngagementScore(advisor);
                           const engagementX = (engagementScore / 100) * 80 + 10;
                           const mrrY = 100 - ((advisor.mrr / maxMRR) * 80 + 10);
-                          const tierColor = getTierColor(advisor.tier || 'other');
+                          const tierColor = getTierColor(advisor.tier || 'silver');
                           const showLabel = top5Ids.has(advisor.id);
 
                           return (
@@ -1660,14 +1660,14 @@ export default function ManagerPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {['top10', 'next20', 'other'].map((tier, idx) => {
+                          {['platinum', 'gold', 'silver'].map((tier, idx) => {
                             const tierAdvisors = advisors.filter(a => a.tier === tier);
                             const tierMRR = tierAdvisors.reduce((sum, a) => sum + a.mrr, 0);
                             const avgMRR = tierAdvisors.length > 0 ? tierMRR / tierAdvisors.length : 0;
                             const tierLabels: Record<string, string> = {
-                              'top10': 'Top 10',
-                              'next20': 'Next 20',
-                              'other': 'Other',
+                              'platinum': 'Platinum',
+                              'gold': 'Gold',
+                              'silver': 'Silver',
                             };
 
                             const avgEngagementTier = tierAdvisors.length > 0

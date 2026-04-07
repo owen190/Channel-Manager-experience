@@ -5,7 +5,7 @@ export type Intent = 'Strong' | 'Moderate' | 'Low';
 export type FrictionLevel = 'Low' | 'Moderate' | 'High' | 'Critical';
 export type DealHealth = 'Healthy' | 'Monitor' | 'At Risk' | 'Stalled' | 'Slipping' | 'Freefall' | 'Critical';
 export type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Stalled';
-export type PartnerTier = 'top10' | 'next20' | 'other';
+export type PartnerTier = 'platinum' | 'gold' | 'silver' | 'onboarding';
 export type EngagementScore = 'Strong' | 'Steady' | 'Fading';
 
 export interface ActivityItem {
@@ -98,9 +98,9 @@ export interface Rep {
   currentCommit: number;
   partnerCount: number;
   partnerCapacity: number;
-  top10: number;
-  next20: number;
-  other: number;
+  platinum: number;
+  gold: number;
+  silver: number;
   topConcern: string;
   advisorIds: string[];
   winRate: number;

@@ -206,8 +206,8 @@ export default function LeaderDashboard() {
   const filteredAdvisors = useMemo(() => {
     if (relationshipFilter === 'All') return advisors;
     if (relationshipFilter === 'At Risk') return advisors.filter(a => a.pulse === 'Fading' || a.pulse === 'Flatline');
-    if (relationshipFilter === 'Top 10') return advisors.filter(a => a.tier === 'top10');
-    if (relationshipFilter === 'Rising Stars') return advisors.filter(a => a.tier === 'next20' && ['Climbing', 'Accelerating'].includes(a.trajectory) && ['Strong', 'Rising'].includes(a.pulse));
+    if (relationshipFilter === 'Platinum') return advisors.filter(a => a.tier === 'platinum');
+    if (relationshipFilter === 'Rising Stars') return advisors.filter(a => a.tier === 'gold' && ['Climbing', 'Accelerating'].includes(a.trajectory) && ['Strong', 'Rising'].includes(a.pulse));
     if (relationshipFilter === 'New') return advisors.filter(a => a.connectedSince > '2025-09-01');
     return advisors;
   }, [relationshipFilter]);
@@ -863,7 +863,7 @@ export default function LeaderDashboard() {
                 {relationshipsView === 'list' && (
                   <div className="space-y-4">
                     <div className="flex gap-2">
-                      {['All', 'At Risk', 'Top 10', 'Rising Stars', 'New'].map(filter => (
+                      {['All', 'At Risk', 'Platinum', 'Rising Stars', 'New'].map(filter => (
                         <button
                           key={filter}
                           onClick={() => setRelationshipFilter(filter)}

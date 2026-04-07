@@ -468,7 +468,7 @@ export default function LiveLeaderDashboard() {
 
   const renderRelationships = () => {
     const filteredAdvisors = relationshipFilter === 'All' ? advisors
-      : advisors.filter(a => a.tier === (relationshipFilter === 'Top 10' ? 'top10' : relationshipFilter === 'Next 20' ? 'next20' : 'other'));
+      : advisors.filter(a => a.tier === (relationshipFilter === 'Platinum' ? 'platinum' : relationshipFilter === 'Gold' ? 'gold' : 'silver'));
 
     if (relationshipsView === 'detail' && selectedAdvisor) {
       return (
@@ -485,7 +485,7 @@ export default function LiveLeaderDashboard() {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          {['All', 'Top 10', 'Next 20', 'Other'].map(f => (
+          {['All', 'Platinum', 'Gold', 'Silver'].map(f => (
             <button key={f} onClick={() => setRelationshipFilter(f)}
                     className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${relationshipFilter === f ? 'bg-[#157A6E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
               {f}

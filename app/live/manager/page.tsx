@@ -357,8 +357,8 @@ export default function LiveManagerPage() {
   const coMarketingOpportunities = useMemo(() => {
     const opps: Array<{ advisor: Advisor; reason: string; type: string }> = [];
     advisorsWithDeals.forEach(a => {
-      if (a.pulse === 'Strong' && a.tier === 'top10') {
-        opps.push({ advisor: a, reason: `${a.name} is a top-10 partner with strong engagement — ideal co-marketing candidate`, type: 'High-Value Amplification' });
+      if (a.pulse === 'Strong' && a.tier === 'platinum') {
+        opps.push({ advisor: a, reason: `${a.name} is a Platinum partner with strong engagement — ideal co-marketing candidate`, type: 'High-Value Amplification' });
       }
       if (a.trajectory === 'Accelerating' || a.trajectory === 'Climbing') {
         const advisorDeals = deals.filter(d => d.advisorId === a.id && d.stage === 'Closed Won');
@@ -461,12 +461,12 @@ export default function LiveManagerPage() {
             <button onClick={() => setCcKpiDrill(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
           </div>
           <div className="grid grid-cols-4 gap-3">
-            {['top10', 'next20', 'developing', 'new'].map(tier => {
+            {['platinum', 'gold', 'silver', 'onboarding'].map(tier => {
               const tierAdvisors = advisors.filter(a => a.tier === tier);
               const tierMRR = tierAdvisors.reduce((s, a) => s + a.mrr, 0);
               return (
                 <div key={tier} className="bg-gray-50 rounded-lg p-3">
-                  <div className="text-[10px] text-gray-400 uppercase font-medium">{tier === 'top10' ? 'Top 10' : tier === 'next20' ? 'Next 20' : tier === 'developing' ? 'Developing' : 'New'}</div>
+                  <div className="text-[10px] text-gray-400 uppercase font-medium">{tier === 'platinum' ? 'Platinum' : tier === 'gold' ? 'Gold' : tier === 'silver' ? 'Silver' : 'Onboarding'}</div>
                   <div className="text-[16px] font-bold text-gray-800 mt-1">{formatCurrency(tierMRR)}</div>
                   <div className="text-[10px] text-gray-500">{tierAdvisors.length} partners</div>
                 </div>
@@ -667,9 +667,9 @@ export default function LiveManagerPage() {
         count: advisorsWithDeals.filter(a => a.pulse === 'Strong' || a.pulse === 'Steady').length,
       },
       {
-        label: 'Strategic Top 20',
-        key: 'Strategic Top 20',
-        count: advisorsWithDeals.filter(a => a.tier === 'top10' || a.tier === 'next20').length,
+        label: 'Platinum & Gold',
+        key: 'Platinum & Gold',
+        count: advisorsWithDeals.filter(a => a.tier === 'platinum' || a.tier === 'gold').length,
       },
       {
         label: 'Needs Attention',
@@ -691,8 +691,8 @@ export default function LiveManagerPage() {
       filteredAdvisors = advisorsWithDeals.filter(a => deals.some(d => d.advisorId === a.id));
     } else if (relationshipFilter === 'High Engagement') {
       filteredAdvisors = advisorsWithDeals.filter(a => a.pulse === 'Strong' || a.pulse === 'Steady');
-    } else if (relationshipFilter === 'Strategic Top 20') {
-      filteredAdvisors = advisorsWithDeals.filter(a => a.tier === 'top10' || a.tier === 'next20');
+    } else if (relationshipFilter === 'Platinum & Gold') {
+      filteredAdvisors = advisorsWithDeals.filter(a => a.tier === 'platinum' || a.tier === 'gold');
     } else if (relationshipFilter === 'Needs Attention') {
       filteredAdvisors = advisorsWithDeals.filter(a =>
         a.friction === 'High' || a.friction === 'Critical' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall'
@@ -2753,12 +2753,195 @@ export default function LiveManagerPage() {
       signals.push({ type: 'intel', title: `Co-Marketing — ${opp.advisor.name}`, desc: opp.reason, time: 'This week', source: 'CRM + LinkedIn', mrr: opp.advisor.mrr, partnerName: opp.advisor.name });
     });
 
-    // Playbook data
-    const playbooks = [
-      ...atRiskAdvisors.slice(0, 2).map(a => ({ priority: 'critical' as const, title: `Win-Back: ${a.name}`, desc: `${a.diagnosis || 'Custom retention strategy needed'}. ${formatCurrency(a.mrr)} at risk.`, amount: formatCurrency(a.mrr), amountRaw: a.mrr, days: 7, steps: [{ label: 'Pull complaint history', done: true }, { label: 'Executive outreach call', active: true }, { label: 'Service credit + SLA', done: false }, { label: 'Weekly check-in cadence', done: false }], signalTitle: `Churn Risk — ${a.name}`, signalType: 'churn' as const })),
-      ...advisors.filter(a => a.trajectory === 'Accelerating' || a.trajectory === 'Climbing').slice(0, 1).map(a => ({ priority: 'high' as const, title: `Growth: ${a.name} → Cross-Sell`, desc: `${a.trajectory} trajectory. Expand product footprint.`, amount: `+${formatCurrency(Math.round(a.mrr * 0.6))}`, amountRaw: Math.round(a.mrr * 0.6), days: 14, steps: [{ label: 'Identify cross-sell products', done: true }, { label: 'Build joint proposal', active: true }, { label: 'Strategy call', done: false }, { label: 'First deal registered', done: false }], signalTitle: `Expansion — ${a.name}`, signalType: 'growth' as const })),
-      ...frictionIssues.slice(0, 1).map(a => ({ priority: 'medium' as const, title: `Retention: ${a.name}`, desc: `${a.friction} friction. QBR + service review needed.`, amount: formatCurrency(a.mrr), amountRaw: a.mrr, days: 10, steps: [{ label: 'Resolve open tickets', done: true }, { label: 'Acknowledge issues', done: true }, { label: 'Schedule QBR', active: true }, { label: 'Monthly check-in commitment', done: false }], signalTitle: `Churn Risk — ${a.name}`, signalType: 'churn' as const })),
+    // ── Playbook Templates (cadence-based, from The Channel Standard) ──
+    const playbookTemplates = [
+      {
+        id: 'win-back',
+        category: 'Retention',
+        title: 'Win-Back Campaign',
+        subtitle: 'Re-engage dormant or at-risk partners',
+        icon: '🔥',
+        color: '#e53e3e',
+        bgColor: 'bg-red-50',
+        borderColor: 'border-l-red-500',
+        tagColor: 'bg-red-100 text-red-800',
+        duration: '21 days',
+        applicableTo: 'Fading pulse, Slipping/Freefall trajectory, High/Critical friction',
+        steps: [
+          { day: 1, label: 'Pull complaint history & support tickets', desc: 'Review CRM for open issues, commission disputes, and unanswered requests', phase: 'Diagnose' },
+          { day: 2, label: 'Internal resource coordination', desc: 'Brief SE, product team, and leadership on situation. Align on what we can offer.', phase: 'Diagnose' },
+          { day: 3, label: 'Executive outreach call', desc: 'Direct call from channel manager — acknowledge issues, listen first. No pitching.', phase: 'Engage' },
+          { day: 5, label: 'Deliver resolution plan', desc: 'Service credit, SLA improvement, dedicated SE, or whatever was agreed. Put it in writing.', phase: 'Engage' },
+          { day: 7, label: 'Follow-up check-in', desc: 'Confirm resolution delivery. Ask: "What else is broken that you haven\'t told us?"', phase: 'Recover' },
+          { day: 10, label: 'Re-enablement session', desc: '1:1 training on new features, updated battlecards, competitive positioning refresh', phase: 'Recover' },
+          { day: 14, label: 'Joint selling opportunity', desc: 'Bring a qualified lead or co-sell opportunity. Show renewed investment.', phase: 'Activate' },
+          { day: 21, label: 'Relationship health review', desc: 'Formal check-in: pulse, friction, trajectory reassessment. Set ongoing cadence.', phase: 'Activate' },
+        ],
+      },
+      {
+        id: 'onboarding',
+        category: 'Activation',
+        title: 'New Partner Onboarding',
+        subtitle: 'First 90 days — get to first deal fast',
+        icon: '🚀',
+        color: '#3B82F6',
+        bgColor: 'bg-blue-50',
+        borderColor: 'border-l-blue-500',
+        tagColor: 'bg-blue-100 text-blue-800',
+        duration: '90 days',
+        applicableTo: 'New partners, Onboarding tier',
+        steps: [
+          { day: 1, label: 'Welcome call + expectation setting', desc: 'Introduce yourself as their single point of contact. Set response SLA expectations. Document comm preferences.', phase: 'Week 1' },
+          { day: 3, label: 'Portal access & training enrollment', desc: 'Verify TSD portal access, marketplace listing, and training platform credentials', phase: 'Week 1' },
+          { day: 5, label: 'First enablement session', desc: 'Product overview, competitive positioning, ideal customer profile. Share battlecards.', phase: 'Week 1' },
+          { day: 7, label: 'Intro to TSD field team', desc: 'Connect partner with TSD channel manager and SE. These relationships determine visibility.', phase: 'Week 1' },
+          { day: 14, label: 'Pipeline building workshop', desc: 'Help identify 3-5 prospects from their book. Practice positioning and objection handling.', phase: 'Week 2' },
+          { day: 21, label: 'First deal registration', desc: 'Target: first deal reg by day 21. Channel manager joins first customer call.', phase: 'Week 3' },
+          { day: 30, label: '30-day milestone review', desc: 'Review: portal adoption, training completion, pipeline status, relationship health', phase: 'Month 1' },
+          { day: 45, label: 'Co-sell support on active deal', desc: 'Provide SE support, custom pricing, or executive sponsor for their best opportunity', phase: 'Month 2' },
+          { day: 60, label: '60-day milestone review', desc: 'Pipeline health check. Adjust enablement focus based on selling patterns.', phase: 'Month 2' },
+          { day: 75, label: 'Introduce to partner community', desc: 'Connect to advisory council, Slack channels, upcoming events. Build belonging.', phase: 'Month 3' },
+          { day: 90, label: '90-day graduation review', desc: 'Full assessment: deals registered, revenue, engagement score. Assign permanent tier.', phase: 'Month 3' },
+        ],
+      },
+      {
+        id: 'tier-upgrade',
+        category: 'Growth',
+        title: 'Tier Advancement Program',
+        subtitle: 'Move Gold → Platinum through structured development',
+        icon: '⬆️',
+        color: '#157A6E',
+        bgColor: 'bg-[#F0FAF8]',
+        borderColor: 'border-l-[#157A6E]',
+        tagColor: 'bg-green-100 text-green-800',
+        duration: '60 days',
+        applicableTo: 'Gold tier with Climbing/Accelerating trajectory',
+        steps: [
+          { day: 1, label: 'Strategic business plan review', desc: 'Deep-dive: current pipeline, growth targets, vertical focus, co-marketing interests', phase: 'Plan' },
+          { day: 3, label: 'Set Platinum qualification criteria', desc: 'Define targets: deal count, revenue threshold, engagement score, training completion', phase: 'Plan' },
+          { day: 7, label: 'Assign dedicated SE', desc: 'Pair with solutions engineer for priority pre-sale support on all opportunities', phase: 'Invest' },
+          { day: 14, label: 'Co-marketing campaign launch', desc: 'Joint webinar, case study, or content piece. MDF allocation for partner promotion.', phase: 'Invest' },
+          { day: 21, label: 'Pipeline acceleration sprint', desc: 'Identify 5 high-potential deals. Provide custom pricing, expedited deal reg, exec sponsors.', phase: 'Execute' },
+          { day: 30, label: 'Mid-program review', desc: 'Check progress against Platinum criteria. Adjust support and remove blockers.', phase: 'Execute' },
+          { day: 45, label: 'SPIFF or incentive activation', desc: 'Launch targeted SPIFF for final push. Recognition in partner community.', phase: 'Accelerate' },
+          { day: 60, label: 'Tier promotion decision', desc: 'Formal review against criteria. Promote, extend program, or set new targets.', phase: 'Accelerate' },
+        ],
+      },
+      {
+        id: 'activation',
+        category: 'Activation',
+        title: 'Dormant Partner Activation',
+        subtitle: 'Re-activate Silver partners with no recent deals',
+        icon: '⚡',
+        color: '#D69E2E',
+        bgColor: 'bg-amber-50',
+        borderColor: 'border-l-amber-400',
+        tagColor: 'bg-amber-100 text-amber-800',
+        duration: '30 days',
+        applicableTo: 'Silver tier, 60+ days since last deal, low engagement',
+        steps: [
+          { day: 1, label: 'Audit partner history', desc: 'Review past deals, training completion, last contact, comm preferences. Find what worked before.', phase: 'Research' },
+          { day: 3, label: 'Personal outreach — no pitch', desc: 'Call or email about them, not us. Ask about their business, challenges, market shifts.', phase: 'Research' },
+          { day: 5, label: 'Share competitive intelligence', desc: 'Give value first: market data, competitor moves, vertical insights relevant to their practice', phase: 'Re-engage' },
+          { day: 7, label: 'Enablement refresh session', desc: 'Updated product training focused on what changed since they last engaged', phase: 'Re-engage' },
+          { day: 14, label: 'Bring a warm lead', desc: 'Source an opportunity in their territory or vertical. Nothing re-activates like revenue.', phase: 'Activate' },
+          { day: 21, label: 'Co-sell on active opportunity', desc: 'Joint call with their prospect. Provide SE, custom pricing, whatever accelerates.', phase: 'Activate' },
+          { day: 30, label: 'Activation assessment', desc: 'Deal registered? Pipeline built? If yes, upgrade cadence. If no, reassess partnership.', phase: 'Assess' },
+        ],
+      },
+      {
+        id: 'qbr-prep',
+        category: 'Cadence',
+        title: 'Quarterly Business Review',
+        subtitle: 'Come with data, not excuses',
+        icon: '📊',
+        color: '#6366F1',
+        bgColor: 'bg-indigo-50',
+        borderColor: 'border-l-indigo-500',
+        tagColor: 'bg-indigo-100 text-indigo-800',
+        duration: '14 days',
+        applicableTo: 'All Platinum & Gold partners, all TSDs',
+        steps: [
+          { day: 1, label: 'Pull performance data', desc: 'Pipeline, revenue, deal velocity, conversion rate, days-to-close, partner engagement metrics', phase: 'Prepare' },
+          { day: 3, label: 'Build QBR deck', desc: 'Key wins, pipeline health, competitive landscape, growth opportunities, asks', phase: 'Prepare' },
+          { day: 5, label: 'Internal dry-run', desc: 'Review with leadership. Align on commitments you can make and asks you need to escalate.', phase: 'Prepare' },
+          { day: 7, label: 'Send pre-read to partner', desc: 'Share agenda and key data 48h before meeting. Respect their prep time.', phase: 'Execute' },
+          { day: 9, label: 'Conduct QBR', desc: '90 min: performance review, strategic discussion, next-quarter planning, mutual commitments', phase: 'Execute' },
+          { day: 10, label: 'Send follow-up within 24h', desc: 'Meeting notes, agreed action items, timeline, and owners. No ambiguity.', phase: 'Follow-up' },
+          { day: 14, label: 'Complete all committed actions', desc: 'Deliver everything promised in QBR. Speed of follow-through defines credibility.', phase: 'Follow-up' },
+        ],
+      },
+      {
+        id: 'cross-sell',
+        category: 'Growth',
+        title: 'Cross-Sell Expansion',
+        subtitle: 'Expand product footprint with existing high-performers',
+        icon: '📈',
+        color: '#157A6E',
+        bgColor: 'bg-[#F0FAF8]',
+        borderColor: 'border-l-[#157A6E]',
+        tagColor: 'bg-green-100 text-green-800',
+        duration: '30 days',
+        applicableTo: 'Platinum/Gold with Accelerating trajectory, single-product sellers',
+        steps: [
+          { day: 1, label: 'Identify whitespace', desc: 'Analyze partner\'s current product mix. Map gaps against full portfolio.', phase: 'Analyze' },
+          { day: 3, label: 'Build business case', desc: 'ROI model: what the partner leaves on the table by not selling additional products', phase: 'Analyze' },
+          { day: 5, label: 'Product-specific enablement', desc: 'Targeted training on the cross-sell product. Focus on how it pairs with what they already sell.', phase: 'Enable' },
+          { day: 10, label: 'Joint proposal on live deal', desc: 'Find an active opportunity where the additional product adds value. Build the proposal together.', phase: 'Enable' },
+          { day: 14, label: 'SPIFF incentive for first deal', desc: 'Accelerator bonus for first closed deal on the new product line', phase: 'Incentivize' },
+          { day: 21, label: 'Pipeline review — new product', desc: 'Check: are they building pipeline on the new product independently?', phase: 'Measure' },
+          { day: 30, label: 'Expansion assessment', desc: 'Is the partner now multi-product? Adjust tier scoring and engagement plan.', phase: 'Measure' },
+        ],
+      },
     ];
+
+    // ── Active playbooks (dynamic, tied to real advisor data) ──
+    const playbooks = [
+      ...atRiskAdvisors.slice(0, 2).map(a => ({ priority: 'critical' as const, templateId: 'win-back', title: `Win-Back: ${a.name}`, desc: `${a.diagnosis || 'Custom retention strategy needed'}. ${formatCurrency(a.mrr)} at risk.`, amount: formatCurrency(a.mrr), amountRaw: a.mrr, days: 7, currentStep: 2, steps: [{ label: 'Pull complaint history', done: true }, { label: 'Executive outreach call', active: true }, { label: 'Service credit + SLA', done: false }, { label: 'Weekly check-in cadence', done: false }], signalTitle: `Churn Risk — ${a.name}`, signalType: 'churn' as const, advisorId: a.id })),
+      ...advisors.filter(a => a.trajectory === 'Accelerating' || a.trajectory === 'Climbing').slice(0, 1).map(a => ({ priority: 'high' as const, templateId: 'cross-sell', title: `Growth: ${a.name} → Cross-Sell`, desc: `${a.trajectory} trajectory. Expand product footprint.`, amount: `+${formatCurrency(Math.round(a.mrr * 0.6))}`, amountRaw: Math.round(a.mrr * 0.6), days: 14, currentStep: 1, steps: [{ label: 'Identify cross-sell products', done: true }, { label: 'Build joint proposal', active: true }, { label: 'Strategy call', done: false }, { label: 'First deal registered', done: false }], signalTitle: `Expansion — ${a.name}`, signalType: 'growth' as const, advisorId: a.id })),
+      ...frictionIssues.slice(0, 1).map(a => ({ priority: 'medium' as const, templateId: 'win-back', title: `Retention: ${a.name}`, desc: `${a.friction} friction. QBR + service review needed.`, amount: formatCurrency(a.mrr), amountRaw: a.mrr, days: 10, currentStep: 2, steps: [{ label: 'Resolve open tickets', done: true }, { label: 'Acknowledge issues', done: true }, { label: 'Schedule QBR', active: true }, { label: 'Monthly check-in commitment', done: false }], signalTitle: `Churn Risk — ${a.name}`, signalType: 'churn' as const, advisorId: a.id })),
+      ...advisors.filter(a => a.tier === 'gold' && (a.trajectory === 'Accelerating' || a.trajectory === 'Climbing')).slice(0, 1).map(a => ({ priority: 'high' as const, templateId: 'tier-upgrade', title: `Tier Upgrade: ${a.name} → Platinum`, desc: `Strong trajectory. ${formatCurrency(a.mrr)} MRR with room to grow.`, amount: `+${formatCurrency(Math.round(a.mrr * 0.4))}`, amountRaw: Math.round(a.mrr * 0.4), days: 30, currentStep: 1, steps: [{ label: 'Strategic plan review', done: true }, { label: 'Set Platinum criteria', active: true }, { label: 'Assign dedicated SE', done: false }, { label: 'Pipeline acceleration sprint', done: false }, { label: 'Tier promotion decision', done: false }], signalTitle: `Growth — ${a.name}`, signalType: 'growth' as const, advisorId: a.id })),
+      ...advisors.filter(a => a.tier === 'silver' && a.pulse === 'Fading').slice(0, 1).map(a => ({ priority: 'medium' as const, templateId: 'activation', title: `Activate: ${a.name}`, desc: `Dormant Silver partner. ${formatCurrency(a.mrr)} MRR. Low engagement — needs re-activation.`, amount: formatCurrency(a.mrr), amountRaw: a.mrr, days: 21, currentStep: 0, steps: [{ label: 'Audit partner history', done: true }, { label: 'Personal outreach — no pitch', active: true }, { label: 'Share competitive intelligence', done: false }, { label: 'Bring a warm lead', done: false }, { label: 'Activation assessment', done: false }], signalTitle: `Dormant — ${a.name}`, signalType: 'stall' as const, advisorId: a.id })),
+    ];
+
+    // ── Recommended playbooks (suggestions based on advisor signals) ──
+    const recommendedPlaybooks: Array<{template: typeof playbookTemplates[0]; advisors: Advisor[]; reason: string; urgency: 'critical' | 'high' | 'medium'}> = [];
+
+    // Win-back recommendations
+    const winBackCandidates = advisors.filter(a => (a.pulse === 'Fading' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall') && !playbooks.some(p => p.advisorId === a.id));
+    if (winBackCandidates.length > 0) {
+      recommendedPlaybooks.push({ template: playbookTemplates[0], advisors: winBackCandidates.slice(0, 3), reason: `${winBackCandidates.length} partner${winBackCandidates.length > 1 ? 's' : ''} showing declining engagement — ${formatCurrency(winBackCandidates.reduce((s,a)=>s+a.mrr,0))} MRR at risk`, urgency: 'critical' });
+    }
+
+    // Onboarding recommendations
+    const onboardingCandidates = advisors.filter(a => a.tier === 'onboarding' || (a.tier === 'silver' && Math.floor((Date.now() - new Date(a.connectedSince).getTime()) / 86400000) < 90));
+    if (onboardingCandidates.length > 0) {
+      recommendedPlaybooks.push({ template: playbookTemplates[1], advisors: onboardingCandidates.slice(0, 3), reason: `${onboardingCandidates.length} partner${onboardingCandidates.length > 1 ? 's' : ''} in first 90 days — first deal velocity is critical`, urgency: 'high' });
+    }
+
+    // Tier upgrade recommendations
+    const tierUpgradeCandidates = advisors.filter(a => a.tier === 'gold' && (a.pulse === 'Strong' || a.trajectory === 'Accelerating') && !playbooks.some(p => p.advisorId === a.id));
+    if (tierUpgradeCandidates.length > 0) {
+      recommendedPlaybooks.push({ template: playbookTemplates[2], advisors: tierUpgradeCandidates.slice(0, 3), reason: `${tierUpgradeCandidates.length} Gold partner${tierUpgradeCandidates.length > 1 ? 's' : ''} showing Platinum potential — invest now to capture growth`, urgency: 'high' });
+    }
+
+    // Activation recommendations
+    const activationCandidates = advisors.filter(a => a.tier === 'silver' && (a.engagementBreakdown?.engagement === 'Fading' || a.pulse === 'Fading') && !playbooks.some(p => p.advisorId === a.id));
+    if (activationCandidates.length > 0) {
+      recommendedPlaybooks.push({ template: playbookTemplates[3], advisors: activationCandidates.slice(0, 3), reason: `${activationCandidates.length} Silver partner${activationCandidates.length > 1 ? 's' : ''} going dormant — activate before they defect`, urgency: 'medium' });
+    }
+
+    // QBR recommendations
+    const qbrCandidates = advisors.filter(a => a.tier === 'platinum' || a.tier === 'gold');
+    if (qbrCandidates.length > 0) {
+      recommendedPlaybooks.push({ template: playbookTemplates[4], advisors: qbrCandidates.slice(0, 3), reason: `Q2 QBRs due for ${qbrCandidates.length} Platinum & Gold partners — come with data, not excuses`, urgency: 'medium' });
+    }
+
+    // Cross-sell recommendations
+    const crossSellCandidates = advisors.filter(a => (a.tier === 'platinum' || a.tier === 'gold') && a.trajectory === 'Accelerating' && !playbooks.some(p => p.templateId === 'cross-sell' && p.advisorId === a.id));
+    if (crossSellCandidates.length > 0) {
+      recommendedPlaybooks.push({ template: playbookTemplates[5], advisors: crossSellCandidates.slice(0, 3), reason: `${crossSellCandidates.length} high-performers selling single product — whitespace expansion opportunity`, urgency: 'high' });
+    }
 
     const healthPartners = [...advisors].sort((a, b) => b.mrr - a.mrr).slice(0, 8);
 
@@ -3094,14 +3277,64 @@ export default function LiveManagerPage() {
       const expansionMRR = playbooks.filter(p => p.priority === 'high').reduce((s, p) => s + p.amountRaw, 0);
       const avgDays = Math.round(playbooks.reduce((s, p) => s + p.days, 0) / (playbooks.length || 1));
 
+      const phaseColors: Record<string, string> = {
+        'Diagnose': 'bg-red-100 text-red-700', 'Engage': 'bg-orange-100 text-orange-700', 'Recover': 'bg-amber-100 text-amber-700', 'Activate': 'bg-green-100 text-green-700',
+        'Week 1': 'bg-blue-100 text-blue-700', 'Week 2': 'bg-blue-100 text-blue-700', 'Week 3': 'bg-indigo-100 text-indigo-700', 'Month 1': 'bg-violet-100 text-violet-700', 'Month 2': 'bg-purple-100 text-purple-700', 'Month 3': 'bg-fuchsia-100 text-fuchsia-700',
+        'Plan': 'bg-blue-100 text-blue-700', 'Invest': 'bg-indigo-100 text-indigo-700', 'Execute': 'bg-amber-100 text-amber-700', 'Accelerate': 'bg-green-100 text-green-700',
+        'Research': 'bg-gray-100 text-gray-700', 'Re-engage': 'bg-amber-100 text-amber-700', 'Assess': 'bg-blue-100 text-blue-700',
+        'Prepare': 'bg-blue-100 text-blue-700', 'Follow-up': 'bg-green-100 text-green-700',
+        'Analyze': 'bg-indigo-100 text-indigo-700', 'Enable': 'bg-amber-100 text-amber-700', 'Incentivize': 'bg-purple-100 text-purple-700', 'Measure': 'bg-green-100 text-green-700',
+      };
+
       return (
         <div className="space-y-5">
           {subTabBar}
+
+          {/* KPIs */}
           <div className="grid grid-cols-4 gap-4">
             <KPICard label="Active Playbooks" value={`${playbooks.length}`} change={`${playbooks.filter(p=>p.priority==='critical').length} critical, ${playbooks.filter(p=>p.priority==='high').length} high`} changeType="neutral" />
-            <KPICard label="MRR Protected" value={formatCurrency(protectedMRR)} change="In active win-back" changeType="negative" />
-            <KPICard label="MRR Targeted" value={`+${formatCurrency(expansionMRR)}`} change="Expansion playbooks" changeType="positive" />
-            <KPICard label="Avg Days to Deadline" value={`${avgDays}`} change={`Nearest: ${playbooks[0]?.days || 0} days`} changeType="neutral" />
+            <KPICard label="MRR Protected" value={formatCurrency(protectedMRR)} change="In active retention" changeType="negative" />
+            <KPICard label="MRR Targeted" value={`+${formatCurrency(expansionMRR)}`} change="Growth & expansion" changeType="positive" />
+            <KPICard label="Recommendations" value={`${recommendedPlaybooks.length}`} change="Based on signals" changeType="neutral" />
+          </div>
+
+          {/* ── RECOMMENDED PLAYBOOKS ── */}
+          {recommendedPlaybooks.length > 0 && (
+            <>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Recommended Playbooks</span>
+                <div className="flex-1 h-px bg-[#e8e5e1]" />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {recommendedPlaybooks.slice(0, 6).map((rec, ri) => (
+                  <div key={ri} className={`${rec.template.bgColor} rounded-[10px] border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-all border-l-4 ${rec.template.borderColor}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[16px]">{rec.template.icon}</span>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${rec.urgency === 'critical' ? 'bg-red-200 text-red-800' : rec.urgency === 'high' ? 'bg-amber-200 text-amber-800' : 'bg-blue-200 text-blue-800'}`}>{rec.urgency}</span>
+                    </div>
+                    <h4 className="text-[13px] font-bold text-gray-800 font-serif">{rec.template.title}</h4>
+                    <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">{rec.reason}</p>
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      {rec.advisors.slice(0, 3).map((a, ai) => (
+                        <span key={ai} className="px-2 py-0.5 bg-white/80 rounded-full text-[10px] font-medium text-gray-600 border border-white">{a.name.split(' ')[0]}</span>
+                      ))}
+                      {rec.advisors.length > 3 && <span className="text-[10px] text-gray-400">+{rec.advisors.length - 3}</span>}
+                    </div>
+                    <div className="flex items-center gap-2 mt-3">
+                      <span className="text-[10px] text-gray-400">{rec.template.duration}</span>
+                      <span className="text-[10px] text-gray-300">·</span>
+                      <span className="text-[10px] text-gray-400">{rec.template.steps.length} steps</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* ── ACTIVE PLAYBOOKS ── */}
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-gray-500 whitespace-nowrap">Active Playbooks</span>
+            <div className="flex-1 h-px bg-[#e8e5e1]" />
           </div>
 
           <div className="grid grid-cols-[1fr_280px] gap-4">
@@ -3110,13 +3343,17 @@ export default function LiveManagerPage() {
                 const doneSteps = pb.steps.filter(s => s.done).length;
                 const totalSteps = pb.steps.length;
                 const pct = Math.round((doneSteps / totalSteps) * 100);
+                const template = playbookTemplates.find(t => t.id === pb.templateId);
                 return (
                   <div key={i} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 border-l-4 ${pb.priority === 'critical' ? 'border-l-red-500' : pb.priority === 'high' ? 'border-l-amber-400' : 'border-l-blue-500'}`}>
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide mb-1.5 ${pb.priority === 'critical' ? 'bg-red-100 text-red-800' : pb.priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
-                          {pb.priority}
-                        </span>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${pb.priority === 'critical' ? 'bg-red-100 text-red-800' : pb.priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                            {pb.priority}
+                          </span>
+                          {template && <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${template.tagColor}`}>{template.category}</span>}
+                        </div>
                         <h3 className="text-[15px] font-bold text-gray-800 font-serif">{pb.title}</h3>
                         <p className="text-[12px] text-gray-500 mt-1 leading-relaxed max-w-xl">{pb.desc}</p>
                       </div>
@@ -3166,11 +3403,11 @@ export default function LiveManagerPage() {
               </div>
             </div>
 
-            {/* Sidebar: deadlines + stats */}
+            {/* Sidebar: deadlines + stats + templates */}
             <div className="space-y-4 self-start sticky top-[105px]">
               <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
                 <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-3">Upcoming Deadlines</h3>
-                {playbooks.sort((a,b) => a.days - b.days).map((pb, i) => (
+                {[...playbooks].sort((a,b) => a.days - b.days).map((pb, i) => (
                   <div key={i} className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-b-0">
                     <div className={`w-2 h-2 rounded-full ${pb.priority === 'critical' ? 'bg-red-500' : pb.priority === 'high' ? 'bg-amber-400' : 'bg-blue-500'}`} />
                     <div className="flex-1 min-w-0">
@@ -3197,6 +3434,46 @@ export default function LiveManagerPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* ── PLAYBOOK LIBRARY ── */}
+          <div className="flex items-center gap-3 pt-2">
+            <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-gray-500 whitespace-nowrap">Playbook Library</span>
+            <div className="flex-1 h-px bg-[#e8e5e1]" />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            {playbookTemplates.map((tmpl, ti) => (
+              <div key={ti} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 hover:shadow-md transition-all cursor-pointer border-l-4 ${tmpl.borderColor}`}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-[20px]">{tmpl.icon}</span>
+                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${tmpl.tagColor}`}>{tmpl.category}</span>
+                </div>
+                <h3 className="text-[14px] font-bold text-gray-800 font-serif">{tmpl.title}</h3>
+                <p className="text-[11px] text-gray-500 mt-1">{tmpl.subtitle}</p>
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <div className="flex items-center justify-between text-[10px] text-gray-400 mb-2">
+                    <span>{tmpl.duration}</span>
+                    <span>{tmpl.steps.length} steps</span>
+                  </div>
+                  <div className="text-[10px] text-gray-400 mb-2">Applies to: <span className="text-gray-600 font-medium">{tmpl.applicableTo}</span></div>
+                  {/* Timeline preview */}
+                  <div className="space-y-1.5">
+                    {tmpl.steps.slice(0, 4).map((step, si) => (
+                      <div key={si} className="flex items-center gap-2">
+                        <div className="w-[18px] h-[18px] rounded-full flex items-center justify-center text-[8px] font-bold bg-gray-100 text-gray-500 shrink-0">
+                          {step.day}
+                        </div>
+                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${phaseColors[step.phase] || 'bg-gray-100 text-gray-600'}`}>{step.phase}</span>
+                        <span className="text-[10px] text-gray-600 truncate">{step.label}</span>
+                      </div>
+                    ))}
+                    {tmpl.steps.length > 4 && (
+                      <div className="text-[10px] text-[#157A6E] font-semibold pl-6">+ {tmpl.steps.length - 4} more steps →</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       );
@@ -3339,7 +3616,7 @@ export default function LiveManagerPage() {
                     <h3 className="text-[16px] font-bold text-gray-800 font-serif">{a.name}</h3>
                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${isCritical ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{a.friction}</span>
                   </div>
-                  <p className="text-[11px] text-gray-500 mt-0.5">{a.company} · {a.tier || 'Partner'}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">{a.company} · {a.tier === 'platinum' ? 'Platinum' : a.tier === 'gold' ? 'Gold' : a.tier === 'silver' ? 'Silver' : a.tier === 'onboarding' ? 'Onboarding' : 'Partner'}</p>
                 </div>
                 <div className="text-right">
                   <div className={`text-[20px] font-bold ${isCritical ? 'text-red-500' : 'text-amber-600'}`}>{formatCurrency(a.mrr)}</div>
