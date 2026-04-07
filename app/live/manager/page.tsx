@@ -83,6 +83,7 @@ export default function LiveManagerPage() {
   const [partnersSubView, setPartnersSubView] = useState<'contacts' | 'companies'>('contacts');
   const [partnerSearch, setPartnerSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('All');
+  const [pipelineSearch, setPipelineSearch] = useState('');
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -1862,94 +1863,222 @@ export default function LiveManagerPage() {
   // PIPELINE (with Quotes vs Sold metrics)
   // ════════════════════════════════════════════════
   const renderPipeline = () => {
+    // Apply search + health + stage filters
     const filtered = deals.filter(d => {
       if (dealFilter.health !== 'all' && d.health !== dealFilter.health) return false;
       if (dealFilter.stage !== 'all' && d.stage !== dealFilter.stage) return false;
+      if (pipelineSearch.trim()) {
+        const q = pipelineSearch.toLowerCase();
+        const adv = advisors.find(a => a.id === d.advisorId);
+        if (
+          !d.name.toLowerCase().includes(q) &&
+          !(adv?.name || '').toLowerCase().includes(q) &&
+          !(adv?.company || '').toLowerCase().includes(q)
+        ) return false;
+      }
       return true;
     });
 
+    const totalFilteredMRR = filtered.reduce((s, d) => s + d.mrr, 0);
+    const filteredWeighted = filtered.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Stalled')
+      .reduce((s, d) => s + d.mrr * (STAGE_WEIGHTS.find(w => w.stage === d.stage)?.weight || 0.3), 0);
+    const avgProb = filtered.length > 0
+      ? (filtered.reduce((s, d) => s + (d.probability || 50), 0) / filtered.length).toFixed(0)
+      : '0';
+
+    // Stage colors + styles
+    const stageColors: Record<DealStage, string> = {
+      'Discovery': '#3B82F6',
+      'Qualifying': '#06B6D4',
+      'Proposal': '#8B5CF6',
+      'Negotiating': '#F59E0B',
+      'Closed Won': '#10B981',
+      'Stalled': '#EF4444',
+    };
+    const stageBgStyles: Record<string, string> = {
+      'Discovery': 'bg-blue-50 text-blue-700',
+      'Qualifying': 'bg-cyan-50 text-cyan-700',
+      'Proposal': 'bg-violet-50 text-violet-700',
+      'Negotiating': 'bg-amber-50 text-amber-700',
+      'Closed Won': 'bg-emerald-50 text-emerald-700',
+      'Stalled': 'bg-red-50 text-red-700',
+    };
+    const healthDot: Record<string, string> = { 'Healthy': '#16A34A', 'Monitor': '#F59E0B', 'At Risk': '#F97316', 'Stalled': '#EF4444', 'Slipping': '#F97316', 'Freefall': '#DC2626', 'Critical': '#991B1B' };
+
     return (
       <div className="space-y-4">
+        {/* KPIs */}
         <div className="grid grid-cols-3 gap-4">
           <KPICard label="Active Pipeline" value={formatCurrency(pipelineMRR)} change={`${activePipeline.length} deals`} changeType="positive" />
           <KPICard label="Weighted Pipeline" value={formatCurrency(weightedPipeline)} change="Stage-weighted" changeType="neutral" />
           <KPICard label="Stalled" value={`${stalledDeals.length}`} change={formatCurrency(stalledDeals.reduce((s, d) => s + d.mrr, 0))} changeType={stalledDeals.length > 0 ? "negative" : "neutral"} />
         </div>
 
-        {/* Pipeline view toggle */}
+        {/* View toggle */}
         <div className="flex gap-2 border-b border-[#e8e5e1] pb-2">
-          <button onClick={() => setPipelineMetricsView('kanban')}
-            className={`px-4 py-2 text-13px font-medium rounded-t-lg transition-colors ${pipelineMetricsView === 'kanban' ? 'bg-[#157A6E] text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
-            Kanban
-          </button>
-          <button onClick={() => setPipelineMetricsView('deals')}
-            className={`px-4 py-2 text-13px font-medium rounded-t-lg transition-colors ${pipelineMetricsView === 'deals' ? 'bg-[#157A6E] text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
-            All Deals
-          </button>
-          <button onClick={() => setPipelineMetricsView('quotes-vs-sold')}
-            className={`px-4 py-2 text-13px font-medium rounded-t-lg transition-colors ${pipelineMetricsView === 'quotes-vs-sold' ? 'bg-[#157A6E] text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
-            Quotes vs Sold
-          </button>
-          <button onClick={() => setPipelineMetricsView('by-advisor')}
-            className={`px-4 py-2 text-13px font-medium rounded-t-lg transition-colors ${pipelineMetricsView === 'by-advisor' ? 'bg-[#157A6E] text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
-            By Advisor
-          </button>
+          {[
+            { key: 'deals', label: 'All Deals' },
+            { key: 'kanban', label: 'Kanban' },
+            { key: 'quotes-vs-sold', label: 'Quotes vs Sold' },
+            { key: 'by-advisor', label: 'By Advisor' },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setPipelineMetricsView(tab.key as any)}
+              className={`px-4 py-2 text-13px font-medium rounded-t-lg transition-colors ${
+                pipelineMetricsView === tab.key ? 'bg-[#157A6E] text-white' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
+        {/* ── ALL DEALS: Data Table grouped by stage ── */}
         {pipelineMetricsView === 'deals' && (
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3">
-              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">All Deals</h3>
-              <select className="text-12px border border-gray-200 rounded px-2 py-1" value={dealFilter.health} onChange={e => setDealFilter({ ...dealFilter, health: e.target.value })}>
-                <option value="all">All Health</option>
-                <option value="Healthy">Healthy</option>
-                <option value="Monitor">Monitor</option>
-                <option value="At Risk">At Risk</option>
-                <option value="Stalled">Stalled</option>
-              </select>
-              <select className="text-12px border border-gray-200 rounded px-2 py-1" value={dealFilter.stage} onChange={e => setDealFilter({ ...dealFilter, stage: e.target.value })}>
-                <option value="all">All Stages</option>
-                {stages.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+        <>
+          {/* Toolbar */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 flex items-center gap-4 flex-wrap">
+            <div className="flex-1 min-w-[200px] relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={pipelineSearch}
+                onChange={(e) => setPipelineSearch(e.target.value)}
+                placeholder="Search deals, advisors, companies..."
+                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-full text-12px font-['Inter'] focus:outline-none focus:border-[#157A6E] focus:ring-1 focus:ring-[#157A6E]/20"
+              />
             </div>
+            <select
+              value={dealFilter.health}
+              onChange={e => setDealFilter({ ...dealFilter, health: e.target.value })}
+              className="px-3 py-2 border border-gray-200 rounded-md text-12px font-['Inter'] text-gray-700 hover:border-[#157A6E] cursor-pointer"
+            >
+              <option value="all">All Health</option>
+              <option value="Healthy">Healthy</option>
+              <option value="Monitor">Monitor</option>
+              <option value="At Risk">At Risk</option>
+              <option value="Stalled">Stalled</option>
+            </select>
+            <select
+              value={dealFilter.stage}
+              onChange={e => setDealFilter({ ...dealFilter, stage: e.target.value })}
+              className="px-3 py-2 border border-gray-200 rounded-md text-12px font-['Inter'] text-gray-700 hover:border-[#157A6E] cursor-pointer"
+            >
+              <option value="all">All Stages</option>
+              {stages.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
             <button
               onClick={() => { setShowDealModal(true); setEditingDeal(null); }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-[#157A6E] text-white rounded-lg hover:bg-[#126B5F] transition-colors text-12px font-medium"
+              className="px-4 py-2 bg-[#157A6E] text-white rounded-md text-12px font-semibold hover:bg-[#12675b] transition-colors"
             >
-              <Plus className="w-4 h-4" />
-              Add Deal
+              + Add Deal
             </button>
           </div>
-          <div className="space-y-2">
-            {filtered.length === 0 && <p className="text-12px text-gray-400 italic">No deals match filters</p>}
-            {filtered.map(d => {
-              const adv = advisors.find(a => a.id === d.advisorId);
-              return (
-                <div key={d.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 group"
-                     onClick={() => { if (adv) { setSelectedAdvisor(adv); setPanelOpen(true); setActiveViewRaw('relationships'); } }}>
-                  <div className="flex-1 cursor-pointer">
-                    <p className="text-13px font-medium text-gray-800">{d.name}</p>
-                    <p className="text-11px text-gray-500">{adv?.name || 'Unassigned'} · {d.stage} · {d.daysInStage}d in stage</p>
-                  </div>
+
+          {/* Grouped data table */}
+          {stages.map(stage => {
+            const stageDeals = filtered.filter(d => d.stage === stage);
+            if (stageDeals.length === 0 && dealFilter.stage === 'all') return null;
+            if (stageDeals.length === 0) return null;
+            const stageMRR = stageDeals.reduce((s, d) => s + d.mrr, 0);
+
+            return (
+              <div key={stage} className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
+                {/* Stage header */}
+                <div className="flex items-center justify-between px-5 py-3 bg-[#FAFAF8] border-b border-[#e8e5e1]">
                   <div className="flex items-center gap-3">
-                    <DealHealthBadge health={d.health} />
-                    <span className="text-13px font-semibold text-gray-800">{formatCurrency(d.mrr)}</span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setEditingDeal(d); setShowDealModal(true); }}
-                      className="p-1.5 text-gray-400 hover:text-[#157A6E] hover:bg-gray-200 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stageColors[stage] }} />
+                    <h3 className="text-13px font-semibold font-['Newsreader'] text-gray-800">{stage}</h3>
+                    <span className="text-11px bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full font-medium">{stageDeals.length}</span>
                   </div>
+                  <span className="text-13px font-semibold text-[#157A6E]">{formatCurrency(stageMRR)}</span>
                 </div>
-              );
-            })}
+
+                {/* Table */}
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-[#FAFAF8]/50">
+                      <th className="text-left px-5 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]" style={{ minWidth: 200 }}>Deal</th>
+                      <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Advisor</th>
+                      <th className="text-center px-3 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Health</th>
+                      <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">MRR</th>
+                      <th className="text-center px-3 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Probability</th>
+                      <th className="text-center px-3 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Days</th>
+                      <th className="text-left px-3 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Close Date</th>
+                      <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stageDeals.map((d, i) => {
+                      const adv = advisors.find(a => a.id === d.advisorId);
+                      return (
+                        <tr
+                          key={d.id}
+                          onClick={() => { if (adv) { setSelectedAdvisor(adv); setPanelOpen(true); setActiveViewRaw('relationships'); } }}
+                          className={`group cursor-pointer transition-colors hover:bg-[#F0F9F8] ${i % 2 === 0 ? 'bg-white' : 'bg-[#FAFAF8]'}`}
+                          style={{ height: 48 }}
+                        >
+                          <td className="px-5">
+                            <p className="text-13px font-semibold text-gray-900 group-hover:text-[#157A6E] transition-colors">{d.name}</p>
+                          </td>
+                          <td className="px-4">
+                            <p className="text-12px text-gray-800">{adv?.name || 'Unassigned'}</p>
+                            <p className="text-[10px] text-gray-400">{adv?.company || ''}</p>
+                          </td>
+                          <td className="px-3 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <span className="w-[6px] h-[6px] rounded-full inline-block" style={{ backgroundColor: healthDot[d.health] || '#6B7280' }} />
+                              <span className="text-11px text-gray-600">{d.health}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 text-right">
+                            <span className="text-13px font-semibold text-[#157A6E]">{formatCurrency(d.mrr)}</span>
+                          </td>
+                          <td className="px-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${d.probability || 50}%` }} />
+                              </div>
+                              <span className="text-11px text-gray-500">{d.probability || 50}%</span>
+                            </div>
+                          </td>
+                          <td className="px-3 text-center">
+                            <span className={`text-12px font-medium ${d.daysInStage > 20 ? 'text-red-500' : d.daysInStage > 10 ? 'text-yellow-500' : 'text-gray-600'}`}>
+                              {d.daysInStage}d
+                            </span>
+                          </td>
+                          <td className="px-3">
+                            <span className="text-11px text-gray-500">{d.closeDate}</span>
+                          </td>
+                          <td className="px-4">
+                            <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingDeal(d); setShowDealModal(true); }}
+                                className="w-7 h-7 rounded bg-gray-100 hover:bg-[#157A6E] hover:text-white flex items-center justify-center text-gray-400 transition-colors"
+                                title="Edit deal"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
+
+          {/* Summary bar */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] px-5 py-3 text-center text-12px text-gray-500">
+            Showing <strong className="text-gray-800">{filtered.length}</strong> of {deals.length} deals · Total MRR: <strong className="text-gray-800">{formatCurrency(totalFilteredMRR)}</strong> · Weighted: <strong className="text-gray-800">{formatCurrency(filteredWeighted)}</strong> · Avg Probability: <strong className="text-gray-800">{avgProb}%</strong>
           </div>
-        </div>
+        </>
         )}
 
-        {/* Kanban view */}
+        {/* ── KANBAN (grouped by stage) ── */}
         {pipelineMetricsView === 'kanban' && (
         <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
           <div className="overflow-x-auto">
@@ -1957,24 +2086,16 @@ export default function LiveManagerPage() {
               {stages.map(stage => {
                 const stageDeals = deals.filter(d => d.stage === stage);
                 const stageMRR = stageDeals.reduce((s, d) => s + d.mrr, 0);
-                const stageColors: Record<DealStage, string> = {
-                  'Discovery': '#3B82F6',
-                  'Qualifying': '#06B6D4',
-                  'Proposal': '#8B5CF6',
-                  'Negotiating': '#F59E0B',
-                  'Closed Won': '#10B981',
-                  'Stalled': '#EF4444',
-                };
                 return (
                   <div key={stage} className="flex-shrink-0 w-[240px]">
-                    <div className="bg-[#F7F5F2] rounded-lg overflow-hidden border border-[#e8e5e1]">
+                    <div className={`rounded-lg overflow-hidden border border-[#e8e5e1] ${stage === 'Stalled' ? 'bg-red-50/50' : 'bg-[#F7F5F2]'}`}>
                       <div className="border-t-4 p-4" style={{ borderTopColor: stageColors[stage] }}>
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="text-13px font-semibold font-['Newsreader'] text-gray-800">{stage}</h4>
                           <span className="text-11px bg-white px-2 py-1 rounded text-gray-600 font-medium">{stageDeals.length}</span>
                         </div>
                         <p className="text-11px text-gray-600 mb-3">{formatCurrency(stageMRR)} MRR</p>
-                        <div className="space-y-2">
+                        <div className="space-y-2 max-h-[400px] overflow-y-auto">
                           {stageDeals.map(d => {
                             const adv = advisors.find(a => a.id === d.advisorId);
                             return (
@@ -1982,13 +2103,19 @@ export default function LiveManagerPage() {
                                 onClick={() => { if (adv) { setSelectedAdvisor(adv); setPanelOpen(true); setActiveViewRaw('relationships'); } }}
                                 className="bg-white p-3 rounded-lg hover:shadow-md transition-shadow cursor-pointer border border-[#e8e5e1]">
                                 <p className="text-12px font-semibold text-gray-800 mb-1">{d.name}</p>
-                                <p className="text-10px text-gray-600 mb-2">{adv?.name || 'Unassigned'}</p>
+                                <p className="text-10px text-gray-600 mb-2">{adv?.name || 'Unassigned'} · {adv?.company || ''}</p>
                                 <div className="flex items-center justify-between mb-2">
                                   <span className="text-11px font-medium text-[#157A6E]">{formatCurrency(d.mrr)}</span>
                                   <span className="text-10px text-gray-500">{d.daysInStage}d</span>
                                 </div>
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center justify-between">
                                   <DealHealthBadge health={d.health} />
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-8 h-1 bg-gray-200 rounded-full overflow-hidden">
+                                      <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${d.probability || 50}%` }} />
+                                    </div>
+                                    <span className="text-[9px] text-gray-400">{d.probability || 50}%</span>
+                                  </div>
                                 </div>
                               </div>
                             );
@@ -2007,10 +2134,9 @@ export default function LiveManagerPage() {
         </div>
         )}
 
-        {/* Quotes vs Sold view */}
+        {/* ── QUOTES VS SOLD ── */}
         {pipelineMetricsView === 'quotes-vs-sold' && (
         <div className="space-y-4">
-          {/* Summary stats */}
           <div className="grid grid-cols-4 gap-4">
             <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
               <p className="text-10px text-gray-500 uppercase font-medium">Total Quotes</p>
@@ -2030,38 +2156,40 @@ export default function LiveManagerPage() {
             </div>
           </div>
 
-          {/* Per-partner breakdown */}
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Quotes vs Sold by Partner</h3>
-            <table className="w-full text-12px">
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
+            <table className="w-full border-collapse">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 font-medium text-gray-500">Partner</th>
-                  <th className="text-center py-2 font-medium text-gray-500">Q1 Quotes</th>
-                  <th className="text-center py-2 font-medium text-gray-500">Q1 Sold</th>
-                  <th className="text-center py-2 font-medium text-gray-500">Q2 Quotes</th>
-                  <th className="text-center py-2 font-medium text-gray-500">Q2 Sold</th>
-                  <th className="text-center py-2 font-medium text-gray-500">All-Time Quotes</th>
-                  <th className="text-center py-2 font-medium text-gray-500">All-Time Sold</th>
-                  <th className="text-right py-2 font-medium text-gray-500">Close Rate</th>
+                <tr className="bg-[#FAFAF8]">
+                  <th className="text-left px-5 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Partner</th>
+                  <th className="text-center px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Q1 Quotes</th>
+                  <th className="text-center px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Q1 Sold</th>
+                  <th className="text-center px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Q2 Quotes</th>
+                  <th className="text-center px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Q2 Sold</th>
+                  <th className="text-center px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">All-Time</th>
+                  <th className="text-center px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Sold</th>
+                  <th className="text-right px-5 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Close Rate</th>
                 </tr>
               </thead>
               <tbody>
-                {quotesVsSold.map(a => (
-                  <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
-                    onClick={() => { setSelectedAdvisor(a as any); setPanelOpen(true); }}>
-                    <td className="py-2">
-                      <p className="font-medium text-gray-800">{a.name}</p>
-                      <p className="text-10px text-gray-500">{a.company}</p>
+                {quotesVsSold.map((a, i) => (
+                  <tr
+                    key={a.id}
+                    className={`cursor-pointer transition-colors hover:bg-[#F0F9F8] ${i % 2 === 0 ? 'bg-white' : 'bg-[#FAFAF8]'}`}
+                    style={{ height: 48 }}
+                    onClick={() => { setSelectedAdvisor(a as any); setPanelOpen(true); setActiveViewRaw('relationships'); }}
+                  >
+                    <td className="px-5">
+                      <p className="text-13px font-semibold text-gray-900">{a.name}</p>
+                      <p className="text-[10px] text-gray-400">{a.company}</p>
                     </td>
-                    <td className="py-2 text-center text-gray-600">{a.q1.quotes}</td>
-                    <td className="py-2 text-center font-semibold text-green-700">{a.q1.sold}</td>
-                    <td className="py-2 text-center text-gray-600">{a.q2.quotes}</td>
-                    <td className="py-2 text-center font-semibold text-green-700">{a.q2.sold}</td>
-                    <td className="py-2 text-center text-gray-800 font-medium">{a.totalQuotes}</td>
-                    <td className="py-2 text-center font-bold text-green-700">{a.soldDeals}</td>
-                    <td className="py-2 text-right">
-                      <span className={`px-2 py-0.5 rounded-full text-11px font-bold ${
+                    <td className="px-3 text-center text-12px text-gray-600">{a.q1.quotes}</td>
+                    <td className="px-3 text-center text-12px font-semibold text-green-700">{a.q1.sold}</td>
+                    <td className="px-3 text-center text-12px text-gray-600">{a.q2.quotes}</td>
+                    <td className="px-3 text-center text-12px font-semibold text-green-700">{a.q2.sold}</td>
+                    <td className="px-3 text-center text-12px font-medium text-gray-800">{a.totalQuotes}</td>
+                    <td className="px-3 text-center text-12px font-bold text-green-700">{a.soldDeals}</td>
+                    <td className="px-5 text-right">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
                         a.closeRate >= 50 ? 'bg-green-100 text-green-700' :
                         a.closeRate >= 25 ? 'bg-amber-100 text-amber-700' :
                         'bg-red-100 text-red-700'
@@ -2077,7 +2205,7 @@ export default function LiveManagerPage() {
         </div>
         )}
 
-        {/* By Advisor view */}
+        {/* ── BY ADVISOR ── */}
         {pipelineMetricsView === 'by-advisor' && (
         <div className="space-y-4">
           {advisorsWithDeals
@@ -2114,26 +2242,44 @@ export default function LiveManagerPage() {
                   </div>
 
                   {isExpanded && (
-                    <div className="border-t border-[#e8e5e1] p-4 bg-[#F7F5F2]">
+                    <div className="border-t border-[#e8e5e1] bg-[#F7F5F2] overflow-hidden">
                       {advisorDeals.length === 0 ? (
-                        <p className="text-11px text-gray-400 italic">No deals for this advisor</p>
+                        <p className="text-11px text-gray-400 italic p-4">No deals for this advisor</p>
                       ) : (
-                        <div className="space-y-2">
-                          {advisorDeals.map(d => (
-                            <div key={d.id}
-                              onClick={() => { setSelectedAdvisor(adv); setPanelOpen(true); setActiveViewRaw('relationships'); }}
-                              className="flex items-center justify-between p-3 bg-white rounded-lg hover:bg-gray-50 cursor-pointer border border-[#e8e5e1] group">
-                              <div className="flex-1">
-                                <p className="text-12px font-medium text-gray-800">{d.name}</p>
-                                <p className="text-10px text-gray-500">{d.stage} · {d.daysInStage}d in stage</p>
-                              </div>
-                              <div className="flex items-center gap-2 ml-2">
-                                <DealHealthBadge health={d.health} />
-                                <span className="text-12px font-semibold text-gray-800 min-w-[60px] text-right">{formatCurrency(d.mrr)}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="bg-[#FAFAF8]/70">
+                              <th className="text-left px-5 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Deal</th>
+                              <th className="text-left px-3 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Stage</th>
+                              <th className="text-center px-3 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Health</th>
+                              <th className="text-right px-3 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">MRR</th>
+                              <th className="text-center px-3 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Days</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {advisorDeals.map((d, i) => (
+                              <tr
+                                key={d.id}
+                                onClick={() => { setSelectedAdvisor(adv); setPanelOpen(true); setActiveViewRaw('relationships'); }}
+                                className={`cursor-pointer transition-colors hover:bg-[#F0F9F8] ${i % 2 === 0 ? 'bg-white' : 'bg-[#FAFAF8]'}`}
+                                style={{ height: 44 }}
+                              >
+                                <td className="px-5 text-12px font-medium text-gray-800">{d.name}</td>
+                                <td className="px-3">
+                                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${stageBgStyles[d.stage] || 'bg-gray-100 text-gray-600'}`}>{d.stage}</span>
+                                </td>
+                                <td className="px-3 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <span className="w-[5px] h-[5px] rounded-full inline-block" style={{ backgroundColor: healthDot[d.health] || '#6B7280' }} />
+                                    <span className="text-10px text-gray-500">{d.health}</span>
+                                  </div>
+                                </td>
+                                <td className="px-3 text-right text-12px font-semibold text-[#157A6E]">{formatCurrency(d.mrr)}</td>
+                                <td className="px-3 text-center text-11px text-gray-500">{d.daysInStage}d</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       )}
                     </div>
                   )}
