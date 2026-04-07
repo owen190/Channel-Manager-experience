@@ -900,7 +900,7 @@ export default function LiveManagerPage() {
 
             {/* ═══ LEFT SIDEBAR (5 cols / ~40%) — Contact Card + Actions + Health + Intel ═══ */}
             <div className="col-span-5">
-              <div className="sticky top-6 space-y-5">
+              <div className="space-y-5">
 
                 {/* Contact Card */}
                 <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
@@ -1097,7 +1097,7 @@ export default function LiveManagerPage() {
                     {advisorDeals.map(deal => (
                       <div
                         key={deal.id}
-                        onClick={() => { setSelectedDeal(deal); }}
+                        onClick={() => { setSelectedDeal(deal); setActiveViewRaw('pipeline'); }}
                         className="p-4 rounded-lg border border-[#e8e5e1] hover:border-[#157A6E]/30 hover:bg-[#F0F9F8] transition-all cursor-pointer"
                       >
                         <div className="flex items-start justify-between mb-2">
@@ -1183,13 +1183,6 @@ export default function LiveManagerPage() {
                 <button className="px-4 py-2 text-12px font-medium bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] transition-colors">Save Note</button>
               </div>
 
-              {/* Supplier Rating */}
-              {ratings && (
-                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-                  <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Supplier Rating</h3>
-                  <PerAdvisorRating data={ratings} advisorId={selectedAdvisor.id} />
-                </div>
-              )}
             </div>
           </div>
         </div>
