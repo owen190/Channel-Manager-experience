@@ -48,9 +48,29 @@ function PWARegister() {
             window.addEventListener('load', () => {
               navigator.serviceWorker.register('/sw.js').then(reg => {
                 console.log('Service Worker registered:', reg);
+                // Check for updates immediately and every 60 seconds
+                reg.update();
+                setInterval(() => reg.update(), 60000);
+                // When a new SW is found, tell it to activate immediately
+                reg.addEventListener('updatefound', () => {
+                  const newWorker = reg.installing;
+                  if (newWorker) {
+                    newWorker.addEventListener('statechange', () => {
+                      if (newWorker.state === 'activated') {
+                        console.log('New Service Worker activated — refreshing for latest version');
+                        window.location.reload();
+                      }
+                    });
+                  }
+                });
               }).catch(err => {
                 console.log('Service Worker registration failed:', err);
               });
+            });
+            // If a new SW takes over, reload to get fresh content
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              console.log('Service Worker controller changed — reloading');
+              window.location.reload();
             });
           }
         `,

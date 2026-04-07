@@ -1,23 +1,24 @@
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `channel-companion-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `channel-companion-dynamic-${CACHE_VERSION}`;
 const OFFLINE_URL = '/offline.html';
 
+// Only cache truly static assets — NOT pages
 const STATIC_ASSETS = [
-  '/',
-  '/live/manager',
   '/offline.html',
   '/manifest.json',
 ];
 
+// Pages should ALWAYS go network-first so deploys are seen immediately
+const PAGE_ROUTES = ['/', '/live/manager', '/login', '/signup', '/onboarding'];
+
 const API_ROUTES = ['/api/'];
 
-// Install event: cache static assets
+// Install event: cache only offline fallback assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch(() => {
-        // Silently fail if some assets aren't available yet
         return Promise.resolve();
       });
     })
@@ -25,13 +26,14 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate event: clean up old caches
+// Activate event: clean up ALL old caches aggressively
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
+            console.log('[SW] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -41,7 +43,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch event: implement cache strategies
+// Fetch event: network-first for pages & API, cache-first only for static assets
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -51,17 +53,29 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API calls: network-first strategy
+  // API calls: network-first
   if (API_ROUTES.some((route) => url.pathname.startsWith(route))) {
     event.respondWith(networkFirst(request));
     return;
   }
 
-  // Static assets: cache-first strategy
-  event.respondWith(cacheFirst(request));
+  // Pages/navigation requests: ALWAYS network-first
+  if (request.mode === 'navigate' || PAGE_ROUTES.includes(url.pathname)) {
+    event.respondWith(networkFirst(request));
+    return;
+  }
+
+  // Hashed static assets (/_next/static/...): cache-first (safe, they're immutable by URL)
+  if (url.pathname.startsWith('/_next/static')) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
+
+  // Everything else: network-first
+  event.respondWith(networkFirst(request));
 });
 
-// Cache-first strategy for static assets
+// Cache-first strategy — only for immutable hashed assets
 async function cacheFirst(request) {
   const cached = await caches.match(request);
   if (cached) {
@@ -76,11 +90,11 @@ async function cacheFirst(request) {
     }
     return response;
   } catch (error) {
-    return caches.match(OFFLINE_URL) || new Response('Offline', { status: 503 });
+    return new Response('Offline', { status: 503 });
   }
 }
 
-// Network-first strategy for API calls
+// Network-first strategy — always tries fresh content first
 async function networkFirst(request) {
   try {
     const response = await fetch(request);
@@ -93,6 +107,11 @@ async function networkFirst(request) {
     const cached = await caches.match(request);
     if (cached) {
       return cached;
+    }
+    // For navigation requests, show offline page
+    if (request.mode === 'navigate') {
+      const offlinePage = await caches.match(OFFLINE_URL);
+      if (offlinePage) return offlinePage;
     }
     return new Response(
       JSON.stringify({ error: 'Offline - no cached response available' }),
@@ -124,7 +143,6 @@ async function syncOfflineNotes() {
         if (response.ok) {
           await deleteOfflineNote(db, note.id);
 
-          // Notify clients of sync success
           const clients = await self.clients.matchAll();
           clients.forEach((client) => {
             client.postMessage({
