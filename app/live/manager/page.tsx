@@ -84,6 +84,7 @@ export default function LiveManagerPage() {
   const [partnerSearch, setPartnerSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('All');
   const [pipelineSearch, setPipelineSearch] = useState('');
+  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -94,6 +95,7 @@ export default function LiveManagerPage() {
     setExpandedKPIPanel(null);
     setExpandedKPI(null);
     setDrillDown(null);
+    setSelectedDeal(null);
   };
 
   // Fetch live data
@@ -1863,6 +1865,242 @@ export default function LiveManagerPage() {
   // PIPELINE (with Quotes vs Sold metrics)
   // ════════════════════════════════════════════════
   const renderPipeline = () => {
+    // ── Deal Detail View ──
+    if (selectedDeal) {
+      const dealAdvisor = advisors.find(a => a.id === selectedDeal.advisorId);
+      const dealAdvisorDeals = deals.filter(d => d.advisorId === selectedDeal.advisorId);
+      const stageColors: Record<string, string> = {
+        'Discovery': '#3B82F6', 'Qualifying': '#06B6D4', 'Proposal': '#8B5CF6',
+        'Negotiating': '#F59E0B', 'Closed Won': '#10B981', 'Stalled': '#EF4444',
+      };
+      const stageBg: Record<string, string> = {
+        'Discovery': 'bg-blue-50 text-blue-700', 'Qualifying': 'bg-cyan-50 text-cyan-700',
+        'Proposal': 'bg-violet-50 text-violet-700', 'Negotiating': 'bg-amber-50 text-amber-700',
+        'Closed Won': 'bg-emerald-50 text-emerald-700', 'Stalled': 'bg-red-50 text-red-700',
+      };
+      const healthDotColor: Record<string, string> = { 'Healthy': '#16A34A', 'Monitor': '#F59E0B', 'At Risk': '#F97316', 'Stalled': '#EF4444' };
+
+      return (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+            <button
+              onClick={() => setSelectedDeal(null)}
+              className="mb-4 flex items-center gap-1 text-12px font-medium text-[#157A6E] hover:text-[#0f5550] transition-colors"
+            >
+              ← Back to Pipeline
+            </button>
+
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h2 className="text-[28px] font-semibold font-['Newsreader'] text-gray-900 mb-2">{selectedDeal.name}</h2>
+                <div className="flex items-center gap-3 mb-3">
+                  <span className={`px-3 py-1 rounded-full text-12px font-medium ${stageBg[selectedDeal.stage] || 'bg-gray-100 text-gray-600'}`}>
+                    {selectedDeal.stage}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: healthDotColor[selectedDeal.health] || '#6B7280' }} />
+                    <span className="text-12px text-gray-600">{selectedDeal.health}</span>
+                  </div>
+                </div>
+                {dealAdvisor && (
+                  <p className="text-13px text-gray-600">
+                    Advisor:{' '}
+                    <button
+                      onClick={() => { setSelectedAdvisor(dealAdvisor); setPanelOpen(true); setActiveViewRaw('relationships'); setSelectedDeal(null); }}
+                      className="text-[#157A6E] font-medium hover:underline"
+                    >
+                      {dealAdvisor.name}
+                    </button>
+                    <span className="text-gray-400"> · {dealAdvisor.company}</span>
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setEditingDeal(selectedDeal); setShowDealModal(true); }}
+                  className="px-4 py-2 text-12px font-medium border border-[#e8e5e1] text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Edit Deal
+                </button>
+              </div>
+            </div>
+
+            {/* Key metrics row */}
+            <div className="grid grid-cols-5 gap-4">
+              <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                <p className="text-10px text-gray-500 uppercase font-medium">MRR</p>
+                <p className="text-[18px] font-bold text-[#157A6E]">{formatCurrency(selectedDeal.mrr)}</p>
+              </div>
+              <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                <p className="text-10px text-gray-500 uppercase font-medium">Probability</p>
+                <p className="text-[18px] font-bold text-gray-800">{selectedDeal.probability || 50}%</p>
+              </div>
+              <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                <p className="text-10px text-gray-500 uppercase font-medium">Days in Stage</p>
+                <p className={`text-[18px] font-bold ${selectedDeal.daysInStage > 20 ? 'text-red-500' : 'text-gray-800'}`}>{selectedDeal.daysInStage}</p>
+              </div>
+              <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                <p className="text-10px text-gray-500 uppercase font-medium">Close Date</p>
+                <p className="text-[15px] font-bold text-gray-800">{selectedDeal.closeDate || '—'}</p>
+              </div>
+              <div className="text-center p-3 bg-[#F7F5F2] rounded-lg">
+                <p className="text-10px text-gray-500 uppercase font-medium">Competitor</p>
+                <p className="text-[15px] font-bold text-gray-800">{selectedDeal.competitor || 'None'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Two column layout */}
+          <div className="grid grid-cols-3 gap-6">
+            {/* Left column */}
+            <div className="col-span-2 space-y-6">
+              {/* Stage Progress */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Stage Progress</h3>
+                <div className="flex items-center gap-1">
+                  {(['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won'] as const).map((stage, idx) => {
+                    const currentIdx = ['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won'].indexOf(selectedDeal.stage);
+                    const isActive = idx <= currentIdx && selectedDeal.stage !== 'Stalled';
+                    const isCurrent = stage === selectedDeal.stage;
+                    return (
+                      <div key={stage} className="flex-1">
+                        <div
+                          className={`h-2 rounded-full ${isActive ? '' : 'bg-gray-200'}`}
+                          style={isActive ? { backgroundColor: stageColors[stage] } : {}}
+                        />
+                        <p className={`text-[9px] mt-1 text-center ${isCurrent ? 'text-[#157A6E] font-bold' : 'text-gray-400'}`}>{stage}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                {selectedDeal.stage === 'Stalled' && (
+                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-12px text-red-700 font-medium">This deal is stalled — {selectedDeal.daysInStage} days without movement</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Items */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Action Items</h3>
+                {selectedDeal.actionItems && selectedDeal.actionItems.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedDeal.actionItems.map(item => (
+                      <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${item.status === 'completed' ? 'bg-green-500' : item.status === 'overdue' ? 'bg-red-500' : 'bg-yellow-500'}`} />
+                          <p className="text-12px text-gray-800">{item.text}</p>
+                        </div>
+                        <span className={`text-10px font-medium ${item.status === 'overdue' ? 'text-red-500' : 'text-gray-500'}`}>
+                          {item.daysOld}d old
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-12px text-gray-400 italic">No action items</p>
+                )}
+              </div>
+
+              {/* Notes */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Notes</h3>
+                <textarea
+                  placeholder="Add notes about this deal..."
+                  defaultValue={selectedDeal.overrideNote || ''}
+                  className="w-full text-12px border border-[#e8e5e1] rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E]"
+                  rows={4}
+                />
+                <button className="mt-2 px-4 py-2 text-12px font-medium bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] transition-colors">Save Note</button>
+              </div>
+            </div>
+
+            {/* Right column */}
+            <div className="space-y-6">
+              {/* Advisor Card */}
+              {dealAdvisor && (
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                  <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Advisor</h3>
+                  <div
+                    onClick={() => { setSelectedAdvisor(dealAdvisor); setPanelOpen(true); setActiveViewRaw('relationships'); setSelectedDeal(null); }}
+                    className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-[#157A6E] flex items-center justify-center text-white text-12px font-bold">
+                      {dealAdvisor.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    </div>
+                    <div>
+                      <p className="text-13px font-semibold text-gray-900">{dealAdvisor.name}</p>
+                      <p className="text-11px text-gray-500">{dealAdvisor.company}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-4">
+                    <div>
+                      <p className="text-10px text-gray-500 uppercase">MRR</p>
+                      <p className="text-13px font-bold text-[#157A6E]">{formatCurrency(dealAdvisor.mrr)}</p>
+                    </div>
+                    <div>
+                      <p className="text-10px text-gray-500 uppercase">Deals</p>
+                      <p className="text-13px font-bold text-gray-800">{dealAdvisorDeals.length}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Other Deals by Same Advisor */}
+              {dealAdvisor && dealAdvisorDeals.filter(d => d.id !== selectedDeal.id).length > 0 && (
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                  <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Other Deals</h3>
+                  <div className="space-y-2">
+                    {dealAdvisorDeals.filter(d => d.id !== selectedDeal.id).map(d => (
+                      <div
+                        key={d.id}
+                        onClick={() => setSelectedDeal(d)}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                      >
+                        <div>
+                          <p className="text-12px font-medium text-gray-800">{d.name}</p>
+                          <p className="text-10px text-gray-500">{d.stage}</p>
+                        </div>
+                        <span className="text-12px font-semibold text-[#157A6E]">{formatCurrency(d.mrr)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Probability Ring */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6 text-center">
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Win Probability</h3>
+                <div className="relative w-24 h-24 mx-auto mb-3">
+                  <svg viewBox="0 0 36 36" className="w-24 h-24">
+                    <path
+                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      fill="none"
+                      stroke="#e5e7eb"
+                      strokeWidth="3"
+                    />
+                    <path
+                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                      fill="none"
+                      stroke="#157A6E"
+                      strokeWidth="3"
+                      strokeDasharray={`${selectedDeal.probability || 50}, 100`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-[20px] font-bold text-[#157A6E]">{selectedDeal.probability || 50}%</span>
+                  </div>
+                </div>
+                <p className="text-11px text-gray-500">Weighted Value: {formatCurrency(selectedDeal.mrr * (selectedDeal.probability || 50) / 100)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // Apply search + health + stage filters
     const filtered = deals.filter(d => {
       if (dealFilter.health !== 'all' && d.health !== dealFilter.health) return false;
@@ -2015,7 +2253,7 @@ export default function LiveManagerPage() {
                       return (
                         <tr
                           key={d.id}
-                          onClick={() => { if (adv) { setSelectedAdvisor(adv); setPanelOpen(true); setActiveViewRaw('relationships'); } }}
+                          onClick={() => setSelectedDeal(d)}
                           className={`group cursor-pointer transition-colors hover:bg-[#F0F9F8] ${i % 2 === 0 ? 'bg-white' : 'bg-[#FAFAF8]'}`}
                           style={{ height: 48 }}
                         >
@@ -2100,7 +2338,7 @@ export default function LiveManagerPage() {
                             const adv = advisors.find(a => a.id === d.advisorId);
                             return (
                               <div key={d.id}
-                                onClick={() => { if (adv) { setSelectedAdvisor(adv); setPanelOpen(true); setActiveViewRaw('relationships'); } }}
+                                onClick={() => setSelectedDeal(d)}
                                 className="bg-white p-3 rounded-lg hover:shadow-md transition-shadow cursor-pointer border border-[#e8e5e1]">
                                 <p className="text-12px font-semibold text-gray-800 mb-1">{d.name}</p>
                                 <p className="text-10px text-gray-600 mb-2">{adv?.name || 'Unassigned'} · {adv?.company || ''}</p>
@@ -2260,7 +2498,7 @@ export default function LiveManagerPage() {
                             {advisorDeals.map((d, i) => (
                               <tr
                                 key={d.id}
-                                onClick={() => { setSelectedAdvisor(adv); setPanelOpen(true); setActiveViewRaw('relationships'); }}
+                                onClick={() => setSelectedDeal(d)}
                                 className={`cursor-pointer transition-colors hover:bg-[#F0F9F8] ${i % 2 === 0 ? 'bg-white' : 'bg-[#FAFAF8]'}`}
                                 style={{ height: 44 }}
                               >
@@ -3127,8 +3365,10 @@ export default function LiveManagerPage() {
         isOpen={showDealModal}
         onClose={() => { setShowDealModal(false); setEditingDeal(null); }}
         onSave={handleSaveDeal}
+        onSavePartner={handleSavePartner}
         editingDeal={editingDeal}
         advisors={advisors}
+        existingCompanies={[...new Set(advisors.map(a => a.company).filter(Boolean))].sort()}
       />
       <AIChat role="manager" selectedAdvisor={selectedAdvisor} live={true} />
     </div>
