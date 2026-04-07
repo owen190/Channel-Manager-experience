@@ -7,7 +7,7 @@ import {
   ArrowLeft, MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays,
   Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle, RefreshCw,
   Megaphone, Star, TrendingUp as TrendingUpIcon, CheckCircle, AlertCircle as AlertCircleIcon, Edit, Plus,
-  LayoutGrid, Map, FileText, Mail, Building2, ArrowUpRight, BarChart3, UserPlus, Calendar, Shield, PlayCircle, ChevronRight,
+  LayoutGrid, Map, FileText, Mail, Building2, ArrowUpRight, BarChart3, UserPlus, Calendar, Shield, PlayCircle, ChevronRight, Search,
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -80,6 +80,8 @@ export default function LiveManagerPage() {
   const [tsdRoleFilter, setTsdRoleFilter] = useState<string>('All');
   const [tsdCompanyFilter, setTsdCompanyFilter] = useState<string | null>(null);
   const [partnersSubView, setPartnersSubView] = useState<'contacts' | 'companies'>('contacts');
+  const [partnerSearch, setPartnerSearch] = useState('');
+  const [stageFilter, setStageFilter] = useState<string>('All');
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -704,6 +706,22 @@ export default function LiveManagerPage() {
       filteredAdvisors = filteredAdvisors.filter(a => a.company === companyFilter);
     }
 
+    // Apply stage filter
+    if (stageFilter !== 'All') {
+      filteredAdvisors = filteredAdvisors.filter(a => getRelationshipStage(a) === stageFilter);
+    }
+
+    // Apply search filter (searches name, company, location)
+    if (partnerSearch.trim()) {
+      const q = partnerSearch.toLowerCase();
+      filteredAdvisors = filteredAdvisors.filter(a =>
+        a.name.toLowerCase().includes(q) ||
+        a.company?.toLowerCase().includes(q) ||
+        a.location?.toLowerCase().includes(q) ||
+        a.title?.toLowerCase().includes(q)
+      );
+    }
+
     // Apply sorting
     const sortedAdvisors = [...filteredAdvisors].sort((a, b) => {
       if (relationshipSort === 'mrr') return b.mrr - a.mrr;
@@ -1200,43 +1218,99 @@ export default function LiveManagerPage() {
             </div>
           )}
 
-          {/* View Toggle: Contacts vs Companies */}
-          <div className="flex items-center justify-between">
-            <div className="flex gap-2">
+          {/* ── TOOLBAR ── */}
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 flex items-center gap-4 flex-wrap">
+            {/* Contacts / Companies toggle */}
+            <div className="flex bg-[#F5F5F5] rounded-lg p-1 gap-1">
               <button
-                onClick={() => { setPartnersSubView('contacts'); setCompanyFilter(null); }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-12px font-medium transition-colors ${
+                onClick={() => { setPartnersSubView('contacts'); setCompanyFilter(null); setPartnerSearch(''); }}
+                className={`px-3 py-1.5 rounded-md text-12px font-medium transition-all ${
                   partnersSubView === 'contacts'
-                    ? 'bg-[#157A6E] text-white'
-                    : 'bg-white border border-[#e8e5e1] text-gray-700 hover:bg-gray-50'
+                    ? 'bg-white text-[#157A6E] shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                <Users className="w-3.5 h-3.5" />
                 Contacts
               </button>
               <button
-                onClick={() => { setPartnersSubView('companies'); setCompanyFilter(null); }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-12px font-medium transition-colors ${
+                onClick={() => { setPartnersSubView('companies'); setCompanyFilter(null); setPartnerSearch(''); }}
+                className={`px-3 py-1.5 rounded-md text-12px font-medium transition-all ${
                   partnersSubView === 'companies'
-                    ? 'bg-[#157A6E] text-white'
-                    : 'bg-white border border-[#e8e5e1] text-gray-700 hover:bg-gray-50'
+                    ? 'bg-white text-[#157A6E] shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
-                <Building2 className="w-3.5 h-3.5" />
                 Companies
               </button>
             </div>
+
+            {/* Search */}
+            <div className="flex-1 min-w-[200px] relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={partnerSearch}
+                onChange={(e) => setPartnerSearch(e.target.value)}
+                placeholder={partnersSubView === 'contacts' ? 'Search partners or companies...' : 'Search companies...'}
+                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-full text-12px font-['Inter'] focus:outline-none focus:border-[#157A6E] focus:ring-1 focus:ring-[#157A6E]/20"
+              />
+            </div>
+
+            {/* Filters (contacts only) */}
+            {partnersSubView === 'contacts' && (
+              <>
+                <select
+                  value={relationshipFilter}
+                  onChange={(e) => setRelationshipFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-md text-12px font-['Inter'] text-gray-700 hover:border-[#157A6E] cursor-pointer"
+                >
+                  <option value="All">All Engagement</option>
+                  <option value="Revenue Producing">Revenue Producing</option>
+                  <option value="High Engagement">High Engagement</option>
+                  <option value="Strategic Top 20">Strategic Top 20</option>
+                  <option value="Needs Attention">Needs Attention</option>
+                  <option value="New / Onboarding">New / Onboarding</option>
+                </select>
+                <select
+                  value={stageFilter}
+                  onChange={(e) => setStageFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-md text-12px font-['Inter'] text-gray-700 hover:border-[#157A6E] cursor-pointer"
+                >
+                  <option value="All">All Stages</option>
+                  {relationshipStages.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                {companyFilter && (
+                  <button
+                    onClick={() => setCompanyFilter(null)}
+                    className="flex items-center gap-1 px-3 py-2 bg-[#157A6E]/10 text-[#157A6E] rounded-md text-12px font-medium"
+                  >
+                    {companyFilter} <X className="w-3 h-3" />
+                  </button>
+                )}
+                <select
+                  value={relationshipSort}
+                  onChange={(e) => setRelationshipSort(e.target.value as 'name' | 'mrr' | 'lastContact')}
+                  className="px-3 py-2 border border-gray-200 rounded-md text-12px font-['Inter'] text-gray-700 hover:border-[#157A6E] cursor-pointer"
+                >
+                  <option value="mrr">Sort: MRR</option>
+                  <option value="lastContact">Sort: Last Contact</option>
+                  <option value="name">Sort: Name</option>
+                </select>
+              </>
+            )}
+
             <button
               onClick={() => { setEditingPartner(null); setShowPartnerModal(true); }}
-              className="px-4 py-2 bg-[#157A6E] text-white rounded-lg text-12px font-medium hover:bg-[#12675b] transition-colors"
+              className="px-4 py-2 bg-[#157A6E] text-white rounded-md text-12px font-semibold hover:bg-[#12675b] transition-colors"
             >
               + Add Partner
             </button>
           </div>
 
-          {/* ── COMPANIES LIST VIEW ── */}
-          {partnersSubView === 'companies' && !companyFilter && (() => {
+          {/* ── COMPANIES TABLE VIEW ── */}
+          {partnersSubView === 'companies' && (() => {
             const existingCompanies = [...new Set(advisorsWithDeals.map(a => a.company).filter(Boolean))].sort();
+            const q = partnerSearch.toLowerCase();
 
             const companyData = existingCompanies.map(company => {
               const companyAdvisors = advisorsWithDeals.filter(a => a.company === company);
@@ -1245,7 +1319,6 @@ export default function LiveManagerPage() {
               const activeDealCount = companyDeals.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Stalled').length;
               const pipelineMRR = companyDeals.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Stalled').reduce((s, d) => s + d.mrr, 0);
 
-              // Relationship score
               const pulseMap: Record<string, number> = { 'Strong': 1, 'Steady': 0.7, 'Rising': 0.8, 'Fading': 0.3, 'Flatline': 0.1 };
               const trajMap: Record<string, number> = { 'Accelerating': 1, 'Climbing': 0.8, 'Stable': 0.5, 'Slipping': 0.2, 'Freefall': 0 };
               const fricMap: Record<string, number> = { 'Low': 1, 'Moderate': 0.6, 'High': 0.3, 'Critical': 0 };
@@ -1273,303 +1346,255 @@ export default function LiveManagerPage() {
                 activeDeals: activeDealCount,
                 relScore,
                 scoreBadge: getScoreBadge(relScore),
-                topAdvisors: companyAdvisors.sort((a, b) => b.mrr - a.mrr).slice(0, 3),
               };
-            }).sort((a, b) => b.mrr - a.mrr);
+            })
+            .filter(c => !q || c.name.toLowerCase().includes(q))
+            .sort((a, b) => b.mrr - a.mrr);
+
+            const totalCompanyMRR = companyData.reduce((s, c) => s + c.mrr, 0);
 
             return (
-              <div className="space-y-3">
-                <p className="text-12px text-gray-600 font-medium">{companyData.length} companies</p>
-                {companyData.map(company => (
-                  <div
-                    key={company.name}
-                    onClick={() => { setCompanyFilter(company.name); setPartnersSubView('contacts'); }}
-                    className="bg-white rounded-[10px] border border-[#e8e5e1] p-5 hover:shadow-md hover:border-[#157A6E] cursor-pointer transition-all"
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 bg-[#157A6E]/10 rounded-lg flex items-center justify-center">
-                          <Building2 className="w-5 h-5 text-[#157A6E]" />
-                        </div>
-                        <div>
-                          <h4 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">{company.name}</h4>
-                          <p className="text-11px text-gray-500">{company.contacts} contact{company.contacts !== 1 ? 's' : ''} · {company.activeDeals} active deal{company.activeDeals !== 1 ? 's' : ''}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span
-                          className="text-11px font-semibold px-3 py-1 rounded-full text-white"
-                          style={{ backgroundColor: company.scoreBadge.color }}
+              <>
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-[#FAFAF8]">
+                      <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Company</th>
+                      <th className="text-center px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Contacts</th>
+                      <th className="text-center px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Active Deals</th>
+                      <th className="text-right px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">MRR</th>
+                      <th className="text-right px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Pipeline</th>
+                      <th className="text-center px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Relationship</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {companyData.length === 0 ? (
+                      <tr><td colSpan={6} className="text-center py-8 text-12px text-gray-400">No companies match your search</td></tr>
+                    ) : (
+                      companyData.map((company, i) => (
+                        <tr
+                          key={company.name}
+                          onClick={() => { setCompanyFilter(company.name); setPartnersSubView('contacts'); setPartnerSearch(''); }}
+                          className={`cursor-pointer transition-colors hover:bg-[#F0F9F8] ${i % 2 === 0 ? 'bg-white' : 'bg-[#FAFAF8]'}`}
+                          style={{ height: 52 }}
                         >
-                          {company.scoreBadge.label}
-                        </span>
-                        <ChevronRight className="w-4 h-4 text-gray-400" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-4 gap-4 mb-4">
-                      <div>
-                        <p className="text-10px text-gray-500 uppercase font-medium">Total MRR</p>
-                        <p className="text-[15px] font-bold text-[#157A6E]">{formatCurrency(company.mrr)}</p>
-                      </div>
-                      <div>
-                        <p className="text-10px text-gray-500 uppercase font-medium">Pipeline</p>
-                        <p className="text-[15px] font-bold text-gray-800">{formatCurrency(company.pipeline)}</p>
-                      </div>
-                      <div>
-                        <p className="text-10px text-gray-500 uppercase font-medium">Contacts</p>
-                        <p className="text-[15px] font-bold text-gray-800">{company.contacts}</p>
-                      </div>
-                      <div>
-                        <p className="text-10px text-gray-500 uppercase font-medium">Rel. Score</p>
-                        <p className="text-[15px] font-bold" style={{ color: company.scoreBadge.color }}>{Math.round(company.relScore * 100)}%</p>
-                      </div>
-                    </div>
-                    {/* Top contacts preview */}
-                    <div className="flex items-center gap-2">
-                      <div className="flex -space-x-2">
-                        {company.topAdvisors.map(a => (
-                          <div
-                            key={a.id}
-                            className="w-7 h-7 rounded-full bg-[#157A6E] flex items-center justify-center text-white text-[9px] font-bold border-2 border-white"
-                            title={a.name}
-                          >
-                            {a.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-11px text-gray-500">
-                        {company.topAdvisors.map(a => a.name.split(' ')[0]).join(', ')}
-                        {company.contacts > 3 && ` +${company.contacts - 3} more`}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                          <td className="px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-[#157A6E]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <Building2 className="w-4 h-4 text-[#157A6E]" />
+                              </div>
+                              <span className="text-13px font-semibold text-gray-900">{company.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 text-center text-13px text-gray-700">{company.contacts}</td>
+                          <td className="px-4 text-center text-13px text-gray-700">{company.activeDeals}</td>
+                          <td className="px-4 text-right text-13px font-semibold text-[#157A6E]">{formatCurrency(company.mrr)}</td>
+                          <td className="px-4 text-right text-13px text-gray-700">{formatCurrency(company.pipeline)}</td>
+                          <td className="px-4 text-center">
+                            <span
+                              className="inline-block text-[10px] font-semibold px-2.5 py-1 rounded-full text-white"
+                              style={{ backgroundColor: company.scoreBadge.color }}
+                            >
+                              {company.scoreBadge.label}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
+              {/* Summary bar */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] px-5 py-3 text-center text-12px text-gray-500">
+                Showing <strong className="text-gray-800">{companyData.length}</strong> companies · Total MRR: <strong className="text-gray-800">{formatCurrency(totalCompanyMRR)}</strong>
+              </div>
+              </>
             );
           })()}
 
-          {/* ── CONTACTS LIST VIEW ── */}
-          {partnersSubView === 'contacts' && (
-          <>
-          {/* Engagement Level Filter */}
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
-            <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Engagement Levels</p>
-            <div className="flex flex-wrap gap-2">
-              {engagementSegments.map(seg => (
-                <button
-                  key={seg.key}
-                  onClick={() => setRelationshipFilter(seg.key)}
-                  className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
-                    relationshipFilter === seg.key
-                      ? 'bg-[#157A6E] text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {seg.label}
-                  <span className={`ml-1.5 ${relationshipFilter === seg.key ? 'text-white/80' : 'text-gray-600'}`}>
-                    ({seg.count})
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* ── CONTACTS DATA TABLE ── */}
+          {partnersSubView === 'contacts' && (() => {
+            const totalFilteredMRR = sortedAdvisors.reduce((s, a) => s + a.mrr, 0);
+            const avgDays = sortedAdvisors.length > 0
+              ? (sortedAdvisors.reduce((s, a) => s + getDaysSinceContact(a.lastContact), 0) / sortedAdvisors.length).toFixed(1)
+              : '0';
 
-          {/* Company Detail Header (when company filter is active) */}
-          {companyFilter && (() => {
-            const companyAdvisors = sortedAdvisors;
-            const companyMRR = companyAdvisors.reduce((s, a) => s + a.mrr, 0);
-            const avgMRR = companyAdvisors.length > 0 ? companyMRR / companyAdvisors.length : 0;
-
-            const pulseMap: Record<string, number> = { 'Strong': 1, 'Steady': 0.7, 'Fading': 0.3, 'Flatline': 0.1 };
-            const trajMap: Record<string, number> = { 'Accelerating': 1, 'Climbing': 0.8, 'Stable': 0.5, 'Slipping': 0.2, 'Freefall': 0 };
-            const fricMap: Record<string, number> = { 'Low': 1, 'Moderate': 0.6, 'High': 0.3, 'Critical': 0 };
-            const avgPulse = companyAdvisors.reduce((s, a) => s + (pulseMap[a.pulse] || 0), 0) / (companyAdvisors.length || 1);
-            const avgTraj = companyAdvisors.reduce((s, a) => s + (trajMap[a.trajectory] || 0), 0) / (companyAdvisors.length || 1);
-            const avgFric = companyAdvisors.reduce((s, a) => s + (fricMap[a.friction] || 0), 0) / (companyAdvisors.length || 1);
-            const avgContact = companyAdvisors.reduce((s, a) => {
-              const days = getDaysSinceContact(a.lastContact);
-              return s + (days < 7 ? 1 : days < 14 ? 0.5 : 0);
-            }, 0) / (companyAdvisors.length || 1);
-            const relationshipScore = (avgPulse + avgTraj + avgFric + avgContact) / 4;
-
-            const getRelationshipBadge = (score: number) => {
-              if (score > 0.75) return { label: 'Excellent', color: '#16A34A' };
-              if (score > 0.5) return { label: 'Good', color: '#84CC16' };
-              if (score > 0.25) return { label: 'Fair', color: '#FBBF24' };
-              return { label: 'Needs Work', color: '#EF4444' };
+            // Stage styling
+            const stageStyles: Record<string, string> = {
+              Prospect: 'bg-gray-100 text-gray-600',
+              Onboarding: 'bg-blue-50 text-blue-700',
+              Activated: 'bg-emerald-50 text-emerald-700',
+              Scaling: 'bg-teal-50 text-teal-700',
+              Strategic: 'bg-amber-50 text-amber-700',
             };
 
-            const scoreInfo = getRelationshipBadge(relationshipScore);
+            // Pulse dot colors
+            const pulseDot: Record<string, string> = { Strong: '#16A34A', Steady: '#84CC16', Rising: '#2563EB', Fading: '#F59E0B', Flatline: '#EF4444' };
+            const trajDot: Record<string, string> = { Accelerating: '#16A34A', Climbing: '#84CC16', Stable: '#6B7280', Slipping: '#F59E0B', Freefall: '#EF4444' };
+            const fricDot: Record<string, string> = { Low: '#16A34A', Moderate: '#F59E0B', High: '#F97316', Critical: '#EF4444' };
+
+            // Generate phone number from advisor id
+            const getPhone = (id: string) => {
+              const area = Math.floor(seededRandom(id + '-area') * 800) + 200;
+              const mid = Math.floor(seededRandom(id + '-mid') * 900) + 100;
+              const end = Math.floor(seededRandom(id + '-end') * 9000) + 1000;
+              return `(${area}) ${mid}-${end}`;
+            };
 
             return (
-              <div className="bg-white rounded-[10px] border border-[#157A6E]/30 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <Building2 className="w-6 h-6 text-[#157A6E]" />
-                    <h3 className="text-[24px] font-semibold font-['Newsreader'] text-gray-900">{companyFilter}</h3>
-                  </div>
-                  <button
-                    onClick={() => setCompanyFilter(null)}
-                    className="px-3 py-1.5 text-12px font-medium border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    ← All Contacts
-                  </button>
-                </div>
-                <div className="grid grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-11px text-gray-600 mb-1">Total Contacts</p>
-                    <p className="text-18px font-bold text-gray-900">{companyAdvisors.length}</p>
-                  </div>
-                  <div>
-                    <p className="text-11px text-gray-600 mb-1">Total MRR</p>
-                    <p className="text-18px font-bold text-[#157A6E]">{formatCurrency(companyMRR)}</p>
-                  </div>
-                  <div>
-                    <p className="text-11px text-gray-600 mb-1">Avg MRR per Contact</p>
-                    <p className="text-18px font-bold text-gray-900">{formatCurrency(avgMRR)}</p>
-                  </div>
-                  <div>
-                    <p className="text-11px text-gray-600 mb-1">Relationship Score</p>
-                    <p className="text-18px font-bold" style={{ color: scoreInfo.color }}>{scoreInfo.label}</p>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Sort Controls */}
-          <div className="flex items-center justify-between">
-            <div className="text-12px text-gray-600 font-medium">
-              Showing {sortedAdvisors.length} partners
-              {territoryFilter && <span className="ml-1 text-[#157A6E]">in {territoryFilter}</span>}
-              {companyFilter && <span className="ml-1 text-[#157A6E]">at {companyFilter}</span>}
-            </div>
-            <select
-              value={relationshipSort}
-              onChange={(e) => setRelationshipSort(e.target.value as 'name' | 'mrr' | 'lastContact')}
-              className="text-12px border border-gray-200 rounded px-2 py-1 text-gray-700 hover:border-gray-300"
-            >
-              <option value="mrr">Sort by MRR</option>
-              <option value="lastContact">Sort by Last Contacted</option>
-              <option value="name">Sort by Name</option>
-            </select>
-          </div>
-
-          {/* Partner Cards — HubSpot-style */}
-          <div className="space-y-3">
-            {sortedAdvisors.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
-                <p className="text-12px">No partners match this filter</p>
-              </div>
-            ) : (
-              sortedAdvisors.map(a => {
-                const daysSince = getDaysSinceContact(a.lastContact);
-                const ws = whiteSpaceData.find(w => w.id === a.id);
-                const stage = getRelationshipStage(a);
-                const initials = a.name.split(' ').map(n => n[0]).join('').slice(0, 2);
-                const coMarketingMatch = coMarketingOpportunities.find(opp => opp.advisor.id === a.id);
-
+              <>
+              {/* Company detail header when filtered */}
+              {companyFilter && (() => {
+                const companyAdvisors = sortedAdvisors;
+                const companyMRR = companyAdvisors.reduce((s, a) => s + a.mrr, 0);
                 return (
-                  <div
-                    key={a.id}
-                    className="bg-white rounded-[10px] border border-[#e8e5e1] p-5 hover:shadow-md cursor-pointer transition-all"
-                    onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}
-                  >
-                    {/* Header: Avatar, Name, Stage Badge, MRR + Tier */}
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-start gap-3 flex-1">
-                        <div className="w-11 h-11 rounded-full flex items-center justify-center text-white text-13px font-bold flex-shrink-0"
-                          style={{ backgroundColor: '#157A6E' }}>
-                          {initials}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-13px font-semibold text-gray-900">{a.name}</p>
-                            <span className="px-2 py-0.5 bg-[#157A6E]/10 text-[#157A6E] text-[10px] rounded-full font-semibold">{stage}</span>
-                          </div>
-                          <p className="text-11px text-gray-500">{a.company} · {a.title}</p>
-                        </div>
+                  <div className="bg-white rounded-[10px] border border-[#157A6E]/30 p-5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-[#157A6E]/10 rounded-lg flex items-center justify-center">
+                        <Building2 className="w-5 h-5 text-[#157A6E]" />
                       </div>
-                      <div className="flex items-start gap-3 flex-shrink-0">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditingPartner(a); setShowPartnerModal(true); }}
-                          className="text-gray-400 hover:text-[#157A6E] transition-colors pt-1"
-                          title="Edit partner"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <div className="text-right">
-                          <p className="text-13px font-semibold text-gray-800">{formatCurrency(a.mrr)}</p>
-                          <TierBadge tier={a.tier} />
-                        </div>
+                      <div>
+                        <h3 className="text-[18px] font-semibold font-['Newsreader'] text-gray-900">{companyFilter}</h3>
+                        <p className="text-11px text-gray-500">{companyAdvisors.length} contacts · {formatCurrency(companyMRR)} MRR</p>
                       </div>
                     </div>
-
-                    {/* Action Items Row */}
-                    <div className="flex gap-2 mb-3 pb-3 border-b border-gray-100">
-                      <button className="text-11px font-medium text-[#157A6E] hover:bg-[#157A6E]/10 px-2 py-1 rounded transition-colors flex items-center gap-1">
-                        <Mail className="w-3 h-3" />
-                        Email
-                      </button>
-                      <button className="text-11px font-medium text-[#157A6E] hover:bg-[#157A6E]/10 px-2 py-1 rounded transition-colors flex items-center gap-1">
-                        <Phone className="w-3 h-3" />
-                        Call
-                      </button>
-                      <button className="text-11px font-medium text-[#157A6E] hover:bg-[#157A6E]/10 px-2 py-1 rounded transition-colors flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        Schedule
-                      </button>
-                      <button className="text-11px font-medium text-[#157A6E] hover:bg-[#157A6E]/10 px-2 py-1 rounded transition-colors flex items-center gap-1">
-                        <MessageCircle className="w-3 h-3" />
-                        Note
-                      </button>
-                    </div>
-
-                    {/* Engagement Indicators */}
-                    <div className="flex items-center gap-4 mb-3 pb-3 border-b border-gray-100">
-                      <div className="flex items-center gap-2">
-                        <PulseBadge pulse={a.pulse} />
-                        <span className="text-10px text-gray-500">Pulse</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <TrajectoryBadge trajectory={a.trajectory} />
-                        <span className="text-10px text-gray-500">Trajectory</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <FrictionBadge level={a.friction} />
-                        <span className="text-10px text-gray-500">Friction</span>
-                      </div>
-                      <div className={`ml-auto text-11px font-semibold ${getLastContactColor(daysSince)}`}>
-                        {daysSince}d ago
-                      </div>
-                    </div>
-
-                    {/* Additional Opportunities Section */}
-                    {(ws || coMarketingMatch) && (
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        {ws && ws.opportunityProducts.length > 0 && (
-                          <div className="mb-2">
-                            <p className="text-11px font-semibold text-gray-700 mb-1">White Space Opportunities</p>
-                            <p className="text-10px text-gray-600">
-                              {ws.opportunityProducts.length} products · Est. {formatCurrency(ws.opportunityMRR)}
-                            </p>
-                          </div>
-                        )}
-                        {coMarketingMatch && (
-                          <div>
-                            <p className="text-11px font-semibold text-gray-700 mb-1">Co-Marketing Eligible</p>
-                            <p className="text-10px text-gray-600">{coMarketingMatch.type}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    <button
+                      onClick={() => setCompanyFilter(null)}
+                      className="flex items-center gap-1 px-3 py-1.5 text-12px font-medium border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      ← All Partners
+                    </button>
                   </div>
                 );
-              })
-            )}
-          </div>
-          </>
-          )}
+              })()}
+
+              {/* Data table */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-[#FAFAF8]">
+                      <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]" style={{ minWidth: 220 }}>Partner</th>
+                      <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Stage</th>
+                      <th className="text-left px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Pulse</th>
+                      <th className="text-left px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Trajectory</th>
+                      <th className="text-left px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Friction</th>
+                      <th className="text-left px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Phone</th>
+                      <th className="text-right px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">MRR</th>
+                      <th className="text-center px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Contact</th>
+                      <th className="text-right px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedAdvisors.length === 0 ? (
+                      <tr><td colSpan={9} className="text-center py-8 text-12px text-gray-400">No partners match your filters</td></tr>
+                    ) : (
+                      sortedAdvisors.map((a, i) => {
+                        const daysSince = getDaysSinceContact(a.lastContact);
+                        const stage = getRelationshipStage(a);
+                        const initials = a.name.split(' ').map(n => n[0]).join('').slice(0, 2);
+
+                        return (
+                          <tr
+                            key={a.id}
+                            onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}
+                            className={`group cursor-pointer transition-colors hover:bg-[#F0F9F8] ${i % 2 === 0 ? 'bg-white' : 'bg-[#FAFAF8]'}`}
+                            style={{ height: 52 }}
+                          >
+                            {/* Name + Company */}
+                            <td className="px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-[#157A6E] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                                  {initials}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-13px font-semibold text-gray-900 truncate">{a.name}</p>
+                                  <p className="text-[10px] text-gray-400 truncate">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setCompanyFilter(a.company); }}
+                                      className="hover:text-[#157A6E] hover:underline transition-colors"
+                                    >
+                                      {a.company}
+                                    </button>
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+                            {/* Stage */}
+                            <td className="px-4">
+                              <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-medium whitespace-nowrap ${stageStyles[stage] || 'bg-gray-100 text-gray-600'}`}>
+                                {stage}
+                              </span>
+                            </td>
+                            {/* Pulse */}
+                            <td className="px-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-[6px] h-[6px] rounded-full inline-block flex-shrink-0" style={{ backgroundColor: pulseDot[a.pulse] || '#6B7280' }} />
+                                <span className="text-11px text-gray-600">{a.pulse}</span>
+                              </div>
+                            </td>
+                            {/* Trajectory */}
+                            <td className="px-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-[6px] h-[6px] rounded-full inline-block flex-shrink-0" style={{ backgroundColor: trajDot[a.trajectory] || '#6B7280' }} />
+                                <span className="text-11px text-gray-600">{a.trajectory}</span>
+                              </div>
+                            </td>
+                            {/* Friction */}
+                            <td className="px-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-[6px] h-[6px] rounded-full inline-block flex-shrink-0" style={{ backgroundColor: fricDot[a.friction] || '#6B7280' }} />
+                                <span className="text-11px text-gray-600">{a.friction}</span>
+                              </div>
+                            </td>
+                            {/* Phone */}
+                            <td className="px-3">
+                              <span className="text-11px text-gray-500 whitespace-nowrap">{getPhone(a.id)}</span>
+                            </td>
+                            {/* MRR */}
+                            <td className="px-4 text-right">
+                              <span className="text-13px font-semibold text-[#157A6E]">{formatCurrency(a.mrr)}</span>
+                            </td>
+                            {/* Last Contact */}
+                            <td className="px-3 text-center">
+                              <span className={`text-13px font-medium ${daysSince <= 3 ? 'text-green-500' : daysSince <= 7 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                {daysSince}d
+                              </span>
+                            </td>
+                            {/* Actions (hover) */}
+                            <td className="px-4">
+                              <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onClick={(e) => { e.stopPropagation(); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-[#157A6E] hover:text-white flex items-center justify-center text-gray-400 transition-colors" title="Email">
+                                  <Mail className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-[#157A6E] hover:text-white flex items-center justify-center text-gray-400 transition-colors" title="Call">
+                                  <Phone className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={(e) => { e.stopPropagation(); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-[#157A6E] hover:text-white flex items-center justify-center text-gray-400 transition-colors" title="Schedule">
+                                  <Calendar className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setEditingPartner(a); setShowPartnerModal(true); }}
+                                  className="w-7 h-7 rounded bg-gray-100 hover:bg-[#157A6E] hover:text-white flex items-center justify-center text-gray-400 transition-colors" title="Edit"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Summary bar */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] px-5 py-3 text-center text-12px text-gray-500">
+                Showing <strong className="text-gray-800">{sortedAdvisors.length}</strong> of {advisorsWithDeals.length} partners · Total MRR: <strong className="text-gray-800">{formatCurrency(totalFilteredMRR)}</strong> · Avg Last Contact: <strong className="text-gray-800">{avgDays}d</strong>
+              </div>
+              </>
+            );
+          })()}
         </div>
         )}
 
