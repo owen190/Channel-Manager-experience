@@ -32,8 +32,10 @@ const tierConfig: Record<
   },
 };
 
+const fallback = { bg: 'bg-gray-300', text: 'text-gray-700', label: 'PARTNER' };
+
 export function TierBadge({ tier }: TierBadgeProps) {
-  const config = tierConfig[tier];
+  const config = tierConfig[tier] || fallback;
 
   return (
     <span

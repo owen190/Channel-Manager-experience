@@ -19,7 +19,7 @@ export function adaptAdvisor(live: LiveAdvisor): Advisor {
     intent: (live.intent || 'Moderate') as Intent,
     friction: (live.friction || 'Low') as FrictionLevel,
     dealHealth: (live.dealHealth || 'Healthy') as DealHealth,
-    tier: (live.tier || 'silver') as PartnerTier,
+    tier: ({ top10: 'platinum', next20: 'gold', other: 'silver', platinum: 'platinum', gold: 'gold', silver: 'silver', onboarding: 'onboarding' }[live.tier || 'silver'] || 'silver') as PartnerTier,
     connectedSince: live.connectedSince || '2025-01-01',
     bestDayToReach: live.bestDayToReach || 'Tuesday',
     commPreference: live.commPreference || 'Email',

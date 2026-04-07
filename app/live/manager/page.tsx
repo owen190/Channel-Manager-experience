@@ -77,7 +77,8 @@ export default function LiveManagerPage() {
   const [playbookDeadline, setPlaybookDeadline] = useState(14);
   const [selectedPlaybookTemplate, setSelectedPlaybookTemplate] = useState<string | null>(null);
   const [playbookAssignees, setPlaybookAssignees] = useState<string[]>([]);
-  const [launchedPlaybooks, setLaunchedPlaybooks] = useState<Array<{templateId: string; advisorId: string; advisorName: string; launchedAt: string; priority: 'critical' | 'high' | 'medium'; completedSteps: number[]}>>([]);
+  const [launchedPlaybooks, setLaunchedPlaybooks] = useState<Array<{templateId: string; advisorId: string; advisorName: string; launchedAt: string; priority: 'critical' | 'high' | 'medium'; completedSteps: number[]; customSteps?: Array<{day: number; label: string; desc: string; phase: string}>; notes?: string}>>([]);
+  const [editingPlaybookIdx, setEditingPlaybookIdx] = useState<number | null>(null);
   const [ccKpiDrill, setCcKpiDrill] = useState<string | null>(null);
   const [showCoMarketingNotif, setShowCoMarketingNotif] = useState(true);
   const [tsdRoleFilter, setTsdRoleFilter] = useState<string>('All');
@@ -1335,7 +1336,7 @@ export default function LiveManagerPage() {
                   <option value="All">All Engagement</option>
                   <option value="Revenue Producing">Revenue Producing</option>
                   <option value="High Engagement">High Engagement</option>
-                  <option value="Strategic Top 20">Strategic Top 20</option>
+                  <option value="Platinum & Gold">Platinum & Gold</option>
                   <option value="Needs Attention">Needs Attention</option>
                   <option value="New / Onboarding">New / Onboarding</option>
                 </select>
@@ -3289,6 +3290,252 @@ export default function LiveManagerPage() {
         'Analyze': 'bg-indigo-100 text-indigo-700', 'Enable': 'bg-amber-100 text-amber-700', 'Incentivize': 'bg-purple-100 text-purple-700', 'Measure': 'bg-green-100 text-green-700',
       };
 
+      // ── ACTIVE PLAYBOOK INSTANCE EDIT VIEW ──
+      if (editingPlaybookIdx !== null) {
+        const editPb = launchedPlaybooks[editingPlaybookIdx];
+        if (!editPb) { setEditingPlaybookIdx(null); return null; }
+        const editTmpl = playbookTemplates.find(t => t.id === editPb.templateId);
+        if (!editTmpl) { setEditingPlaybookIdx(null); return null; }
+        const editAdvisor = advisors.find(a => a.id === editPb.advisorId);
+        const activeSteps = editPb.customSteps || editTmpl.steps;
+
+        // Group steps by phase
+        const editPhases = activeSteps.reduce<Array<{phase: string; steps: typeof activeSteps; startIdx: number}>>((acc, step, idx) => {
+          const existing = acc.find(p => p.phase === step.phase);
+          if (existing) { existing.steps.push(step); } else { acc.push({ phase: step.phase, steps: [step], startIdx: idx }); }
+          return acc;
+        }, []);
+
+        const editPct = Math.round((editPb.completedSteps.length / activeSteps.length) * 100);
+
+        return (
+          <div className="space-y-5">
+            {subTabBar}
+
+            {/* Back + header */}
+            <div className="flex items-center gap-3">
+              <button onClick={() => setEditingPlaybookIdx(null)} className="flex items-center gap-1.5 text-[12px] text-gray-500 hover:text-[#157A6E] transition-colors font-medium">
+                <ArrowLeft className="w-4 h-4" /> Back to Playbooks
+              </button>
+            </div>
+
+            <div className={`${editTmpl.bgColor} rounded-[12px] border border-[#e8e5e1] p-6 border-l-4 ${editTmpl.borderColor}`}>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-[28px]">{editTmpl.icon}</span>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${editTmpl.tagColor}`}>{editTmpl.category}</span>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${editPb.priority === 'critical' ? 'bg-red-100 text-red-800' : editPb.priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{editPb.priority}</span>
+                    </div>
+                    <h2 className="text-[20px] font-bold text-gray-800 font-serif">{editTmpl.title}: {editAdvisor?.name || editPb.advisorName}</h2>
+                    <p className="text-[13px] text-gray-500 mt-0.5">{editAdvisor?.company || ''} · {editAdvisor ? formatCurrency(editAdvisor.mrr) : ''} MRR · Assigned {new Date(editPb.launchedAt).toLocaleDateString()}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <div className="text-[11px] text-gray-400">{editTmpl.duration}</div>
+                    <div className="text-[14px] font-bold" style={{ color: editTmpl.color }}>{editPct}% complete</div>
+                  </div>
+                </div>
+              </div>
+              {/* Progress bar */}
+              <div className="flex items-center gap-3 mt-4">
+                <div className="flex-1 h-[8px] bg-white/60 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${editPct}%`, backgroundColor: editTmpl.color }} />
+                </div>
+                <span className="text-[12px] font-bold" style={{ color: editTmpl.color }}>{editPb.completedSteps.length}/{activeSteps.length}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-5">
+              {/* LEFT: Editable timeline (7 cols) */}
+              <div className="col-span-7 space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-gray-500 whitespace-nowrap">Action Steps</span>
+                  <div className="flex-1 h-px bg-[#e8e5e1]" />
+                  <button onClick={() => {
+                    const newStep = { day: (activeSteps[activeSteps.length - 1]?.day || 0) + 7, label: 'New action step', desc: 'Describe what needs to happen', phase: activeSteps[activeSteps.length - 1]?.phase || 'Execute' };
+                    const updatedSteps = [...activeSteps, newStep];
+                    setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? { ...p, customSteps: updatedSteps } : p));
+                  }} className="text-[10px] text-[#157A6E] font-semibold hover:underline flex items-center gap-1">
+                    <Plus className="w-3 h-3" /> Add Step
+                  </button>
+                </div>
+
+                {editPhases.map((phase, pi) => {
+                  // Calculate start index of this phase in the overall steps array
+                  let globalIdx = 0;
+                  for (let pp = 0; pp < pi; pp++) globalIdx += editPhases[pp].steps.length;
+
+                  return (
+                    <div key={pi} className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide ${phaseColors[phase.phase] || 'bg-gray-100 text-gray-600'}`}>{phase.phase}</span>
+                      </div>
+                      <div className="space-y-0">
+                        {phase.steps.map((step, si) => {
+                          const stepIdx = globalIdx + si;
+                          const isDone = editPb.completedSteps.includes(stepIdx);
+                          const isNext = !isDone && (stepIdx === 0 || editPb.completedSteps.includes(stepIdx - 1));
+
+                          return (
+                            <div key={si} className="flex gap-3 relative group">
+                              <div className="flex flex-col items-center">
+                                <div onClick={() => {
+                                  setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? {
+                                    ...p, completedSteps: isDone ? p.completedSteps.filter(x => x !== stepIdx) : [...p.completedSteps, stepIdx]
+                                  } : p));
+                                }} className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 cursor-pointer transition-all border-2 ${isDone ? 'bg-green-100 text-green-700 border-green-300 hover:bg-green-200' : isNext ? 'text-white hover:opacity-80 border-transparent' : 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200'}`}
+                                  style={isNext ? { backgroundColor: editTmpl.color } : {}}>
+                                  {isDone ? '✓' : step.day}
+                                </div>
+                                {si < phase.steps.length - 1 && <div className="w-px flex-1 min-h-[20px]" style={{ backgroundColor: `${editTmpl.color}30` }} />}
+                              </div>
+                              <div className="pb-4 flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1">
+                                    <input
+                                      type="text"
+                                      value={step.label}
+                                      onChange={(e) => {
+                                        const updated = [...activeSteps];
+                                        updated[stepIdx] = { ...updated[stepIdx], label: e.target.value };
+                                        setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? { ...p, customSteps: updated } : p));
+                                      }}
+                                      className={`text-[13px] font-semibold bg-transparent border-b border-transparent hover:border-gray-300 focus:border-[#157A6E] focus:outline-none w-full transition-colors ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`}
+                                    />
+                                    <textarea
+                                      value={step.desc}
+                                      onChange={(e) => {
+                                        const updated = [...activeSteps];
+                                        updated[stepIdx] = { ...updated[stepIdx], desc: e.target.value };
+                                        setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? { ...p, customSteps: updated } : p));
+                                      }}
+                                      rows={2}
+                                      className="text-[11px] text-gray-500 mt-0.5 leading-relaxed bg-transparent border border-transparent hover:border-gray-200 focus:border-[#157A6E] focus:outline-none w-full rounded px-1 -mx-1 resize-none transition-colors"
+                                    />
+                                  </div>
+                                  <button onClick={() => {
+                                    const updated = activeSteps.filter((_, idx) => idx !== stepIdx);
+                                    const updatedCompleted = editPb.completedSteps.filter(x => x !== stepIdx).map(x => x > stepIdx ? x - 1 : x);
+                                    setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? { ...p, customSteps: updated, completedSteps: updatedCompleted } : p));
+                                  }} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all mt-1">
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className={`text-[9px] font-medium ${isDone ? 'text-green-500' : isNext ? 'font-bold' : 'text-gray-300'}`} style={isNext ? { color: editTmpl.color } : {}}>
+                                    {isDone ? 'Completed' : isNext ? 'Current step' : `Day ${step.day}`}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* RIGHT: Partner info + notes (5 cols) */}
+              <div className="col-span-5 space-y-4">
+                {/* Partner card */}
+                {editAdvisor && (
+                  <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                    <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-3">Assigned Partner</h4>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 bg-[#157A6E] rounded-full flex items-center justify-center text-white text-[14px] font-semibold font-serif shrink-0">
+                        {editAdvisor.name.split(' ').map(n => n[0]).join('')}
+                      </div>
+                      <div>
+                        <div className="text-[13px] font-semibold text-gray-800">{editAdvisor.name}</div>
+                        <div className="text-[11px] text-gray-500">{editAdvisor.company} · {editAdvisor.tier === 'platinum' ? 'Platinum' : editAdvisor.tier === 'gold' ? 'Gold' : editAdvisor.tier === 'silver' ? 'Silver' : 'Onboarding'}</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-gray-50 rounded-md p-2 text-center">
+                        <div className="text-[9px] text-gray-400">MRR</div>
+                        <div className="text-[13px] font-bold text-[#157A6E]">{formatCurrency(editAdvisor.mrr)}</div>
+                      </div>
+                      <div className="bg-gray-50 rounded-md p-2 text-center">
+                        <div className="text-[9px] text-gray-400">Pulse</div>
+                        <div className="text-[13px] font-bold text-gray-800">{editAdvisor.pulse}</div>
+                      </div>
+                      <div className="bg-gray-50 rounded-md p-2 text-center">
+                        <div className="text-[9px] text-gray-400">Trajectory</div>
+                        <div className="text-[13px] font-bold text-gray-800">{editAdvisor.trajectory}</div>
+                      </div>
+                    </div>
+                    <button onClick={() => { setSelectedAdvisor(editAdvisor); setPanelOpen(true); setActiveViewRaw('relationships'); setEditingPlaybookIdx(null); }}
+                      className="w-full mt-3 px-3 py-2 text-[11px] font-medium text-[#157A6E] border border-[#157A6E]/30 rounded-lg hover:bg-[#157A6E]/5 transition-colors">
+                      View Full Profile →
+                    </button>
+                  </div>
+                )}
+
+                {/* Playbook notes */}
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">Playbook Notes</h4>
+                  <textarea
+                    value={editPb.notes || ''}
+                    onChange={(e) => {
+                      setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? { ...p, notes: e.target.value } : p));
+                    }}
+                    placeholder={`Notes specific to this ${editTmpl.title} for ${editAdvisor?.name || editPb.advisorName}...`}
+                    className="w-full text-[12px] border border-[#e8e5e1] rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E] resize-none"
+                    rows={4}
+                  />
+                </div>
+
+                {/* Quick stats */}
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-3">Progress</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { label: 'Completed', value: `${editPb.completedSteps.length}/${activeSteps.length}` },
+                      { label: 'Remaining', value: `${activeSteps.length - editPb.completedSteps.length}` },
+                      { label: 'Progress', value: `${editPct}%` },
+                      { label: 'Duration', value: editTmpl.duration },
+                    ].map((stat, si) => (
+                      <div key={si} className="bg-gray-50 rounded-md p-2.5 text-center">
+                        <div className="text-[9px] text-gray-400">{stat.label}</div>
+                        <div className="text-[14px] font-bold text-gray-800">{stat.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Priority adjustment */}
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">Priority</h4>
+                  <div className="flex gap-2">
+                    {(['critical', 'high', 'medium'] as const).map(p => (
+                      <button key={p} onClick={() => {
+                        setLaunchedPlaybooks(prev => prev.map((pb, i) => i === editingPlaybookIdx ? { ...pb, priority: p } : pb));
+                      }} className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-semibold transition-colors ${editPb.priority === p
+                        ? p === 'critical' ? 'bg-red-500 text-white' : p === 'high' ? 'bg-amber-400 text-white' : 'bg-blue-500 text-white'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                        {p.charAt(0).toUpperCase() + p.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Delete playbook */}
+                <button onClick={() => {
+                  setLaunchedPlaybooks(prev => prev.filter((_, i) => i !== editingPlaybookIdx));
+                  setEditingPlaybookIdx(null);
+                }} className="w-full px-4 py-2.5 text-[11px] font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
+                  Remove This Playbook
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
       // ── PLAYBOOK DETAIL / ASSIGNMENT VIEW ──
       if (selectedPlaybookTemplate) {
         const tmpl = playbookTemplates.find(t => t.id === selectedPlaybookTemplate);
@@ -3476,7 +3723,7 @@ export default function LiveManagerPage() {
                     }}
                     className={`w-full py-2.5 rounded-lg text-[12px] font-semibold transition-all ${playbookAssignees.length > 0 ? 'bg-[#157A6E] text-white hover:bg-[#126a5f] shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
                   >
-                    Launch Playbook for {playbookAssignees.length} Partner{playbookAssignees.length !== 1 ? 's' : ''}
+                    Assign Playbook to {playbookAssignees.length} Partner{playbookAssignees.length !== 1 ? 's' : ''}
                   </button>
                 </div>
 
@@ -3560,7 +3807,7 @@ export default function LiveManagerPage() {
                 const pct = Math.round((doneSteps / totalSteps) * 100);
                 const template = playbookTemplates.find(t => t.id === pb.templateId);
                 return (
-                  <div key={i} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 border-l-4 ${pb.priority === 'critical' ? 'border-l-red-500' : pb.priority === 'high' ? 'border-l-amber-400' : 'border-l-blue-500'}`}>
+                  <div key={i} onClick={() => { if (pb.templateId) { setSelectedPlaybookTemplate(pb.templateId); setPlaybookAssignees([]); } }} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 border-l-4 cursor-pointer hover:shadow-md transition-all ${pb.priority === 'critical' ? 'border-l-red-500' : pb.priority === 'high' ? 'border-l-amber-400' : 'border-l-blue-500'}`}>
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <div className="flex items-center gap-2 mb-1.5">
@@ -3618,7 +3865,7 @@ export default function LiveManagerPage() {
                 if (!lpTemplate || !lpAdvisor) return null;
                 const lpPct = Math.round((lp.completedSteps.length / lpTemplate.steps.length) * 100);
                 return (
-                  <div key={`lp-${lpi}`} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 border-l-4 ${lpTemplate.borderColor}`}>
+                  <div key={`lp-${lpi}`} onClick={() => setEditingPlaybookIdx(lpi)} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 border-l-4 cursor-pointer hover:shadow-md transition-all ${lpTemplate.borderColor}`}>
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <div className="flex items-center gap-2 mb-1.5">
