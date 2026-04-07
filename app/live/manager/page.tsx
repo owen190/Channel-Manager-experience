@@ -75,6 +75,9 @@ export default function LiveManagerPage() {
   const [playbookSteps, setPlaybookSteps] = useState<string[]>(['', '', '']);
   const [playbookPriority, setPlaybookPriority] = useState<'critical' | 'high' | 'medium'>('high');
   const [playbookDeadline, setPlaybookDeadline] = useState(14);
+  const [selectedPlaybookTemplate, setSelectedPlaybookTemplate] = useState<string | null>(null);
+  const [playbookAssignees, setPlaybookAssignees] = useState<string[]>([]);
+  const [launchedPlaybooks, setLaunchedPlaybooks] = useState<Array<{templateId: string; advisorId: string; advisorName: string; launchedAt: string; priority: 'critical' | 'high' | 'medium'; completedSteps: number[]}>>([]);
   const [ccKpiDrill, setCcKpiDrill] = useState<string | null>(null);
   const [showCoMarketingNotif, setShowCoMarketingNotif] = useState(true);
   const [tsdRoleFilter, setTsdRoleFilter] = useState<string>('All');
@@ -3286,13 +3289,225 @@ export default function LiveManagerPage() {
         'Analyze': 'bg-indigo-100 text-indigo-700', 'Enable': 'bg-amber-100 text-amber-700', 'Incentivize': 'bg-purple-100 text-purple-700', 'Measure': 'bg-green-100 text-green-700',
       };
 
+      // ── PLAYBOOK DETAIL / ASSIGNMENT VIEW ──
+      if (selectedPlaybookTemplate) {
+        const tmpl = playbookTemplates.find(t => t.id === selectedPlaybookTemplate);
+        if (!tmpl) { setSelectedPlaybookTemplate(null); return null; }
+
+        // Get the matching recommendation to find suggested advisors
+        const matchingRec = recommendedPlaybooks.find(r => r.template.id === tmpl.id);
+        const suggestedAdvisors = matchingRec?.advisors || [];
+        // All advisors as assignable options
+        const allAssignable = advisors;
+        const totalAssigneeMRR = playbookAssignees.reduce((s, id) => { const a = advisors.find(x => x.id === id); return s + (a?.mrr || 0); }, 0);
+        const alreadyLaunched = launchedPlaybooks.filter(lp => lp.templateId === tmpl.id);
+
+        // Group steps by phase
+        const phases = tmpl.steps.reduce<Array<{phase: string; steps: typeof tmpl.steps}>>((acc, step) => {
+          const existing = acc.find(p => p.phase === step.phase);
+          if (existing) { existing.steps.push(step); } else { acc.push({ phase: step.phase, steps: [step] }); }
+          return acc;
+        }, []);
+
+        return (
+          <div className="space-y-5">
+            {subTabBar}
+
+            {/* Back button + header */}
+            <div className="flex items-center gap-3">
+              <button onClick={() => { setSelectedPlaybookTemplate(null); setPlaybookAssignees([]); }} className="flex items-center gap-1.5 text-[12px] text-gray-500 hover:text-[#157A6E] transition-colors font-medium">
+                <ArrowLeft className="w-4 h-4" /> Back to Playbooks
+              </button>
+            </div>
+
+            <div className={`${tmpl.bgColor} rounded-[12px] border border-[#e8e5e1] p-6 border-l-4 ${tmpl.borderColor}`}>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-[28px]">{tmpl.icon}</span>
+                  <div>
+                    <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase mb-1 ${tmpl.tagColor}`}>{tmpl.category}</span>
+                    <h2 className="text-[20px] font-bold text-gray-800 font-serif">{tmpl.title}</h2>
+                    <p className="text-[13px] text-gray-500 mt-0.5">{tmpl.subtitle}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[11px] text-gray-400">{tmpl.duration} · {tmpl.steps.length} steps</div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">Applies to: {tmpl.applicableTo}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-5">
+              {/* LEFT: Timeline (7 cols) */}
+              <div className="col-span-7 space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-gray-500 whitespace-nowrap">Playbook Timeline</span>
+                  <div className="flex-1 h-px bg-[#e8e5e1]" />
+                </div>
+
+                {phases.map((phase, pi) => (
+                  <div key={pi} className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide ${phaseColors[phase.phase] || 'bg-gray-100 text-gray-600'}`}>{phase.phase}</span>
+                      <span className="text-[10px] text-gray-400">Day {phase.steps[0].day}{phase.steps.length > 1 ? ` — ${phase.steps[phase.steps.length - 1].day}` : ''}</span>
+                    </div>
+                    <div className="space-y-0">
+                      {phase.steps.map((step, si) => (
+                        <div key={si} className="flex gap-3 relative">
+                          {/* Timeline connector */}
+                          <div className="flex flex-col items-center">
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 border-2" style={{ borderColor: tmpl.color, color: tmpl.color, backgroundColor: `${tmpl.color}10` }}>
+                              {step.day}
+                            </div>
+                            {si < phase.steps.length - 1 && <div className="w-px flex-1 min-h-[20px]" style={{ backgroundColor: `${tmpl.color}30` }} />}
+                          </div>
+                          <div className="pb-4 flex-1 min-w-0">
+                            <h4 className="text-[13px] font-semibold text-gray-800">{step.label}</h4>
+                            <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{step.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* RIGHT: Assignment (5 cols) */}
+              <div className="col-span-5 space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-gray-500 whitespace-nowrap">Assign to Partners</span>
+                  <div className="flex-1 h-px bg-[#e8e5e1]" />
+                </div>
+
+                {/* Suggested advisors */}
+                {suggestedAdvisors.length > 0 && (
+                  <div className="bg-[#F0FAF8] rounded-[10px] border border-[#d0e8e4] p-4">
+                    <h4 className="text-[10px] font-bold uppercase tracking-wide text-[#157A6E] mb-2">Suggested Partners</h4>
+                    <p className="text-[10px] text-gray-500 mb-3">{matchingRec?.reason}</p>
+                    <div className="space-y-2">
+                      {suggestedAdvisors.map(a => {
+                        const isSelected = playbookAssignees.includes(a.id);
+                        const isAlreadyRunning = alreadyLaunched.some(lp => lp.advisorId === a.id);
+                        return (
+                          <div key={a.id} onClick={() => {
+                            if (isAlreadyRunning) return;
+                            setPlaybookAssignees(prev => prev.includes(a.id) ? prev.filter(x => x !== a.id) : [...prev, a.id]);
+                          }} className={`flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-all ${isAlreadyRunning ? 'bg-gray-100 opacity-60 cursor-not-allowed' : isSelected ? 'bg-white border-2 border-[#157A6E] shadow-sm' : 'bg-white/60 border border-transparent hover:bg-white hover:border-gray-200'}`}>
+                            <div className={`w-5 h-5 rounded flex items-center justify-center text-[10px] shrink-0 ${isAlreadyRunning ? 'bg-gray-300 text-white' : isSelected ? 'bg-[#157A6E] text-white' : 'bg-gray-200 text-gray-400'}`}>
+                              {isAlreadyRunning ? '—' : isSelected ? '✓' : ''}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[12px] font-semibold text-gray-800">{a.name}</div>
+                              <div className="text-[10px] text-gray-500">{a.company} · {formatCurrency(a.mrr)} MRR</div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <div className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${a.tier === 'platinum' ? 'bg-teal-100 text-teal-700' : a.tier === 'gold' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>{a.tier}</div>
+                              {isAlreadyRunning && <div className="text-[9px] text-gray-400 mt-0.5">Already running</div>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* All partners */}
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">All Partners</h4>
+                  <div className="max-h-[280px] overflow-y-auto space-y-1.5 pr-1">
+                    {allAssignable.filter(a => !suggestedAdvisors.some(s => s.id === a.id)).map(a => {
+                      const isSelected = playbookAssignees.includes(a.id);
+                      const isAlreadyRunning = alreadyLaunched.some(lp => lp.advisorId === a.id);
+                      return (
+                        <div key={a.id} onClick={() => {
+                          if (isAlreadyRunning) return;
+                          setPlaybookAssignees(prev => prev.includes(a.id) ? prev.filter(x => x !== a.id) : [...prev, a.id]);
+                        }} className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer transition-all ${isAlreadyRunning ? 'opacity-50 cursor-not-allowed' : isSelected ? 'bg-[#F0FAF8] border border-[#157A6E]' : 'hover:bg-gray-50 border border-transparent'}`}>
+                          <div className={`w-4 h-4 rounded flex items-center justify-center text-[9px] shrink-0 ${isAlreadyRunning ? 'bg-gray-300 text-white' : isSelected ? 'bg-[#157A6E] text-white' : 'bg-gray-200'}`}>
+                            {isSelected ? '✓' : ''}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[11px] font-medium text-gray-700 truncate">{a.name}</div>
+                            <div className="text-[9px] text-gray-400">{a.company}</div>
+                          </div>
+                          <span className="text-[10px] text-gray-400">{formatCurrency(a.mrr)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Launch summary */}
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-3">Launch Summary</h4>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="bg-gray-50 rounded-md p-2.5 text-center">
+                      <div className="text-[10px] text-gray-400">Partners</div>
+                      <div className="text-[16px] font-bold text-gray-800">{playbookAssignees.length}</div>
+                    </div>
+                    <div className="bg-gray-50 rounded-md p-2.5 text-center">
+                      <div className="text-[10px] text-gray-400">MRR Covered</div>
+                      <div className="text-[16px] font-bold text-[#157A6E]">{formatCurrency(totalAssigneeMRR)}</div>
+                    </div>
+                  </div>
+                  {playbookAssignees.length > 0 && (
+                    <div className="mb-3 space-y-1">
+                      {playbookAssignees.map(id => {
+                        const a = advisors.find(x => x.id === id);
+                        return a ? (
+                          <div key={id} className="flex items-center justify-between text-[11px] py-1 border-b border-gray-50">
+                            <span className="font-medium text-gray-700">{a.name}</span>
+                            <button onClick={(e) => { e.stopPropagation(); setPlaybookAssignees(prev => prev.filter(x => x !== id)); }} className="text-gray-300 hover:text-red-400"><X className="w-3 h-3" /></button>
+                          </div>
+                        ) : null;
+                      })}
+                    </div>
+                  )}
+                  <button
+                    disabled={playbookAssignees.length === 0}
+                    onClick={() => {
+                      const newLaunched = playbookAssignees.map(id => {
+                        const a = advisors.find(x => x.id === id);
+                        return { templateId: tmpl.id, advisorId: id, advisorName: a?.name || '', launchedAt: new Date().toISOString(), priority: (matchingRec?.urgency || 'high') as 'critical' | 'high' | 'medium', completedSteps: [] as number[] };
+                      });
+                      setLaunchedPlaybooks(prev => [...prev, ...newLaunched]);
+                      setPlaybookAssignees([]);
+                      setSelectedPlaybookTemplate(null);
+                    }}
+                    className={`w-full py-2.5 rounded-lg text-[12px] font-semibold transition-all ${playbookAssignees.length > 0 ? 'bg-[#157A6E] text-white hover:bg-[#126a5f] shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                  >
+                    Launch Playbook for {playbookAssignees.length} Partner{playbookAssignees.length !== 1 ? 's' : ''}
+                  </button>
+                </div>
+
+                {/* Already launched */}
+                {alreadyLaunched.length > 0 && (
+                  <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                    <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-2">Already Running</h4>
+                    <div className="space-y-2">
+                      {alreadyLaunched.map((lp, li) => (
+                        <div key={li} className="flex items-center gap-2 text-[11px] py-1.5 border-b border-gray-50 last:border-b-0">
+                          <div className="w-2 h-2 rounded-full bg-[#157A6E]" />
+                          <span className="font-medium text-gray-700">{lp.advisorName}</span>
+                          <span className="text-gray-400 ml-auto">{lp.completedSteps.length}/{tmpl.steps.length} steps</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div className="space-y-5">
           {subTabBar}
 
           {/* KPIs */}
           <div className="grid grid-cols-4 gap-4">
-            <KPICard label="Active Playbooks" value={`${playbooks.length}`} change={`${playbooks.filter(p=>p.priority==='critical').length} critical, ${playbooks.filter(p=>p.priority==='high').length} high`} changeType="neutral" />
+            <KPICard label="Active Playbooks" value={`${playbooks.length + launchedPlaybooks.length}`} change={`${playbooks.filter(p=>p.priority==='critical').length + launchedPlaybooks.filter(p=>p.priority==='critical').length} critical`} changeType="neutral" />
             <KPICard label="MRR Protected" value={formatCurrency(protectedMRR)} change="In active retention" changeType="negative" />
             <KPICard label="MRR Targeted" value={`+${formatCurrency(expansionMRR)}`} change="Growth & expansion" changeType="positive" />
             <KPICard label="Recommendations" value={`${recommendedPlaybooks.length}`} change="Based on signals" changeType="neutral" />
@@ -3307,7 +3522,7 @@ export default function LiveManagerPage() {
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {recommendedPlaybooks.slice(0, 6).map((rec, ri) => (
-                  <div key={ri} className={`${rec.template.bgColor} rounded-[10px] border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-all border-l-4 ${rec.template.borderColor}`}>
+                  <div key={ri} onClick={() => { setSelectedPlaybookTemplate(rec.template.id); setPlaybookAssignees(rec.advisors.map(a => a.id)); }} className={`${rec.template.bgColor} rounded-[10px] border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-all border-l-4 ${rec.template.borderColor}`}>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-[16px]">{rec.template.icon}</span>
                       <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${rec.urgency === 'critical' ? 'bg-red-200 text-red-800' : rec.urgency === 'high' ? 'bg-amber-200 text-amber-800' : 'bg-blue-200 text-blue-800'}`}>{rec.urgency}</span>
@@ -3396,6 +3611,61 @@ export default function LiveManagerPage() {
                   </div>
                 );
               })}
+              {/* Launched playbooks from assignment */}
+              {launchedPlaybooks.map((lp, lpi) => {
+                const lpTemplate = playbookTemplates.find(t => t.id === lp.templateId);
+                const lpAdvisor = advisors.find(a => a.id === lp.advisorId);
+                if (!lpTemplate || !lpAdvisor) return null;
+                const lpPct = Math.round((lp.completedSteps.length / lpTemplate.steps.length) * 100);
+                return (
+                  <div key={`lp-${lpi}`} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 border-l-4 ${lpTemplate.borderColor}`}>
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${lp.priority === 'critical' ? 'bg-red-100 text-red-800' : lp.priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                            {lp.priority}
+                          </span>
+                          <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${lpTemplate.tagColor}`}>{lpTemplate.category}</span>
+                          <span className="inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-[#F0FAF8] text-[#157A6E]">Launched</span>
+                        </div>
+                        <h3 className="text-[15px] font-bold text-gray-800 font-serif">{lpTemplate.title}: {lpAdvisor.name}</h3>
+                        <p className="text-[12px] text-gray-500 mt-1">{lpTemplate.subtitle} — {formatCurrency(lpAdvisor.mrr)} MRR</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[18px] font-bold" style={{ color: lpTemplate.color }}>{formatCurrency(lpAdvisor.mrr)}</div>
+                        <div className="text-[10px] text-gray-400">{lpTemplate.duration}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="flex-1 h-[6px] bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${lpPct}%`, backgroundColor: lpTemplate.color }} />
+                      </div>
+                      <span className="text-[11px] font-bold" style={{ color: lpTemplate.color }}>{lpPct}%</span>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Action Steps</h4>
+                      {lpTemplate.steps.map((step, si) => {
+                        const isDone = lp.completedSteps.includes(si);
+                        const isActive = !isDone && (si === 0 || lp.completedSteps.includes(si - 1));
+                        return (
+                          <div key={si} className="flex items-start gap-3 group">
+                            <div onClick={(e) => { e.stopPropagation(); setLaunchedPlaybooks(prev => prev.map((p, pi) => pi === lpi ? { ...p, completedSteps: isDone ? p.completedSteps.filter(x => x !== si) : [...p.completedSteps, si] } : p)); }}
+                              className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 cursor-pointer transition-all ${isDone ? 'bg-green-100 text-green-700 hover:bg-green-200' : isActive ? 'text-white hover:opacity-80' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                              style={isActive ? { backgroundColor: lpTemplate.color } : {}}>
+                              {isDone ? '✓' : si + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className={`text-[12px] ${isDone ? 'text-gray-400 line-through' : isActive ? 'text-gray-800 font-semibold' : 'text-gray-500'}`}>{step.label}</span>
+                              {isActive && <p className="text-[10px] text-gray-400 mt-0.5">{step.desc}</p>}
+                            </div>
+                            <span className="text-[9px] text-gray-300 font-medium">Day {step.day}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
               <div onClick={() => { setPlaybookModalSignal(null); setShowPlaybookModal(true); }} className="bg-white rounded-[10px] border-2 border-dashed border-gray-200 p-6 text-center cursor-pointer hover:border-[#157A6E] transition-colors">
                 <div className="text-[20px] text-gray-300 mb-1">+</div>
                 <div className="text-[12px] font-semibold text-[#157A6E]">Create New Playbook</div>
@@ -3443,7 +3713,7 @@ export default function LiveManagerPage() {
           </div>
           <div className="grid grid-cols-3 gap-4">
             {playbookTemplates.map((tmpl, ti) => (
-              <div key={ti} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 hover:shadow-md transition-all cursor-pointer border-l-4 ${tmpl.borderColor}`}>
+              <div key={ti} onClick={() => { setSelectedPlaybookTemplate(tmpl.id); setPlaybookAssignees([]); }} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 hover:shadow-md transition-all cursor-pointer border-l-4 ${tmpl.borderColor}`}>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-[20px]">{tmpl.icon}</span>
                   <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${tmpl.tagColor}`}>{tmpl.category}</span>
