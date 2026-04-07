@@ -92,6 +92,156 @@ export default function LiveManagerPage() {
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [completedActions, setCompletedActions] = useState<string[]>([]);
   const [actionFilter, setActionFilter] = useState<'all' | 'critical' | 'playbook' | 'cadence' | 'deals'>('all');
+  const [playbookModalAdvisor, setPlaybookModalAdvisor] = useState<Advisor | null>(null);
+  const [playbookModalMode, setPlaybookModalMode] = useState<'template' | 'custom'>('template');
+  const [customPlaybookName, setCustomPlaybookName] = useState('');
+  const [customPlaybookSteps, setCustomPlaybookSteps] = useState<Array<{label: string; desc: string; day: number}>>([{label: '', desc: '', day: 1}]);
+  const [showAbandonModal, setShowAbandonModal] = useState<{advisorId: string; advisorName: string; company: string; tier: PartnerTier; mrr: number} | null>(null);
+  const [abandonNotes, setAbandonNotes] = useState('');
+  const [flatlinedAdvisorIds, setFlatlinedAdvisorIds] = useState<string[]>([]);
+  const [modalEditSteps, setModalEditSteps] = useState<Array<{day: number; label: string; desc: string; phase: string}>>([]);
+  const [deleteTemplateConfirm, setDeleteTemplateConfirm] = useState<string | null>(null);
+  const [playbookTemplates, setPlaybookTemplates] = useState<Array<{
+    id: string;
+    icon: string;
+    title: string;
+    subtitle: string;
+    category: string;
+    duration: string;
+    steps: Array<{day: number; label: string; desc: string; phase: string}>;
+    bgColor: string;
+    borderColor: string;
+    tagColor: string;
+    color: string;
+    applicableTo: string;
+  }>>([
+    {
+      id: 'win-back',
+      icon: '🔄',
+      title: 'Win-Back',
+      subtitle: 'Re-engage at-risk partners',
+      category: 'Retention',
+      duration: '7 days',
+      color: '#e53e3e',
+      bgColor: 'bg-red-50',
+      borderColor: 'border-l-red-500',
+      tagColor: 'bg-red-100 text-red-800',
+      applicableTo: 'At-Risk Partners',
+      steps: [
+        { day: 1, phase: 'Discovery', label: 'Pull complaint history', desc: 'Analyze recent support tickets, escalations, and NPS feedback.' },
+        { day: 2, phase: 'Discovery', label: 'Review engagement metrics', desc: 'Check product usage, feature adoption, and login trends.' },
+        { day: 3, phase: 'Action', label: 'Executive outreach call', desc: 'Schedule call with partner executive to discuss concerns.' },
+        { day: 4, phase: 'Action', label: 'Present recovery plan', desc: 'Offer service improvements, credits, or SLA changes.' },
+        { day: 5, phase: 'Action', label: 'Assign dedicated support', desc: 'Pair with a senior CSM for daily check-ins.' },
+        { day: 7, phase: 'Close', label: 'Confirm partnership commitment', desc: 'Get verbal confirmation of renewed engagement.' },
+      ],
+    },
+    {
+      id: 'onboarding',
+      icon: '🚀',
+      title: 'Onboarding',
+      subtitle: 'Launch new partners for success',
+      category: 'Activation',
+      duration: '14 days',
+      color: '#3182CE',
+      bgColor: 'bg-blue-50',
+      borderColor: 'border-l-blue-500',
+      tagColor: 'bg-blue-100 text-blue-800',
+      applicableTo: 'New Partners',
+      steps: [
+        { day: 1, phase: 'Setup', label: 'Welcome kickoff call', desc: 'Introduce team, review roadmap, and set expectations.' },
+        { day: 2, phase: 'Setup', label: 'Send enablement kit', desc: 'Provide marketing collateral, pricing deck, and sales guides.' },
+        { day: 4, phase: 'Training', label: 'Product training session', desc: 'Deep dive on features, integrations, and use cases.' },
+        { day: 6, phase: 'Training', label: 'Co-sell alignment', desc: 'Align on positioning, messaging, and target segments.' },
+        { day: 9, phase: 'Launch', label: 'Help with first deal registration', desc: 'Guide through deal reg process to ensure compliance.' },
+        { day: 14, phase: 'Close', label: 'First 30-day check-in', desc: 'Review early wins, challenges, and support needs.' },
+      ],
+    },
+    {
+      id: 'tier-upgrade',
+      icon: '⬆️',
+      title: 'Tier Upgrade',
+      subtitle: 'Accelerate high-performers to premium',
+      category: 'Growth',
+      duration: '30 days',
+      color: '#157A6E',
+      bgColor: 'bg-teal-50',
+      borderColor: 'border-l-teal-500',
+      tagColor: 'bg-teal-100 text-teal-800',
+      applicableTo: 'High-Growth Partners',
+      steps: [
+        { day: 1, phase: 'Strategy', label: 'Strategic plan review', desc: 'Review partner goals, market size, and growth trajectory.' },
+        { day: 3, phase: 'Strategy', label: 'Define Platinum criteria', desc: 'Set MRR targets, activity levels, and engagement commitments.' },
+        { day: 7, phase: 'Enablement', label: 'Assign dedicated SE', desc: 'Introduce senior solution engineer and technical resources.' },
+        { day: 14, phase: 'Enablement', label: 'Pipeline acceleration sprint', desc: 'Co-build top 5 opportunities with joint planning.' },
+        { day: 21, phase: 'Close', label: 'Executive sponsor check-in', desc: 'CEO/CRO call to discuss partnership elevation.' },
+        { day: 30, phase: 'Close', label: 'Tier promotion decision', desc: 'Formalize new tier status and benefits.' },
+      ],
+    },
+    {
+      id: 'activation',
+      icon: '⚡',
+      title: 'Activation',
+      subtitle: 'Reignite dormant partnerships',
+      category: 'Engagement',
+      duration: '21 days',
+      color: '#D69E2E',
+      bgColor: 'bg-amber-50',
+      borderColor: 'border-l-amber-500',
+      tagColor: 'bg-amber-100 text-amber-800',
+      applicableTo: 'Inactive Partners',
+      steps: [
+        { day: 1, phase: 'Reconnect', label: 'Audit partner history', desc: 'Review past deals, relationships, and engagement trends.' },
+        { day: 2, phase: 'Reconnect', label: 'Personal outreach (no pitch)', desc: 'Reach out to check on their business, not to sell.' },
+        { day: 5, phase: 'Engage', label: 'Share competitive intelligence', desc: 'Send relevant market insights and industry trends.' },
+        { day: 10, phase: 'Engage', label: 'Bring a warm lead', desc: 'Generate one inbound opportunity to demonstrate value.' },
+        { day: 15, phase: 'Launch', label: 'Schedule advisory board call', desc: 'Involve them in product direction or strategy.' },
+        { day: 21, phase: 'Close', label: 'Activation assessment', desc: 'Evaluate renewed interest and next steps.' },
+      ],
+    },
+    {
+      id: 'qbr',
+      icon: '📊',
+      title: 'Quarterly Business Review',
+      subtitle: 'Strategic partner review & planning',
+      category: 'Cadence',
+      duration: '7 days',
+      color: '#5A67D8',
+      bgColor: 'bg-indigo-50',
+      borderColor: 'border-l-indigo-500',
+      tagColor: 'bg-indigo-100 text-indigo-800',
+      applicableTo: 'Platinum & Gold Partners',
+      steps: [
+        { day: 1, phase: 'Preparation', label: 'Gather performance data', desc: 'Compile MRR, deals, adoption metrics, and feedback.' },
+        { day: 2, phase: 'Preparation', label: 'Build executive summary', desc: 'Create slide deck with results, wins, and recommendations.' },
+        { day: 3, phase: 'Preparation', label: 'Confirm attendees', desc: 'Coordinate schedule with partner leadership.' },
+        { day: 5, phase: 'Delivery', label: 'Conduct QBR meeting', desc: 'Review results, discuss challenges, and plan next quarter.' },
+        { day: 6, phase: 'Close', label: 'Send follow-up & action items', desc: 'Document decisions, commitments, and next steps.' },
+        { day: 7, phase: 'Close', label: 'Schedule next QBR', desc: 'Lock in date for next quarterly review.' },
+      ],
+    },
+    {
+      id: 'cross-sell',
+      icon: '🎯',
+      title: 'Cross-Sell',
+      subtitle: 'Expand wallet with additional products',
+      category: 'Revenue',
+      duration: '14 days',
+      color: '#38A169',
+      bgColor: 'bg-green-50',
+      borderColor: 'border-l-green-500',
+      tagColor: 'bg-green-100 text-green-800',
+      applicableTo: 'Single-Product Customers',
+      steps: [
+        { day: 1, phase: 'Planning', label: 'Identify cross-sell products', desc: 'Analyze usage and recommend complementary solutions.' },
+        { day: 3, phase: 'Planning', label: 'Calculate total contract value', desc: 'Model revenue expansion and mutual benefits.' },
+        { day: 5, phase: 'Proposal', label: 'Build joint proposal', desc: 'Create technical specs and pricing for expanded scope.' },
+        { day: 7, phase: 'Proposal', label: 'Strategy call with partner', desc: 'Present opportunity and answer technical questions.' },
+        { day: 10, phase: 'Closing', label: 'First deal registered', desc: 'Submit cross-sell deal to deal registration system.' },
+        { day: 14, phase: 'Close', label: 'Product onboarding plan', desc: 'Schedule training for new product modules.' },
+      ],
+    },
+  ]);
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -103,6 +253,38 @@ export default function LiveManagerPage() {
     setExpandedKPI(null);
     setDrillDown(null);
     setSelectedDeal(null);
+  };
+
+  // Helper to open playbook modal with optional context
+  const openPlaybookModal = (advisorId?: string, templateId?: string) => {
+    if (advisorId) {
+      const advisor = advisors.find(a => a.id === advisorId);
+      setPlaybookModalAdvisor(advisor || null);
+    } else {
+      setPlaybookModalAdvisor(null);
+    }
+    if (templateId) {
+      setSelectedPlaybookTemplate(templateId);
+      setPlaybookModalMode('template');
+    } else {
+      setSelectedPlaybookTemplate(null);
+      setPlaybookModalMode('template');
+    }
+    setShowPlaybookModal(true);
+  };
+
+  // Abandon/Reignite Advisor functions
+  const abandonAdvisor = (advisorId: string) => {
+    setFlatlinedAdvisorIds(prev => [...prev, advisorId]);
+    setLaunchedPlaybooks(prev => prev.filter(p => p.advisorId !== advisorId));
+    setShowAbandonModal(null);
+    setSelectedAdvisor(null);
+    setPanelOpen(false);
+    setAbandonNotes('');
+  };
+
+  const reigniteAdvisor = (advisorId: string) => {
+    setFlatlinedAdvisorIds(prev => prev.filter(id => id !== advisorId));
   };
 
   // Fetch live data
@@ -242,7 +424,7 @@ export default function LiveManagerPage() {
     const w = STAGE_WEIGHTS.find(s => s.stage === d.stage)?.weight || 0;
     return sum + d.mrr * w;
   }, 0);
-  const atRiskAdvisors = advisors.filter(a => a.trajectory === 'Freefall' || a.trajectory === 'Slipping');
+  const atRiskAdvisors = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.trajectory === 'Freefall' || a.trajectory === 'Slipping'));
   const atRiskMRR = atRiskAdvisors.reduce((sum, a) => sum + a.mrr, 0);
   const stalledDeals = deals.filter(d => d.stage === 'Stalled');
   const closedWonDeals = deals.filter(d => d.stage === 'Closed Won');
@@ -607,6 +789,32 @@ export default function LiveManagerPage() {
             })}
           </div>
         </div>
+
+        {/* ── FLATLINED ADVISORS ── */}
+        {flatlinedAdvisorIds.length > 0 && (
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[11px] font-bold uppercase tracking-[1.5px] text-gray-500">Flatlined Advisors</h3>
+              <span className="text-[10px] text-gray-400">{flatlinedAdvisorIds.length} paused · Quarterly reignition cadence</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {advisors.filter(a => flatlinedAdvisorIds.includes(a.id)).map(a => (
+                <div key={a.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200 flex items-center justify-between">
+                  <div>
+                    <div className="text-[12px] font-semibold text-gray-800">{a.name}</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">{a.company} · {formatCurrency(a.mrr)}</div>
+                  </div>
+                  <button
+                    onClick={() => reigniteAdvisor(a.id)}
+                    className="px-2 py-1 text-[10px] font-semibold text-[#157A6E] border border-[#157A6E] rounded hover:bg-teal-50 transition-colors"
+                  >
+                    Reignite
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── TODAY'S ACTIONS ── */}
         <div className="flex items-center gap-3">
@@ -1080,7 +1288,13 @@ export default function LiveManagerPage() {
                       </button>
                     ))}
                   </div>
-                  <p className="text-[9px] text-gray-400 text-center">Links configured in Settings</p>
+                  <p className="text-[9px] text-gray-400 text-center mb-4">Links configured in Settings</p>
+                  <button
+                    onClick={() => setShowAbandonModal({ advisorId: selectedAdvisor.id, advisorName: selectedAdvisor.name, company: selectedAdvisor.company, tier: selectedAdvisor.tier, mrr: selectedAdvisor.mrr })}
+                    className="w-full px-3 py-2 text-[11px] font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                  >
+                    Abandon Advisor
+                  </button>
                 </div>
 
                 {/* Key Metrics */}
@@ -2855,8 +3069,8 @@ export default function LiveManagerPage() {
   // ════════════════════════════════════════════════
   const renderIntelligence = () => {
     // ── Shared intelligence data ──
-    const frictionIssues = advisors.filter(a => a.friction === 'High' || a.friction === 'Critical');
-    const healthyPartners = advisors.filter(a => a.friction === 'Low' && (a.pulse === 'Strong' || a.pulse === 'Steady'));
+    const frictionIssues = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.friction === 'High' || a.friction === 'Critical'));
+    const healthyPartners = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && a.friction === 'Low' && (a.pulse === 'Strong' || a.pulse === 'Steady'));
 
     // Generate signals from real data
     const signals: Array<{type: 'churn' | 'growth' | 'stall' | 'intel'; title: string; desc: string; time: string; source: string; mrr?: number; partnerName?: string}> = [];
@@ -2875,147 +3089,6 @@ export default function LiveManagerPage() {
       signals.push({ type: 'intel', title: `Co-Marketing — ${opp.advisor.name}`, desc: opp.reason, time: 'This week', source: 'CRM + LinkedIn', mrr: opp.advisor.mrr, partnerName: opp.advisor.name });
     });
 
-    // ── Playbook Templates (cadence-based, from The Channel Standard) ──
-    const playbookTemplates = [
-      {
-        id: 'win-back',
-        category: 'Retention',
-        title: 'Win-Back Campaign',
-        subtitle: 'Re-engage dormant or at-risk partners',
-        icon: '🔥',
-        color: '#e53e3e',
-        bgColor: 'bg-red-50',
-        borderColor: 'border-l-red-500',
-        tagColor: 'bg-red-100 text-red-800',
-        duration: '21 days',
-        applicableTo: 'Fading pulse, Slipping/Freefall trajectory, High/Critical friction',
-        steps: [
-          { day: 1, label: 'Pull complaint history & support tickets', desc: 'Review CRM for open issues, commission disputes, and unanswered requests', phase: 'Diagnose' },
-          { day: 2, label: 'Internal resource coordination', desc: 'Brief SE, product team, and leadership on situation. Align on what we can offer.', phase: 'Diagnose' },
-          { day: 3, label: 'Executive outreach call', desc: 'Direct call from channel manager — acknowledge issues, listen first. No pitching.', phase: 'Engage' },
-          { day: 5, label: 'Deliver resolution plan', desc: 'Service credit, SLA improvement, dedicated SE, or whatever was agreed. Put it in writing.', phase: 'Engage' },
-          { day: 7, label: 'Follow-up check-in', desc: 'Confirm resolution delivery. Ask: "What else is broken that you haven\'t told us?"', phase: 'Recover' },
-          { day: 10, label: 'Re-enablement session', desc: '1:1 training on new features, updated battlecards, competitive positioning refresh', phase: 'Recover' },
-          { day: 14, label: 'Joint selling opportunity', desc: 'Bring a qualified lead or co-sell opportunity. Show renewed investment.', phase: 'Activate' },
-          { day: 21, label: 'Relationship health review', desc: 'Formal check-in: pulse, friction, trajectory reassessment. Set ongoing cadence.', phase: 'Activate' },
-        ],
-      },
-      {
-        id: 'onboarding',
-        category: 'Activation',
-        title: 'New Partner Onboarding',
-        subtitle: 'First 90 days — get to first deal fast',
-        icon: '🚀',
-        color: '#3B82F6',
-        bgColor: 'bg-blue-50',
-        borderColor: 'border-l-blue-500',
-        tagColor: 'bg-blue-100 text-blue-800',
-        duration: '90 days',
-        applicableTo: 'New partners, Onboarding tier',
-        steps: [
-          { day: 1, label: 'Welcome call + expectation setting', desc: 'Introduce yourself as their single point of contact. Set response SLA expectations. Document comm preferences.', phase: 'Week 1' },
-          { day: 3, label: 'Portal access & training enrollment', desc: 'Verify TSD portal access, marketplace listing, and training platform credentials', phase: 'Week 1' },
-          { day: 5, label: 'First enablement session', desc: 'Product overview, competitive positioning, ideal customer profile. Share battlecards.', phase: 'Week 1' },
-          { day: 7, label: 'Intro to TSD field team', desc: 'Connect partner with TSD channel manager and SE. These relationships determine visibility.', phase: 'Week 1' },
-          { day: 14, label: 'Pipeline building workshop', desc: 'Help identify 3-5 prospects from their book. Practice positioning and objection handling.', phase: 'Week 2' },
-          { day: 21, label: 'First deal registration', desc: 'Target: first deal reg by day 21. Channel manager joins first customer call.', phase: 'Week 3' },
-          { day: 30, label: '30-day milestone review', desc: 'Review: portal adoption, training completion, pipeline status, relationship health', phase: 'Month 1' },
-          { day: 45, label: 'Co-sell support on active deal', desc: 'Provide SE support, custom pricing, or executive sponsor for their best opportunity', phase: 'Month 2' },
-          { day: 60, label: '60-day milestone review', desc: 'Pipeline health check. Adjust enablement focus based on selling patterns.', phase: 'Month 2' },
-          { day: 75, label: 'Introduce to partner community', desc: 'Connect to advisory council, Slack channels, upcoming events. Build belonging.', phase: 'Month 3' },
-          { day: 90, label: '90-day graduation review', desc: 'Full assessment: deals registered, revenue, engagement score. Assign permanent tier.', phase: 'Month 3' },
-        ],
-      },
-      {
-        id: 'tier-upgrade',
-        category: 'Growth',
-        title: 'Tier Advancement Program',
-        subtitle: 'Move Gold → Platinum through structured development',
-        icon: '⬆️',
-        color: '#157A6E',
-        bgColor: 'bg-[#F0FAF8]',
-        borderColor: 'border-l-[#157A6E]',
-        tagColor: 'bg-green-100 text-green-800',
-        duration: '60 days',
-        applicableTo: 'Gold tier with Climbing/Accelerating trajectory',
-        steps: [
-          { day: 1, label: 'Strategic business plan review', desc: 'Deep-dive: current pipeline, growth targets, vertical focus, co-marketing interests', phase: 'Plan' },
-          { day: 3, label: 'Set Platinum qualification criteria', desc: 'Define targets: deal count, revenue threshold, engagement score, training completion', phase: 'Plan' },
-          { day: 7, label: 'Assign dedicated SE', desc: 'Pair with solutions engineer for priority pre-sale support on all opportunities', phase: 'Invest' },
-          { day: 14, label: 'Co-marketing campaign launch', desc: 'Joint webinar, case study, or content piece. MDF allocation for partner promotion.', phase: 'Invest' },
-          { day: 21, label: 'Pipeline acceleration sprint', desc: 'Identify 5 high-potential deals. Provide custom pricing, expedited deal reg, exec sponsors.', phase: 'Execute' },
-          { day: 30, label: 'Mid-program review', desc: 'Check progress against Platinum criteria. Adjust support and remove blockers.', phase: 'Execute' },
-          { day: 45, label: 'SPIFF or incentive activation', desc: 'Launch targeted SPIFF for final push. Recognition in partner community.', phase: 'Accelerate' },
-          { day: 60, label: 'Tier promotion decision', desc: 'Formal review against criteria. Promote, extend program, or set new targets.', phase: 'Accelerate' },
-        ],
-      },
-      {
-        id: 'activation',
-        category: 'Activation',
-        title: 'Dormant Partner Activation',
-        subtitle: 'Re-activate Silver partners with no recent deals',
-        icon: '⚡',
-        color: '#D69E2E',
-        bgColor: 'bg-amber-50',
-        borderColor: 'border-l-amber-400',
-        tagColor: 'bg-amber-100 text-amber-800',
-        duration: '30 days',
-        applicableTo: 'Silver tier, 60+ days since last deal, low engagement',
-        steps: [
-          { day: 1, label: 'Audit partner history', desc: 'Review past deals, training completion, last contact, comm preferences. Find what worked before.', phase: 'Research' },
-          { day: 3, label: 'Personal outreach — no pitch', desc: 'Call or email about them, not us. Ask about their business, challenges, market shifts.', phase: 'Research' },
-          { day: 5, label: 'Share competitive intelligence', desc: 'Give value first: market data, competitor moves, vertical insights relevant to their practice', phase: 'Re-engage' },
-          { day: 7, label: 'Enablement refresh session', desc: 'Updated product training focused on what changed since they last engaged', phase: 'Re-engage' },
-          { day: 14, label: 'Bring a warm lead', desc: 'Source an opportunity in their territory or vertical. Nothing re-activates like revenue.', phase: 'Activate' },
-          { day: 21, label: 'Co-sell on active opportunity', desc: 'Joint call with their prospect. Provide SE, custom pricing, whatever accelerates.', phase: 'Activate' },
-          { day: 30, label: 'Activation assessment', desc: 'Deal registered? Pipeline built? If yes, upgrade cadence. If no, reassess partnership.', phase: 'Assess' },
-        ],
-      },
-      {
-        id: 'qbr-prep',
-        category: 'Cadence',
-        title: 'Quarterly Business Review',
-        subtitle: 'Come with data, not excuses',
-        icon: '📊',
-        color: '#6366F1',
-        bgColor: 'bg-indigo-50',
-        borderColor: 'border-l-indigo-500',
-        tagColor: 'bg-indigo-100 text-indigo-800',
-        duration: '14 days',
-        applicableTo: 'All Platinum & Gold partners, all TSDs',
-        steps: [
-          { day: 1, label: 'Pull performance data', desc: 'Pipeline, revenue, deal velocity, conversion rate, days-to-close, partner engagement metrics', phase: 'Prepare' },
-          { day: 3, label: 'Build QBR deck', desc: 'Key wins, pipeline health, competitive landscape, growth opportunities, asks', phase: 'Prepare' },
-          { day: 5, label: 'Internal dry-run', desc: 'Review with leadership. Align on commitments you can make and asks you need to escalate.', phase: 'Prepare' },
-          { day: 7, label: 'Send pre-read to partner', desc: 'Share agenda and key data 48h before meeting. Respect their prep time.', phase: 'Execute' },
-          { day: 9, label: 'Conduct QBR', desc: '90 min: performance review, strategic discussion, next-quarter planning, mutual commitments', phase: 'Execute' },
-          { day: 10, label: 'Send follow-up within 24h', desc: 'Meeting notes, agreed action items, timeline, and owners. No ambiguity.', phase: 'Follow-up' },
-          { day: 14, label: 'Complete all committed actions', desc: 'Deliver everything promised in QBR. Speed of follow-through defines credibility.', phase: 'Follow-up' },
-        ],
-      },
-      {
-        id: 'cross-sell',
-        category: 'Growth',
-        title: 'Cross-Sell Expansion',
-        subtitle: 'Expand product footprint with existing high-performers',
-        icon: '📈',
-        color: '#157A6E',
-        bgColor: 'bg-[#F0FAF8]',
-        borderColor: 'border-l-[#157A6E]',
-        tagColor: 'bg-green-100 text-green-800',
-        duration: '30 days',
-        applicableTo: 'Platinum/Gold with Accelerating trajectory, single-product sellers',
-        steps: [
-          { day: 1, label: 'Identify whitespace', desc: 'Analyze partner\'s current product mix. Map gaps against full portfolio.', phase: 'Analyze' },
-          { day: 3, label: 'Build business case', desc: 'ROI model: what the partner leaves on the table by not selling additional products', phase: 'Analyze' },
-          { day: 5, label: 'Product-specific enablement', desc: 'Targeted training on the cross-sell product. Focus on how it pairs with what they already sell.', phase: 'Enable' },
-          { day: 10, label: 'Joint proposal on live deal', desc: 'Find an active opportunity where the additional product adds value. Build the proposal together.', phase: 'Enable' },
-          { day: 14, label: 'SPIFF incentive for first deal', desc: 'Accelerator bonus for first closed deal on the new product line', phase: 'Incentivize' },
-          { day: 21, label: 'Pipeline review — new product', desc: 'Check: are they building pipeline on the new product independently?', phase: 'Measure' },
-          { day: 30, label: 'Expansion assessment', desc: 'Is the partner now multi-product? Adjust tier scoring and engagement plan.', phase: 'Measure' },
-        ],
-      },
-    ];
 
     // ── Active playbooks (dynamic, tied to real advisor data) ──
     const playbooks = [
@@ -3030,42 +3103,42 @@ export default function LiveManagerPage() {
     const recommendedPlaybooks: Array<{template: typeof playbookTemplates[0]; advisors: Advisor[]; reason: string; urgency: 'critical' | 'high' | 'medium'}> = [];
 
     // Win-back recommendations
-    const winBackCandidates = advisors.filter(a => (a.pulse === 'Fading' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall') && !playbooks.some(p => p.advisorId === a.id));
+    const winBackCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.pulse === 'Fading' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall') && !playbooks.some(p => p.advisorId === a.id));
     if (winBackCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[0], advisors: winBackCandidates.slice(0, 3), reason: `${winBackCandidates.length} partner${winBackCandidates.length > 1 ? 's' : ''} showing declining engagement — ${formatCurrency(winBackCandidates.reduce((s,a)=>s+a.mrr,0))} MRR at risk`, urgency: 'critical' });
     }
 
     // Onboarding recommendations
-    const onboardingCandidates = advisors.filter(a => a.tier === 'onboarding' || (a.tier === 'silver' && Math.floor((Date.now() - new Date(a.connectedSince).getTime()) / 86400000) < 90));
+    const onboardingCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.tier === 'onboarding' || (a.tier === 'silver' && Math.floor((Date.now() - new Date(a.connectedSince).getTime()) / 86400000) < 90)));
     if (onboardingCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[1], advisors: onboardingCandidates.slice(0, 3), reason: `${onboardingCandidates.length} partner${onboardingCandidates.length > 1 ? 's' : ''} in first 90 days — first deal velocity is critical`, urgency: 'high' });
     }
 
     // Tier upgrade recommendations
-    const tierUpgradeCandidates = advisors.filter(a => a.tier === 'gold' && (a.pulse === 'Strong' || a.trajectory === 'Accelerating') && !playbooks.some(p => p.advisorId === a.id));
+    const tierUpgradeCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && a.tier === 'gold' && (a.pulse === 'Strong' || a.trajectory === 'Accelerating') && !playbooks.some(p => p.advisorId === a.id));
     if (tierUpgradeCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[2], advisors: tierUpgradeCandidates.slice(0, 3), reason: `${tierUpgradeCandidates.length} Gold partner${tierUpgradeCandidates.length > 1 ? 's' : ''} showing Platinum potential — invest now to capture growth`, urgency: 'high' });
     }
 
     // Activation recommendations
-    const activationCandidates = advisors.filter(a => a.tier === 'silver' && (a.engagementBreakdown?.engagement === 'Fading' || a.pulse === 'Fading') && !playbooks.some(p => p.advisorId === a.id));
+    const activationCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && a.tier === 'silver' && (a.engagementBreakdown?.engagement === 'Fading' || a.pulse === 'Fading') && !playbooks.some(p => p.advisorId === a.id));
     if (activationCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[3], advisors: activationCandidates.slice(0, 3), reason: `${activationCandidates.length} Silver partner${activationCandidates.length > 1 ? 's' : ''} going dormant — activate before they defect`, urgency: 'medium' });
     }
 
     // QBR recommendations
-    const qbrCandidates = advisors.filter(a => a.tier === 'platinum' || a.tier === 'gold');
+    const qbrCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.tier === 'platinum' || a.tier === 'gold'));
     if (qbrCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[4], advisors: qbrCandidates.slice(0, 3), reason: `Q2 QBRs due for ${qbrCandidates.length} Platinum & Gold partners — come with data, not excuses`, urgency: 'medium' });
     }
 
     // Cross-sell recommendations
-    const crossSellCandidates = advisors.filter(a => (a.tier === 'platinum' || a.tier === 'gold') && a.trajectory === 'Accelerating' && !playbooks.some(p => p.templateId === 'cross-sell' && p.advisorId === a.id));
+    const crossSellCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.tier === 'platinum' || a.tier === 'gold') && a.trajectory === 'Accelerating' && !playbooks.some(p => p.templateId === 'cross-sell' && p.advisorId === a.id));
     if (crossSellCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[5], advisors: crossSellCandidates.slice(0, 3), reason: `${crossSellCandidates.length} high-performers selling single product — whitespace expansion opportunity`, urgency: 'high' });
     }
 
-    const healthPartners = [...advisors].sort((a, b) => b.mrr - a.mrr).slice(0, 8);
+    const healthPartners = [...advisors].filter(a => !flatlinedAdvisorIds.includes(a.id)).sort((a, b) => b.mrr - a.mrr).slice(0, 8);
 
     const roadmapItems = [
       ...playbooks.slice(0, 2).map(p => ({ phase: 'active' as const, title: p.title, desc: `${p.days} days remaining` })),
@@ -3160,7 +3233,7 @@ export default function LiveManagerPage() {
                       <h4 className="text-[12px] font-semibold text-gray-800">{sig.title}</h4>
                       <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{sig.desc}</p>
                       <span className="text-[10px] text-gray-400">{sig.time} · {sig.source}</span>
-                      <button onClick={() => { setPlaybookModalSignal({ type: sig.type, title: sig.title, desc: sig.desc, partnerName: sig.partnerName, mrr: sig.mrr }); setShowPlaybookModal(true); }} className="block text-[10px] text-[#157A6E] font-semibold mt-1 hover:underline cursor-pointer">→ Create Playbook</button>
+                      <button onClick={() => { if (sig.partnerName) { const adv = advisors.find(a => a.name === sig.partnerName); if (adv) { setPlaybookModalAdvisor(adv); setPlaybookModalMode('template'); setSelectedPlaybookTemplate(null); setShowPlaybookModal(true); } } }} className="block text-[10px] text-[#157A6E] font-semibold mt-1 hover:underline cursor-pointer">→ Create Playbook</button>
                     </div>
                   </div>
                 ))}
@@ -3358,7 +3431,7 @@ export default function LiveManagerPage() {
                         {sig.type === 'growth' ? '+' : ''}{formatCurrency(sig.mrr)}
                       </div>
                     )}
-                    <button onClick={() => { setPlaybookModalSignal({ type: sig.type, title: sig.title, desc: sig.desc, partnerName: sig.partnerName, mrr: sig.mrr }); setShowPlaybookModal(true); }} className="mt-2 px-3 py-1.5 bg-[#157A6E] text-white text-[11px] font-semibold rounded-md hover:bg-[#126a5f] transition-colors">→ Create Playbook</button>
+                    <button onClick={() => { if (sig.partnerName) { const adv = advisors.find(a => a.name === sig.partnerName); if (adv) { setPlaybookModalAdvisor(adv); setPlaybookModalMode('template'); setSelectedPlaybookTemplate(null); setShowPlaybookModal(true); } } }} className="mt-2 px-3 py-1.5 bg-[#157A6E] text-white text-[11px] font-semibold rounded-md hover:bg-[#126a5f] transition-colors">→ Create Playbook</button>
                   </div>
                 </div>
               ))}
@@ -4057,7 +4130,7 @@ export default function LiveManagerPage() {
                   </div>
                 );
               })}
-              <div onClick={() => { setPlaybookModalSignal(null); setShowPlaybookModal(true); }} className="bg-white rounded-[10px] border-2 border-dashed border-gray-200 p-6 text-center cursor-pointer hover:border-[#157A6E] transition-colors">
+              <div onClick={() => { setPlaybookModalAdvisor(null); setPlaybookModalMode('template'); setSelectedPlaybookTemplate(null); setShowPlaybookModal(true); }} className="bg-white rounded-[10px] border-2 border-dashed border-gray-200 p-6 text-center cursor-pointer hover:border-[#157A6E] transition-colors">
                 <div className="text-[20px] text-gray-300 mb-1">+</div>
                 <div className="text-[12px] font-semibold text-[#157A6E]">Create New Playbook</div>
                 <div className="text-[10px] text-gray-400 mt-0.5">Build from a signal or start from scratch</div>
@@ -4324,7 +4397,7 @@ export default function LiveManagerPage() {
 
               {/* Actions */}
               <div className="flex gap-2">
-                <button onClick={() => { const linkedSigs = signals.filter(s => s.partnerName === a.name); const topSig = linkedSigs[0]; setPlaybookModalSignal(topSig ? { type: topSig.type, title: topSig.title, desc: topSig.desc, partnerName: a.name, mrr: a.mrr } : { type: 'intel', title: `${a.name} Engagement Plan`, desc: `Strategic playbook for ${a.name}`, partnerName: a.name, mrr: a.mrr }); setShowPlaybookModal(true); }} className="px-3 py-1.5 bg-[#157A6E] text-white text-[11px] font-semibold rounded-md hover:bg-[#126a5f]">
+                <button onClick={() => { setPlaybookModalAdvisor(a); setPlaybookModalMode('template'); setSelectedPlaybookTemplate(null); setShowPlaybookModal(true); }} className="px-3 py-1.5 bg-[#157A6E] text-white text-[11px] font-semibold rounded-md hover:bg-[#126a5f]">
                   {playbooks.find(p => p.title.includes(a.name)) ? 'View Playbook →' : 'Create Playbook →'}
                 </button>
                 <button className="px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-medium rounded-md hover:bg-gray-200" onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}>
@@ -4413,85 +4486,426 @@ export default function LiveManagerPage() {
       {/* Playbook Creation Modal */}
       {showPlaybookModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowPlaybookModal(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-[560px] max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <h2 className="text-[17px] font-bold font-['Newsreader'] text-gray-800">Create Playbook</h2>
+          <div className="bg-white rounded-xl shadow-xl w-[700px] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            {/* Header with Advisor Info */}
+            <div className="p-6 border-b border-[#e8e5e1] bg-gradient-to-r from-[#F7F5F2] to-white">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Assign Playbook</h2>
                 <button onClick={() => setShowPlaybookModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
               </div>
-              {playbookModalSignal && (
-                <div className="flex items-center gap-2 mt-3 bg-gray-50 rounded-lg px-3 py-2">
-                  <div className={`w-2 h-2 rounded-full ${playbookModalSignal.type === 'churn' ? 'bg-red-500' : playbookModalSignal.type === 'growth' ? 'bg-[#157A6E]' : playbookModalSignal.type === 'stall' ? 'bg-amber-400' : 'bg-blue-500'}`} />
-                  <span className="text-[11px] text-gray-600">From signal: <strong>{playbookModalSignal.title}</strong></span>
-                </div>
-              )}
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Playbook Name</label>
-                <input type="text" className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:outline-none focus:border-[#157A6E]"
-                  defaultValue={playbookModalSignal ? (playbookModalSignal.type === 'churn' ? `Win-Back: ${playbookModalSignal.partnerName || ''}` : playbookModalSignal.type === 'growth' ? `Growth: ${playbookModalSignal.partnerName || ''}` : playbookModalSignal.title) : ''} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Priority</label>
-                  <div className="flex gap-2 mt-1">
-                    {(['critical', 'high', 'medium'] as const).map(p => (
-                      <button key={p} onClick={() => setPlaybookPriority(p)}
-                        className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${playbookPriority === p
-                          ? p === 'critical' ? 'bg-red-100 text-red-800 border border-red-200' : p === 'high' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'
-                          : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
-                        {p.charAt(0).toUpperCase() + p.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Deadline (days)</label>
-                  <div className="flex gap-2 mt-1">
-                    {[7, 14, 21, 30].map(d => (
-                      <button key={d} onClick={() => setPlaybookDeadline(d)}
-                        className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${playbookDeadline === d ? 'bg-[#157A6E] text-white' : 'bg-gray-100 text-gray-500'}`}>
-                        {d}d
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              {playbookModalSignal?.mrr && (
-                <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
-                  <span className="text-[11px] text-gray-500">{playbookModalSignal.type === 'growth' ? 'Expansion Potential' : 'MRR at Risk'}</span>
-                  <span className={`text-[16px] font-bold ${playbookModalSignal.type === 'growth' ? 'text-[#157A6E]' : 'text-red-500'}`}>
-                    {playbookModalSignal.type === 'growth' ? '+' : ''}{formatCurrency(playbookModalSignal.mrr)}
-                  </span>
-                </div>
-              )}
-              <div>
-                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Action Steps</label>
-                <div className="space-y-2 mt-1">
-                  {playbookSteps.map((step, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-400 shrink-0">{i + 1}</div>
-                      <input type="text" value={step} onChange={e => { const ns = [...playbookSteps]; ns[i] = e.target.value; setPlaybookSteps(ns); }}
-                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-[12px] focus:outline-none focus:border-[#157A6E]"
-                        placeholder={i === 0 ? 'First action step...' : i === 1 ? 'Second step...' : 'Additional step...'} />
-                      {playbookSteps.length > 1 && (
-                        <button onClick={() => setPlaybookSteps(playbookSteps.filter((_, j) => j !== i))} className="text-gray-300 hover:text-red-400"><X className="w-3.5 h-3.5" /></button>
-                      )}
+              {playbookModalAdvisor && (
+                <div className="bg-white rounded-lg p-4 border border-[#e8e5e1]">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="text-[14px] font-semibold text-gray-800">{playbookModalAdvisor.name}</h3>
+                      <p className="text-[12px] text-gray-500 mt-0.5">{playbookModalAdvisor.company}</p>
                     </div>
-                  ))}
-                  <button onClick={() => setPlaybookSteps([...playbookSteps, ''])} className="text-[11px] text-[#157A6E] font-semibold hover:underline">+ Add step</button>
+                    <div className="text-right">
+                      <div className="text-[16px] font-bold text-[#157A6E]">{formatCurrency(playbookModalAdvisor.mrr)}</div>
+                      <div className="text-[10px] text-gray-400">Monthly MRR</div>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 mt-3">
+                    <span className={`px-2 py-1 rounded text-[10px] font-semibold ${playbookModalAdvisor.tier === 'platinum' ? 'bg-purple-100 text-purple-800' : playbookModalAdvisor.tier === 'gold' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                      {playbookModalAdvisor.tier.charAt(0).toUpperCase() + playbookModalAdvisor.tier.slice(1)}
+                    </span>
+                    <TrajectoryBadge trajectory={playbookModalAdvisor.trajectory} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-[#e8e5e1] px-6 bg-white">
+              <button
+                onClick={() => setPlaybookModalMode('template')}
+                className={`px-6 py-3 text-[13px] font-semibold border-b-2 transition-colors ${playbookModalMode === 'template' ? 'text-[#157A6E] border-[#157A6E]' : 'text-gray-500 border-transparent hover:text-gray-700'}`}
+              >
+                Choose Template
+              </button>
+              <button
+                onClick={() => setPlaybookModalMode('custom')}
+                className={`px-6 py-3 text-[13px] font-semibold border-b-2 transition-colors ${playbookModalMode === 'custom' ? 'text-[#157A6E] border-[#157A6E]' : 'text-gray-500 border-transparent hover:text-gray-700'}`}
+              >
+                Create Custom
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              {playbookModalMode === 'template' ? (
+                <>
+                  {/* Template Selection Grid */}
+                  {!selectedPlaybookTemplate ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      {playbookTemplates.map((tmpl) => (
+                        <div
+                          key={tmpl.id}
+                          onClick={() => {
+                            setSelectedPlaybookTemplate(tmpl.id);
+                            setModalEditSteps(JSON.parse(JSON.stringify(tmpl.steps)));
+                          }}
+                          className={`${tmpl.bgColor} rounded-lg border-2 border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-all border-l-4 ${tmpl.borderColor}`}
+                        >
+                          <div className="flex items-start gap-3 mb-3">
+                            <span className="text-[24px]">{tmpl.icon}</span>
+                            <div className="flex-1">
+                              <h4 className="text-[13px] font-semibold text-gray-800">{tmpl.title}</h4>
+                              <p className="text-[11px] text-gray-600">{tmpl.subtitle}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] text-gray-500 pt-2 border-t border-gray-200">
+                            <span>{tmpl.duration}</span>
+                            <span>{tmpl.steps.length} steps</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      {/* Expanded Template Editor */}
+                      {playbookTemplates.find(t => t.id === selectedPlaybookTemplate) && (() => {
+                        const tmpl = playbookTemplates.find(t => t.id === selectedPlaybookTemplate)!;
+                        return (
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <button onClick={() => { setSelectedPlaybookTemplate(null); setModalEditSteps([]); }} className="text-[12px] text-[#157A6E] font-semibold hover:underline flex items-center gap-1">
+                                <ArrowLeft className="w-4 h-4" /> Back to Templates
+                              </button>
+                              <button
+                                onClick={() => setDeleteTemplateConfirm(tmpl.id)}
+                                className="text-[12px] text-red-500 font-semibold hover:text-red-700"
+                              >
+                                Delete Template
+                              </button>
+                            </div>
+
+                            {deleteTemplateConfirm === tmpl.id && (
+                              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                <p className="text-[12px] text-red-700 mb-2">Are you sure? This cannot be undone.</p>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setPlaybookTemplates(prev => prev.filter(t => t.id !== tmpl.id));
+                                      setSelectedPlaybookTemplate(null);
+                                      setDeleteTemplateConfirm(null);
+                                    }}
+                                    className="px-3 py-1 bg-red-500 text-white text-[11px] font-semibold rounded hover:bg-red-600"
+                                  >
+                                    Delete
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteTemplateConfirm(null)}
+                                    className="px-3 py-1 bg-gray-200 text-gray-700 text-[11px] font-semibold rounded hover:bg-gray-300"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className={`${tmpl.bgColor} rounded-lg border border-[#e8e5e1] p-4 border-l-4 ${tmpl.borderColor}`}>
+                              <div className="flex items-center gap-3 mb-2">
+                                <span className="text-[24px]">{tmpl.icon}</span>
+                                <div>
+                                  <h3 className="text-[14px] font-semibold text-gray-800">{tmpl.title}</h3>
+                                  <p className="text-[11px] text-gray-600">{tmpl.subtitle}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Steps</label>
+                              <div className="space-y-2 mt-2">
+                                {modalEditSteps.map((step, i) => (
+                                  <div key={i} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                                    <div className="grid grid-cols-4 gap-2 mb-2">
+                                      <input
+                                        type="number"
+                                        value={step.day}
+                                        onChange={e => {
+                                          const newSteps = [...modalEditSteps];
+                                          newSteps[i].day = parseInt(e.target.value) || 1;
+                                          setModalEditSteps(newSteps);
+                                        }}
+                                        placeholder="Day"
+                                        className="px-2 py-1 border border-gray-200 rounded text-[11px] focus:outline-none focus:border-[#157A6E]"
+                                      />
+                                      <input
+                                        type="text"
+                                        value={step.phase}
+                                        onChange={e => {
+                                          const newSteps = [...modalEditSteps];
+                                          newSteps[i].phase = e.target.value;
+                                          setModalEditSteps(newSteps);
+                                        }}
+                                        placeholder="Phase"
+                                        className="px-2 py-1 border border-gray-200 rounded text-[11px] focus:outline-none focus:border-[#157A6E]"
+                                      />
+                                    </div>
+                                    <input
+                                      type="text"
+                                      value={step.label}
+                                      onChange={e => {
+                                        const newSteps = [...modalEditSteps];
+                                        newSteps[i].label = e.target.value;
+                                        setModalEditSteps(newSteps);
+                                      }}
+                                      placeholder="Step label"
+                                      className="w-full px-2 py-1 border border-gray-200 rounded text-[11px] mb-1 focus:outline-none focus:border-[#157A6E]"
+                                    />
+                                    <textarea
+                                      value={step.desc}
+                                      onChange={e => {
+                                        const newSteps = [...modalEditSteps];
+                                        newSteps[i].desc = e.target.value;
+                                        setModalEditSteps(newSteps);
+                                      }}
+                                      placeholder="Step description"
+                                      className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:border-[#157A6E]"
+                                      rows={2}
+                                    />
+                                    {modalEditSteps.length > 1 && (
+                                      <button
+                                        onClick={() => setModalEditSteps(modalEditSteps.filter((_, j) => j !== i))}
+                                        className="mt-2 text-[10px] text-red-500 font-semibold hover:text-red-700"
+                                      >
+                                        Remove Step
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                                <button
+                                  onClick={() => setModalEditSteps([...modalEditSteps, { day: Math.max(...modalEditSteps.map(s => s.day), 0) + 1, label: '', desc: '', phase: 'Action' }])}
+                                  className="text-[11px] text-[#157A6E] font-semibold hover:underline"
+                                >
+                                  + Add Step
+                                </button>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Priority</label>
+                              <div className="flex gap-2 mt-2">
+                                {(['critical', 'high', 'medium'] as const).map(p => (
+                                  <button
+                                    key={p}
+                                    onClick={() => setPlaybookPriority(p)}
+                                    className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${playbookPriority === p
+                                      ? p === 'critical' ? 'bg-red-100 text-red-800 border border-red-200' : p === 'high' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                      : 'bg-gray-100 text-gray-500 border border-gray-200'}`}
+                                  >
+                                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Custom Playbook Creation */}
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Playbook Name</label>
+                    <input
+                      type="text"
+                      value={customPlaybookName}
+                      onChange={e => setCustomPlaybookName(e.target.value)}
+                      placeholder="e.g., Win-Back: Acme Corp"
+                      className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:outline-none focus:border-[#157A6E]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Priority</label>
+                    <div className="flex gap-2 mt-1">
+                      {(['critical', 'high', 'medium'] as const).map(p => (
+                        <button
+                          key={p}
+                          onClick={() => setPlaybookPriority(p)}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${playbookPriority === p
+                            ? p === 'critical' ? 'bg-red-100 text-red-800 border border-red-200' : p === 'high' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200'
+                            : 'bg-gray-100 text-gray-500 border border-gray-200'}`}
+                        >
+                          {p.charAt(0).toUpperCase() + p.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Steps</label>
+                    <div className="space-y-2 mt-2">
+                      {customPlaybookSteps.map((step, i) => (
+                        <div key={i} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                          <div className="grid grid-cols-2 gap-2 mb-2">
+                            <input
+                              type="number"
+                              value={step.day}
+                              onChange={e => {
+                                const ns = [...customPlaybookSteps];
+                                ns[i].day = parseInt(e.target.value) || 1;
+                                setCustomPlaybookSteps(ns);
+                              }}
+                              placeholder="Day"
+                              className="px-2 py-1 border border-gray-200 rounded text-[11px] focus:outline-none focus:border-[#157A6E]"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            value={step.label}
+                            onChange={e => {
+                              const ns = [...customPlaybookSteps];
+                              ns[i].label = e.target.value;
+                              setCustomPlaybookSteps(ns);
+                            }}
+                            placeholder="Step label"
+                            className="w-full px-2 py-1 border border-gray-200 rounded text-[11px] mb-1 focus:outline-none focus:border-[#157A6E]"
+                          />
+                          <textarea
+                            value={step.desc}
+                            onChange={e => {
+                              const ns = [...customPlaybookSteps];
+                              ns[i].desc = e.target.value;
+                              setCustomPlaybookSteps(ns);
+                            }}
+                            placeholder="Step description"
+                            className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:border-[#157A6E]"
+                            rows={2}
+                          />
+                          {customPlaybookSteps.length > 1 && (
+                            <button
+                              onClick={() => setCustomPlaybookSteps(customPlaybookSteps.filter((_, j) => j !== i))}
+                              className="mt-2 text-[10px] text-red-500 font-semibold hover:text-red-700"
+                            >
+                              Remove Step
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => setCustomPlaybookSteps([...customPlaybookSteps, { label: '', desc: '', day: Math.max(...customPlaybookSteps.map(s => s.day), 0) + 1 }])}
+                        className="text-[11px] text-[#157A6E] font-semibold hover:underline"
+                      >
+                        + Add Step
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => { /* Open AIChat with prompt */ setShowPlaybookModal(false); }}
+                    className="w-full px-4 py-2 text-[12px] font-medium text-[#157A6E] border border-[#157A6E] rounded-lg hover:bg-teal-50"
+                  >
+                    Ask AI for Help
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-[#e8e5e1] flex justify-end gap-2">
+              <button onClick={() => setShowPlaybookModal(false)} className="px-4 py-2 text-[12px] font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">
+                Cancel
+              </button>
+              {selectedPlaybookTemplate && playbookModalMode === 'template' && playbookModalAdvisor && (
+                <button
+                  onClick={() => {
+                    const tmpl = playbookTemplates.find(t => t.id === selectedPlaybookTemplate);
+                    if (tmpl) {
+                      setLaunchedPlaybooks(prev => [...prev, {
+                        templateId: tmpl.id,
+                        advisorId: playbookModalAdvisor.id,
+                        advisorName: playbookModalAdvisor.name,
+                        launchedAt: new Date().toISOString(),
+                        priority: playbookPriority,
+                        completedSteps: [],
+                        skippedSteps: [],
+                        customSteps: modalEditSteps,
+                      }]);
+                      setShowPlaybookModal(false);
+                      setSelectedPlaybookTemplate(null);
+                      setModalEditSteps([]);
+                    }
+                  }}
+                  className="px-4 py-2 text-[12px] font-semibold text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f]"
+                >
+                  Assign to {playbookModalAdvisor.name}
+                </button>
+              )}
+              {playbookModalMode === 'custom' && customPlaybookName && playbookModalAdvisor && (
+                <button
+                  onClick={() => {
+                    setLaunchedPlaybooks(prev => [...prev, {
+                      templateId: 'custom',
+                      advisorId: playbookModalAdvisor.id,
+                      advisorName: playbookModalAdvisor.name,
+                      launchedAt: new Date().toISOString(),
+                      priority: playbookPriority,
+                      completedSteps: [],
+                      skippedSteps: [],
+                      customSteps: customPlaybookSteps.map(s => ({ ...s, phase: 'Action' })),
+                    }]);
+                    setShowPlaybookModal(false);
+                    setCustomPlaybookName('');
+                    setCustomPlaybookSteps([{ label: '', desc: '', day: 1 }]);
+                  }}
+                  className="px-4 py-2 text-[12px] font-semibold text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f]"
+                >
+                  Assign to {playbookModalAdvisor.name}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {showAbandonModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowAbandonModal(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-[480px]" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-[17px] font-bold font-['Newsreader'] text-gray-800">Abandon Advisor</h2>
+              <p className="text-[12px] text-gray-500 mt-1">Move {showAbandonModal.advisorName} to Flatlined status with quarterly reignition cadence</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="text-[13px] font-semibold text-red-900">{showAbandonModal.advisorName}</h3>
+                    <p className="text-[11px] text-red-700 mt-1">{showAbandonModal.company} · {showAbandonModal.tier.charAt(0).toUpperCase() + showAbandonModal.tier.slice(1)} · {formatCurrency(showAbandonModal.mrr)} MRR</p>
+                    <p className="text-[11px] text-red-600 mt-2">This will:</p>
+                    <ul className="text-[10px] text-red-600 mt-1 space-y-0.5 ml-4 list-disc">
+                      <li>Move advisor to Flatlined tier</li>
+                      <li>Cancel all active playbooks</li>
+                      <li>Schedule quarterly reignition check-ins</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
               <div>
-                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Owner</label>
-                <input type="text" className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:outline-none focus:border-[#157A6E]" defaultValue="Jordan R." />
+                <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Optional Notes</label>
+                <textarea
+                  value={abandonNotes}
+                  onChange={e => setAbandonNotes(e.target.value)}
+                  placeholder="Why are we abandoning this advisor?"
+                  className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[12px] focus:outline-none focus:border-[#157A6E]"
+                  rows={3}
+                />
               </div>
             </div>
-            <div className="p-5 border-t border-gray-100 flex justify-end gap-2">
-              <button onClick={() => setShowPlaybookModal(false)} className="px-4 py-2 text-[12px] font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-              <button onClick={() => { setShowPlaybookModal(false); setIntelligenceSubTab('playbooks'); }}
-                className="px-4 py-2 text-[12px] font-semibold text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f]">Create Playbook</button>
+            <div className="p-6 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setShowAbandonModal(null)} className="px-4 py-2 text-[12px] font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">
+                Cancel
+              </button>
+              <button
+                onClick={() => abandonAdvisor(showAbandonModal.advisorId)}
+                className="px-4 py-2 text-[12px] font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700"
+              >
+                Confirm Abandon
+              </button>
             </div>
           </div>
         </div>
