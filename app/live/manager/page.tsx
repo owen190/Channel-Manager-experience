@@ -79,6 +79,7 @@ export default function LiveManagerPage() {
   const [showCoMarketingNotif, setShowCoMarketingNotif] = useState(true);
   const [tsdRoleFilter, setTsdRoleFilter] = useState<string>('All');
   const [tsdCompanyFilter, setTsdCompanyFilter] = useState<string | null>(null);
+  const [partnersSubView, setPartnersSubView] = useState<'contacts' | 'companies'>('contacts');
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -841,7 +842,7 @@ export default function LiveManagerPage() {
               onClick={() => { setPanelOpen(false); setSelectedAdvisor(null); }}
               className="mb-4 flex items-center gap-1 text-12px font-medium text-[#157A6E] hover:text-[#0f5550] transition-colors"
             >
-              ← Back to Partners
+              ← {companyFilter ? `Back to ${companyFilter}` : 'Back to Partners'}
             </button>
 
             <div className="flex items-start gap-6 mb-6">
@@ -860,7 +861,7 @@ export default function LiveManagerPage() {
                 <p className="text-13px text-gray-600 mb-3">
                   {selectedAdvisor.title || 'Partner'} at{' '}
                   <button
-                    onClick={() => { setCompanyFilter(selectedAdvisor.company); setPanelOpen(false); setSelectedAdvisor(null); }}
+                    onClick={() => { setCompanyFilter(selectedAdvisor.company); setPartnersSubView('contacts'); setPanelOpen(false); setSelectedAdvisor(null); }}
                     className="text-[#157A6E] font-medium hover:underline transition-colors"
                   >
                     {selectedAdvisor.company}
@@ -1199,6 +1200,157 @@ export default function LiveManagerPage() {
             </div>
           )}
 
+          {/* View Toggle: Contacts vs Companies */}
+          <div className="flex items-center justify-between">
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setPartnersSubView('contacts'); setCompanyFilter(null); }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-12px font-medium transition-colors ${
+                  partnersSubView === 'contacts'
+                    ? 'bg-[#157A6E] text-white'
+                    : 'bg-white border border-[#e8e5e1] text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                Contacts
+              </button>
+              <button
+                onClick={() => { setPartnersSubView('companies'); setCompanyFilter(null); }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-12px font-medium transition-colors ${
+                  partnersSubView === 'companies'
+                    ? 'bg-[#157A6E] text-white'
+                    : 'bg-white border border-[#e8e5e1] text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                Companies
+              </button>
+            </div>
+            <button
+              onClick={() => { setEditingPartner(null); setShowPartnerModal(true); }}
+              className="px-4 py-2 bg-[#157A6E] text-white rounded-lg text-12px font-medium hover:bg-[#12675b] transition-colors"
+            >
+              + Add Partner
+            </button>
+          </div>
+
+          {/* ── COMPANIES LIST VIEW ── */}
+          {partnersSubView === 'companies' && !companyFilter && (() => {
+            const existingCompanies = [...new Set(advisorsWithDeals.map(a => a.company).filter(Boolean))].sort();
+
+            const companyData = existingCompanies.map(company => {
+              const companyAdvisors = advisorsWithDeals.filter(a => a.company === company);
+              const companyMRR = companyAdvisors.reduce((s, a) => s + a.mrr, 0);
+              const companyDeals = deals.filter(d => companyAdvisors.some(a => a.id === d.advisorId));
+              const activeDealCount = companyDeals.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Stalled').length;
+              const pipelineMRR = companyDeals.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Stalled').reduce((s, d) => s + d.mrr, 0);
+
+              // Relationship score
+              const pulseMap: Record<string, number> = { 'Strong': 1, 'Steady': 0.7, 'Rising': 0.8, 'Fading': 0.3, 'Flatline': 0.1 };
+              const trajMap: Record<string, number> = { 'Accelerating': 1, 'Climbing': 0.8, 'Stable': 0.5, 'Slipping': 0.2, 'Freefall': 0 };
+              const fricMap: Record<string, number> = { 'Low': 1, 'Moderate': 0.6, 'High': 0.3, 'Critical': 0 };
+              const avgPulse = companyAdvisors.reduce((s, a) => s + (pulseMap[a.pulse] || 0.5), 0) / (companyAdvisors.length || 1);
+              const avgTraj = companyAdvisors.reduce((s, a) => s + (trajMap[a.trajectory] || 0.5), 0) / (companyAdvisors.length || 1);
+              const avgFric = companyAdvisors.reduce((s, a) => s + (fricMap[a.friction] || 0.5), 0) / (companyAdvisors.length || 1);
+              const avgContact = companyAdvisors.reduce((s, a) => {
+                const days = getDaysSinceContact(a.lastContact);
+                return s + (days < 7 ? 1 : days < 14 ? 0.5 : 0);
+              }, 0) / (companyAdvisors.length || 1);
+              const relScore = (avgPulse * 0.3 + avgTraj * 0.25 + avgFric * 0.2 + avgContact * 0.25);
+
+              const getScoreBadge = (score: number) => {
+                if (score > 0.75) return { label: 'Excellent', color: '#16A34A' };
+                if (score > 0.5) return { label: 'Good', color: '#84CC16' };
+                if (score > 0.25) return { label: 'Fair', color: '#FBBF24' };
+                return { label: 'Needs Work', color: '#EF4444' };
+              };
+
+              return {
+                name: company,
+                contacts: companyAdvisors.length,
+                mrr: companyMRR,
+                pipeline: pipelineMRR,
+                activeDeals: activeDealCount,
+                relScore,
+                scoreBadge: getScoreBadge(relScore),
+                topAdvisors: companyAdvisors.sort((a, b) => b.mrr - a.mrr).slice(0, 3),
+              };
+            }).sort((a, b) => b.mrr - a.mrr);
+
+            return (
+              <div className="space-y-3">
+                <p className="text-12px text-gray-600 font-medium">{companyData.length} companies</p>
+                {companyData.map(company => (
+                  <div
+                    key={company.name}
+                    onClick={() => { setCompanyFilter(company.name); setPartnersSubView('contacts'); }}
+                    className="bg-white rounded-[10px] border border-[#e8e5e1] p-5 hover:shadow-md hover:border-[#157A6E] cursor-pointer transition-all"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 bg-[#157A6E]/10 rounded-lg flex items-center justify-center">
+                          <Building2 className="w-5 h-5 text-[#157A6E]" />
+                        </div>
+                        <div>
+                          <h4 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">{company.name}</h4>
+                          <p className="text-11px text-gray-500">{company.contacts} contact{company.contacts !== 1 ? 's' : ''} · {company.activeDeals} active deal{company.activeDeals !== 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span
+                          className="text-11px font-semibold px-3 py-1 rounded-full text-white"
+                          style={{ backgroundColor: company.scoreBadge.color }}
+                        >
+                          {company.scoreBadge.label}
+                        </span>
+                        <ChevronRight className="w-4 h-4 text-gray-400" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-4 mb-4">
+                      <div>
+                        <p className="text-10px text-gray-500 uppercase font-medium">Total MRR</p>
+                        <p className="text-[15px] font-bold text-[#157A6E]">{formatCurrency(company.mrr)}</p>
+                      </div>
+                      <div>
+                        <p className="text-10px text-gray-500 uppercase font-medium">Pipeline</p>
+                        <p className="text-[15px] font-bold text-gray-800">{formatCurrency(company.pipeline)}</p>
+                      </div>
+                      <div>
+                        <p className="text-10px text-gray-500 uppercase font-medium">Contacts</p>
+                        <p className="text-[15px] font-bold text-gray-800">{company.contacts}</p>
+                      </div>
+                      <div>
+                        <p className="text-10px text-gray-500 uppercase font-medium">Rel. Score</p>
+                        <p className="text-[15px] font-bold" style={{ color: company.scoreBadge.color }}>{Math.round(company.relScore * 100)}%</p>
+                      </div>
+                    </div>
+                    {/* Top contacts preview */}
+                    <div className="flex items-center gap-2">
+                      <div className="flex -space-x-2">
+                        {company.topAdvisors.map(a => (
+                          <div
+                            key={a.id}
+                            className="w-7 h-7 rounded-full bg-[#157A6E] flex items-center justify-center text-white text-[9px] font-bold border-2 border-white"
+                            title={a.name}
+                          >
+                            {a.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-11px text-gray-500">
+                        {company.topAdvisors.map(a => a.name.split(' ')[0]).join(', ')}
+                        {company.contacts > 3 && ` +${company.contacts - 3} more`}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* ── CONTACTS LIST VIEW ── */}
+          {partnersSubView === 'contacts' && (
+          <>
           {/* Engagement Level Filter */}
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
             <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Engagement Levels</p>
@@ -1222,87 +1374,23 @@ export default function LiveManagerPage() {
             </div>
           </div>
 
-          {/* Company Filter */}
-          {(() => {
-            const existingCompanies = [...new Set(advisorsWithDeals.map(a => a.company).filter(Boolean))].sort();
-            const companyCounts: Record<string, number> = {};
-            advisorsWithDeals.forEach(a => {
-              if (a.company) {
-                companyCounts[a.company] = (companyCounts[a.company] || 0) + 1;
-              }
-            });
-
-            return (
-              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
-                <p className="text-11px text-gray-600 mb-3 uppercase font-medium">Companies</p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => setCompanyFilter(null)}
-                    className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
-                      companyFilter === null
-                        ? 'bg-[#157A6E] text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    All Companies
-                  </button>
-                  {existingCompanies.map(company => (
-                    <button
-                      key={company}
-                      onClick={() => setCompanyFilter(company)}
-                      className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${
-                        companyFilter === company
-                          ? 'bg-[#157A6E] text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {company}
-                      <span className={`ml-1.5 ${companyFilter === company ? 'text-white/80' : 'text-gray-600'}`}>
-                        ({companyCounts[company] || 0})
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-
           {/* Company Detail Header (when company filter is active) */}
           {companyFilter && (() => {
             const companyAdvisors = sortedAdvisors;
             const companyMRR = companyAdvisors.reduce((s, a) => s + a.mrr, 0);
             const avgMRR = companyAdvisors.length > 0 ? companyMRR / companyAdvisors.length : 0;
 
-            // Calculate relationship score for the company
-            const avgPulseScore = companyAdvisors.length > 0
-              ? companyAdvisors.reduce((sum, a) => {
-                  const pulseMap: Record<string, number> = { 'Strong': 1, 'Steady': 0.7, 'Fading': 0.3, 'Flatline': 0.1 };
-                  return sum + (pulseMap[a.pulse] || 0);
-                }, 0) / companyAdvisors.length
-              : 0;
-
-            const avgTrajectoryScore = companyAdvisors.length > 0
-              ? companyAdvisors.reduce((sum, a) => {
-                  const trajectoryMap: Record<string, number> = { 'Accelerating': 1, 'Climbing': 0.8, 'Stable': 0.5, 'Slipping': 0.2, 'Freefall': 0 };
-                  return sum + (trajectoryMap[a.trajectory] || 0);
-                }, 0) / companyAdvisors.length
-              : 0;
-
-            const avgFrictionScore = companyAdvisors.length > 0
-              ? companyAdvisors.reduce((sum, a) => {
-                  const frictionMap: Record<string, number> = { 'Low': 1, 'Moderate': 0.6, 'High': 0.3, 'Critical': 0 };
-                  return sum + (frictionMap[a.friction] || 0);
-                }, 0) / companyAdvisors.length
-              : 0;
-
-            const avgRecentContact = companyAdvisors.length > 0
-              ? companyAdvisors.reduce((sum, a) => {
-                  const daysSince = getDaysSinceContact(a.lastContact);
-                  return sum + (daysSince < 7 ? 1 : daysSince < 14 ? 0.5 : 0);
-                }, 0) / companyAdvisors.length
-              : 0;
-
-            const relationshipScore = (avgPulseScore + avgTrajectoryScore + avgFrictionScore + avgRecentContact) / 4;
+            const pulseMap: Record<string, number> = { 'Strong': 1, 'Steady': 0.7, 'Fading': 0.3, 'Flatline': 0.1 };
+            const trajMap: Record<string, number> = { 'Accelerating': 1, 'Climbing': 0.8, 'Stable': 0.5, 'Slipping': 0.2, 'Freefall': 0 };
+            const fricMap: Record<string, number> = { 'Low': 1, 'Moderate': 0.6, 'High': 0.3, 'Critical': 0 };
+            const avgPulse = companyAdvisors.reduce((s, a) => s + (pulseMap[a.pulse] || 0), 0) / (companyAdvisors.length || 1);
+            const avgTraj = companyAdvisors.reduce((s, a) => s + (trajMap[a.trajectory] || 0), 0) / (companyAdvisors.length || 1);
+            const avgFric = companyAdvisors.reduce((s, a) => s + (fricMap[a.friction] || 0), 0) / (companyAdvisors.length || 1);
+            const avgContact = companyAdvisors.reduce((s, a) => {
+              const days = getDaysSinceContact(a.lastContact);
+              return s + (days < 7 ? 1 : days < 14 ? 0.5 : 0);
+            }, 0) / (companyAdvisors.length || 1);
+            const relationshipScore = (avgPulse + avgTraj + avgFric + avgContact) / 4;
 
             const getRelationshipBadge = (score: number) => {
               if (score > 0.75) return { label: 'Excellent', color: '#16A34A' };
@@ -1314,7 +1402,7 @@ export default function LiveManagerPage() {
             const scoreInfo = getRelationshipBadge(relationshipScore);
 
             return (
-              <div className="bg-white rounded-[10px] border border-[#157A6E]/30 p-6 mb-4">
+              <div className="bg-white rounded-[10px] border border-[#157A6E]/30 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <Building2 className="w-6 h-6 text-[#157A6E]" />
@@ -1324,7 +1412,7 @@ export default function LiveManagerPage() {
                     onClick={() => setCompanyFilter(null)}
                     className="px-3 py-1.5 text-12px font-medium border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                   >
-                    Clear filter
+                    ← All Contacts
                   </button>
                 </div>
                 <div className="grid grid-cols-4 gap-4">
@@ -1349,30 +1437,22 @@ export default function LiveManagerPage() {
             );
           })()}
 
-          {/* Sort Controls & Add Button */}
+          {/* Sort Controls */}
           <div className="flex items-center justify-between">
             <div className="text-12px text-gray-600 font-medium">
               Showing {sortedAdvisors.length} partners
               {territoryFilter && <span className="ml-1 text-[#157A6E]">in {territoryFilter}</span>}
               {companyFilter && <span className="ml-1 text-[#157A6E]">at {companyFilter}</span>}
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => { setEditingPartner(null); setShowPartnerModal(true); }}
-                className="px-4 py-2 bg-[#157A6E] text-white rounded-lg text-12px font-medium hover:bg-[#12675b] transition-colors"
-              >
-                + Add Partner
-              </button>
-              <select
-                value={relationshipSort}
-                onChange={(e) => setRelationshipSort(e.target.value as 'name' | 'mrr' | 'lastContact')}
-                className="text-12px border border-gray-200 rounded px-2 py-1 text-gray-700 hover:border-gray-300"
-              >
-                <option value="mrr">Sort by MRR</option>
-                <option value="lastContact">Sort by Last Contacted</option>
-                <option value="name">Sort by Name</option>
-              </select>
-            </div>
+            <select
+              value={relationshipSort}
+              onChange={(e) => setRelationshipSort(e.target.value as 'name' | 'mrr' | 'lastContact')}
+              className="text-12px border border-gray-200 rounded px-2 py-1 text-gray-700 hover:border-gray-300"
+            >
+              <option value="mrr">Sort by MRR</option>
+              <option value="lastContact">Sort by Last Contacted</option>
+              <option value="name">Sort by Name</option>
+            </select>
           </div>
 
           {/* Partner Cards — HubSpot-style */}
@@ -1488,6 +1568,8 @@ export default function LiveManagerPage() {
               })
             )}
           </div>
+          </>
+          )}
         </div>
         )}
 
