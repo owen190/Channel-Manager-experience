@@ -1654,6 +1654,14 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
         note: 'bg-gray-100 text-gray-600',
       };
 
+      // Update advisor field in state and persist
+      const updateAdvisorField = async (field: string, value: any) => {
+        const updated = { ...selectedAdvisor, [field]: value };
+        setAdvisors(prev => prev.map(a => a.id === selectedAdvisor.id ? { ...a, [field]: value } : a));
+        setSelectedAdvisor(updated);
+        fetch('/api/live/advisors', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: selectedAdvisor.id, [field]: value }) }).catch(console.error);
+      };
+
       return (
         <div>
           {/* Back button */}
@@ -1682,9 +1690,43 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                       </span>
                     </div>
                     <div className="min-w-0">
-                      <h2 className="text-[22px] font-semibold font-['Newsreader'] text-gray-900 leading-tight">{selectedAdvisor.name}</h2>
+                      {editingIntelField === `${selectedAdvisor.id}-name` ? (
+                        <div className="flex gap-1 mb-2">
+                          <input
+                            autoFocus
+                            value={editingIntelValue}
+                            onChange={e => setEditingIntelValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') { updateAdvisorField('name', editingIntelValue); setEditingIntelField(null); }
+                              if (e.key === 'Escape') setEditingIntelField(null);
+                            }}
+                            className="flex-1 text-[22px] font-semibold font-['Newsreader'] border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]"
+                          />
+                          <button onClick={() => { updateAdvisorField('name', editingIntelValue); setEditingIntelField(null); }} className="text-[#157A6E]"><CheckCircle className="w-4 h-4" /></button>
+                          <button onClick={() => setEditingIntelField(null)} className="text-gray-400"><X className="w-4 h-4" /></button>
+                        </div>
+                      ) : (
+                        <h2 onClick={() => { setEditingIntelField(`${selectedAdvisor.id}-name`); setEditingIntelValue(selectedAdvisor.name); }} className="text-[22px] font-semibold font-['Newsreader'] text-gray-900 leading-tight cursor-pointer hover:text-[#157A6E] hover:bg-teal-50/50 rounded px-1 -mx-1 py-0.5 transition-colors">{selectedAdvisor.name}</h2>
+                      )}
                       <p className="text-12px text-gray-600">
-                        {selectedAdvisor.title || 'Partner'} at{' '}
+                        {editingIntelField === `${selectedAdvisor.id}-title` ? (
+                          <div className="flex gap-1 inline-flex">
+                            <input
+                              autoFocus
+                              value={editingIntelValue}
+                              onChange={e => setEditingIntelValue(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') { updateAdvisorField('title', editingIntelValue); setEditingIntelField(null); }
+                                if (e.key === 'Escape') setEditingIntelField(null);
+                              }}
+                              className="text-12px border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]"
+                            />
+                            <button onClick={() => { updateAdvisorField('title', editingIntelValue); setEditingIntelField(null); }} className="text-[#157A6E]"><CheckCircle className="w-3 h-3" /></button>
+                            <button onClick={() => setEditingIntelField(null)} className="text-gray-400"><X className="w-3 h-3" /></button>
+                          </div>
+                        ) : (
+                          <span onClick={() => { setEditingIntelField(`${selectedAdvisor.id}-title`); setEditingIntelValue(selectedAdvisor.title || 'Partner'); }} className="cursor-pointer hover:text-[#157A6E] hover:bg-teal-50/50 rounded px-1 -mx-1 py-0.5 transition-colors">{selectedAdvisor.title || 'Partner'}</span>
+                        )} at{' '}
                         <button
                           onClick={() => { setCompanyFilter(selectedAdvisor.company); setPartnersSubView('contacts'); setPanelOpen(false); setSelectedAdvisor(null); }}
                           className="text-[#157A6E] font-medium hover:underline"
@@ -1697,11 +1739,45 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                   <div className="space-y-2.5 mb-4 pb-4 border-b border-[#e8e5e1]">
                     <div className="flex items-center gap-2.5 text-12px">
                       <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <span className="text-gray-900 font-medium">{`(${Math.floor(seededRandom(`${selectedAdvisor.id}-area`) * 900 + 100)}) ${Math.floor(seededRandom(`${selectedAdvisor.id}-ph1`) * 900 + 100)}-${Math.floor(seededRandom(`${selectedAdvisor.id}-ph2`) * 9000 + 1000)}`}</span>
+                      {editingIntelField === `${selectedAdvisor.id}-phone` ? (
+                        <div className="flex gap-1">
+                          <input
+                            autoFocus
+                            value={editingIntelValue}
+                            onChange={e => setEditingIntelValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') { updateAdvisorField('phone', editingIntelValue); setEditingIntelField(null); }
+                              if (e.key === 'Escape') setEditingIntelField(null);
+                            }}
+                            className="flex-1 text-11px border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]"
+                          />
+                          <button onClick={() => { updateAdvisorField('phone', editingIntelValue); setEditingIntelField(null); }} className="text-[#157A6E]"><CheckCircle className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => setEditingIntelField(null)} className="text-gray-400"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ) : (
+                        <span onClick={() => { setEditingIntelField(`${selectedAdvisor.id}-phone`); setEditingIntelValue(selectedAdvisor.phone || `(${Math.floor(seededRandom(`${selectedAdvisor.id}-area`) * 900 + 100)}) ${Math.floor(seededRandom(`${selectedAdvisor.id}-ph1`) * 900 + 100)}-${Math.floor(seededRandom(`${selectedAdvisor.id}-ph2`) * 9000 + 1000)}`); }} className="text-gray-900 font-medium cursor-pointer hover:text-[#157A6E] hover:bg-teal-50/50 rounded px-1 -mx-1 py-0.5 transition-colors">{selectedAdvisor.phone || `(${Math.floor(seededRandom(`${selectedAdvisor.id}-area`) * 900 + 100)}) ${Math.floor(seededRandom(`${selectedAdvisor.id}-ph1`) * 900 + 100)}-${Math.floor(seededRandom(`${selectedAdvisor.id}-ph2`) * 9000 + 1000)}`}</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2.5 text-12px">
                       <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <span className="text-gray-900 font-medium truncate">{selectedAdvisor.name.toLowerCase().replace(' ', '.')}@{selectedAdvisor.company.toLowerCase().replace(/\s+/g, '')}.com</span>
+                      {editingIntelField === `${selectedAdvisor.id}-email` ? (
+                        <div className="flex gap-1">
+                          <input
+                            autoFocus
+                            value={editingIntelValue}
+                            onChange={e => setEditingIntelValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') { updateAdvisorField('email', editingIntelValue); setEditingIntelField(null); }
+                              if (e.key === 'Escape') setEditingIntelField(null);
+                            }}
+                            className="flex-1 text-11px border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]"
+                          />
+                          <button onClick={() => { updateAdvisorField('email', editingIntelValue); setEditingIntelField(null); }} className="text-[#157A6E]"><CheckCircle className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => setEditingIntelField(null)} className="text-gray-400"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ) : (
+                        <span onClick={() => { setEditingIntelField(`${selectedAdvisor.id}-email`); setEditingIntelValue(selectedAdvisor.email || `${selectedAdvisor.name.toLowerCase().replace(' ', '.')}@${selectedAdvisor.company.toLowerCase().replace(/\s+/g, '')}.com`); }} className="text-gray-900 font-medium truncate cursor-pointer hover:text-[#157A6E] hover:bg-teal-50/50 rounded px-1 -mx-1 py-0.5 transition-colors">{selectedAdvisor.email || `${selectedAdvisor.name.toLowerCase().replace(' ', '.')}@${selectedAdvisor.company.toLowerCase().replace(/\s+/g, '')}.com`}</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2.5 text-12px">
                       <ExternalLink className="w-3.5 h-3.5 text-[#0A66C2] flex-shrink-0" />
@@ -1713,7 +1789,24 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                     </div>
                     <div className="flex items-center gap-2.5 text-12px">
                       <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <span className="text-gray-700">{selectedAdvisor.location || 'Unknown'}</span>
+                      {editingIntelField === `${selectedAdvisor.id}-location` ? (
+                        <div className="flex gap-1">
+                          <input
+                            autoFocus
+                            value={editingIntelValue}
+                            onChange={e => setEditingIntelValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') { updateAdvisorField('location', editingIntelValue); setEditingIntelField(null); }
+                              if (e.key === 'Escape') setEditingIntelField(null);
+                            }}
+                            className="flex-1 text-11px border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]"
+                          />
+                          <button onClick={() => { updateAdvisorField('location', editingIntelValue); setEditingIntelField(null); }} className="text-[#157A6E]"><CheckCircle className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => setEditingIntelField(null)} className="text-gray-400"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ) : (
+                        <span onClick={() => { setEditingIntelField(`${selectedAdvisor.id}-location`); setEditingIntelValue(selectedAdvisor.location || 'Unknown'); }} className="text-gray-700 cursor-pointer hover:text-[#157A6E] hover:bg-teal-50/50 rounded px-1 -mx-1 py-0.5 transition-colors">{selectedAdvisor.location || 'Unknown'}</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2.5 text-12px">
                       <Building2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
@@ -1769,7 +1862,25 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
                       <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">MRR</p>
-                      <p className="text-[18px] font-bold text-[#157A6E]">{formatCurrency(selectedAdvisor.mrr)}</p>
+                      {editingIntelField === `${selectedAdvisor.id}-mrr` ? (
+                        <div className="flex gap-1 justify-center">
+                          <input
+                            autoFocus
+                            type="number"
+                            value={editingIntelValue}
+                            onChange={e => setEditingIntelValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') { updateAdvisorField('mrr', parseInt(editingIntelValue) || 0); setEditingIntelField(null); }
+                              if (e.key === 'Escape') setEditingIntelField(null);
+                            }}
+                            className="w-20 text-13px border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]"
+                          />
+                          <button onClick={() => { updateAdvisorField('mrr', parseInt(editingIntelValue) || 0); setEditingIntelField(null); }} className="text-[#157A6E]"><CheckCircle className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => setEditingIntelField(null)} className="text-gray-400"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ) : (
+                        <p onClick={() => { setEditingIntelField(`${selectedAdvisor.id}-mrr`); setEditingIntelValue(String(selectedAdvisor.mrr || 0)); }} className="text-[18px] font-bold text-[#157A6E] cursor-pointer hover:text-[#0f5550]">{formatCurrency(selectedAdvisor.mrr)}</p>
+                      )}
                     </div>
                     <div>
                       <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Last Contact</p>
@@ -1808,7 +1919,31 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-11px text-gray-600">Tier</span>
-                      <TierBadge tier={selectedAdvisor.tier} />
+                      {editingIntelField === `${selectedAdvisor.id}-tier` ? (
+                        <div className="flex gap-1">
+                          <select
+                            autoFocus
+                            value={editingIntelValue}
+                            onChange={e => setEditingIntelValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') { updateAdvisorField('tier', editingIntelValue); setEditingIntelField(null); }
+                              if (e.key === 'Escape') setEditingIntelField(null);
+                            }}
+                            className="text-11px border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]"
+                          >
+                            <option value="anchor">Anchor</option>
+                            <option value="scaling">Scaling</option>
+                            <option value="building">Building</option>
+                            <option value="launching">Launching</option>
+                          </select>
+                          <button onClick={() => { updateAdvisorField('tier', editingIntelValue); setEditingIntelField(null); }} className="text-[#157A6E]"><CheckCircle className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => setEditingIntelField(null)} className="text-gray-400"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ) : (
+                        <div onClick={() => { setEditingIntelField(`${selectedAdvisor.id}-tier`); setEditingIntelValue(selectedAdvisor.tier); }} className="cursor-pointer hover:opacity-80 transition-opacity">
+                          <TierBadge tier={selectedAdvisor.tier} />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2764,6 +2899,12 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
             const companyPartners = tsdCompany?.partners || [];
             const daysSince = getDaysSinceContact(tc.lastContact);
 
+            // Helper to update TSD contact fields inline
+            const updateTsdField = (field: string, value: string) => {
+              (tc as any)[field] = value;
+              setSelectedTsdContact({ ...tc, [field]: value });
+            };
+
             // Mock activity for this TSD contact
             const tsdActivity = [
               { id: 1, icon: Phone, title: `Call with ${tc.name}`, details: 'Discussed pipeline and upcoming advisor introductions', time: `${daysSince}d ago`, type: 'call' },
@@ -2797,20 +2938,99 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                           {tc.name.split(' ').map((n: string) => n[0]).join('')}
                         </div>
                         <div className="min-w-0">
-                          <h2 className="text-[22px] font-semibold font-['Newsreader'] text-gray-900 leading-tight">{tc.name}</h2>
-                          <p className="text-12px text-gray-600">{tc.title} at <span className="font-semibold" style={{ color: tc.companyColor }}>{tc.companyName}</span></p>
+                          {editingIntelField === `tsd-${tc.id}-name` ? (
+                            <div className="flex gap-1 items-center">
+                              <input autoFocus value={editingIntelValue} onChange={e => setEditingIntelValue(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { updateTsdField('name', editingIntelValue); setEditingIntelField(null); } if (e.key === 'Escape') setEditingIntelField(null); }}
+                                className="text-[20px] font-semibold font-['Newsreader'] border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E] w-full" />
+                              <button onClick={() => { updateTsdField('name', editingIntelValue); setEditingIntelField(null); }} className="text-[#157A6E]"><CheckCircle className="w-4 h-4" /></button>
+                              <button onClick={() => setEditingIntelField(null)} className="text-gray-400"><X className="w-4 h-4" /></button>
+                            </div>
+                          ) : (
+                            <h2 onClick={() => { setEditingIntelField(`tsd-${tc.id}-name`); setEditingIntelValue(tc.name); }} className="text-[22px] font-semibold font-['Newsreader'] text-gray-900 leading-tight cursor-pointer hover:text-[#157A6E] transition-colors">{tc.name}</h2>
+                          )}
+                          {editingIntelField === `tsd-${tc.id}-title` ? (
+                            <div className="flex gap-1 items-center mt-0.5">
+                              <input autoFocus value={editingIntelValue} onChange={e => setEditingIntelValue(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { updateTsdField('title', editingIntelValue); setEditingIntelField(null); } if (e.key === 'Escape') setEditingIntelField(null); }}
+                                className="text-12px border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E] flex-1" />
+                              <button onClick={() => { updateTsdField('title', editingIntelValue); setEditingIntelField(null); }} className="text-[#157A6E]"><CheckCircle className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => setEditingIntelField(null)} className="text-gray-400"><X className="w-3.5 h-3.5" /></button>
+                            </div>
+                          ) : (
+                            <p className="text-12px text-gray-600">
+                              <span onClick={() => { setEditingIntelField(`tsd-${tc.id}-title`); setEditingIntelValue(tc.title); }} className="cursor-pointer hover:text-[#157A6E] transition-colors">{tc.title}</span>
+                              {' '}at <span className="font-semibold" style={{ color: tc.companyColor }}>{tc.companyName}</span>
+                            </p>
+                          )}
                         </div>
                       </div>
 
                       <div className="space-y-2.5 mb-4 pb-4 border-b border-[#e8e5e1]">
-                        <div className="flex items-center gap-2.5 text-12px"><Phone className="w-3.5 h-3.5 text-gray-400" /><span className="text-gray-900 font-medium">{tc.phone}</span></div>
-                        <div className="flex items-center gap-2.5 text-12px"><Mail className="w-3.5 h-3.5 text-gray-400" /><span className="text-gray-900 font-medium">{tc.email}</span></div>
-                        <div className="flex items-center gap-2.5 text-12px"><MapPin className="w-3.5 h-3.5 text-gray-400" /><span className="text-gray-700">{tc.location}</span></div>
+                        <div className="flex items-center gap-2.5 text-12px">
+                          <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          {editingIntelField === `tsd-${tc.id}-phone` ? (
+                            <div className="flex gap-1 flex-1">
+                              <input autoFocus value={editingIntelValue} onChange={e => setEditingIntelValue(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { updateTsdField('phone', editingIntelValue); setEditingIntelField(null); } if (e.key === 'Escape') setEditingIntelField(null); }}
+                                className="flex-1 text-11px border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" />
+                              <button onClick={() => { updateTsdField('phone', editingIntelValue); setEditingIntelField(null); }} className="text-[#157A6E]"><CheckCircle className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => setEditingIntelField(null)} className="text-gray-400"><X className="w-3.5 h-3.5" /></button>
+                            </div>
+                          ) : (
+                            <span onClick={() => { setEditingIntelField(`tsd-${tc.id}-phone`); setEditingIntelValue(tc.phone); }} className="text-gray-900 font-medium cursor-pointer hover:text-[#157A6E] hover:bg-teal-50/50 rounded px-1 -mx-1 py-0.5 transition-colors">{tc.phone}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2.5 text-12px">
+                          <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          {editingIntelField === `tsd-${tc.id}-email` ? (
+                            <div className="flex gap-1 flex-1">
+                              <input autoFocus value={editingIntelValue} onChange={e => setEditingIntelValue(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { updateTsdField('email', editingIntelValue); setEditingIntelField(null); } if (e.key === 'Escape') setEditingIntelField(null); }}
+                                className="flex-1 text-11px border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" />
+                              <button onClick={() => { updateTsdField('email', editingIntelValue); setEditingIntelField(null); }} className="text-[#157A6E]"><CheckCircle className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => setEditingIntelField(null)} className="text-gray-400"><X className="w-3.5 h-3.5" /></button>
+                            </div>
+                          ) : (
+                            <span onClick={() => { setEditingIntelField(`tsd-${tc.id}-email`); setEditingIntelValue(tc.email); }} className="text-gray-900 font-medium cursor-pointer hover:text-[#157A6E] hover:bg-teal-50/50 rounded px-1 -mx-1 py-0.5 transition-colors truncate">{tc.email}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2.5 text-12px">
+                          <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          {editingIntelField === `tsd-${tc.id}-location` ? (
+                            <div className="flex gap-1 flex-1">
+                              <input autoFocus value={editingIntelValue} onChange={e => setEditingIntelValue(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { updateTsdField('location', editingIntelValue); setEditingIntelField(null); } if (e.key === 'Escape') setEditingIntelField(null); }}
+                                className="flex-1 text-11px border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" />
+                              <button onClick={() => { updateTsdField('location', editingIntelValue); setEditingIntelField(null); }} className="text-[#157A6E]"><CheckCircle className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => setEditingIntelField(null)} className="text-gray-400"><X className="w-3.5 h-3.5" /></button>
+                            </div>
+                          ) : (
+                            <span onClick={() => { setEditingIntelField(`tsd-${tc.id}-location`); setEditingIntelValue(tc.location); }} className="text-gray-700 cursor-pointer hover:text-[#157A6E] hover:bg-teal-50/50 rounded px-1 -mx-1 py-0.5 transition-colors">{tc.location}</span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2.5 text-12px"><Building2 className="w-3.5 h-3.5 text-gray-400" /><span className="text-gray-700">{tc.companyName}</span></div>
-                        {tc.linkedin && (
+                        {editingIntelField === `tsd-${tc.id}-linkedin` ? (
+                          <div className="flex items-center gap-2.5 text-12px">
+                            <ExternalLink className="w-3.5 h-3.5 text-[#0A66C2] flex-shrink-0" />
+                            <div className="flex gap-1 flex-1">
+                              <input autoFocus value={editingIntelValue} onChange={e => setEditingIntelValue(e.target.value)} placeholder="linkedin.com/in/..."
+                                onKeyDown={e => { if (e.key === 'Enter') { updateTsdField('linkedin', editingIntelValue); setEditingIntelField(null); } if (e.key === 'Escape') setEditingIntelField(null); }}
+                                className="flex-1 text-11px border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" />
+                              <button onClick={() => { updateTsdField('linkedin', editingIntelValue); setEditingIntelField(null); }} className="text-[#157A6E]"><CheckCircle className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => setEditingIntelField(null)} className="text-gray-400"><X className="w-3.5 h-3.5" /></button>
+                            </div>
+                          </div>
+                        ) : tc.linkedin ? (
                           <div className="flex items-center gap-2.5 text-12px">
                             <ExternalLink className="w-3.5 h-3.5 text-[#0A66C2]" />
-                            <a href={tc.linkedin.startsWith('http') ? tc.linkedin : `https://${tc.linkedin}`} target="_blank" rel="noopener noreferrer" className="text-[#0A66C2] font-medium hover:underline">LinkedIn Profile</a>
+                            <a href={tc.linkedin.startsWith('http') ? tc.linkedin : `https://${tc.linkedin}`} target="_blank" rel="noopener noreferrer" className="text-[#0A66C2] font-medium hover:underline" onClick={e => e.stopPropagation()}>LinkedIn Profile</a>
+                            <button onClick={() => { setEditingIntelField(`tsd-${tc.id}-linkedin`); setEditingIntelValue(tc.linkedin || ''); }} className="text-gray-300 hover:text-[#157A6E] ml-auto"><Edit className="w-3 h-3" /></button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2.5 text-12px">
+                            <ExternalLink className="w-3.5 h-3.5 text-gray-300" />
+                            <button onClick={() => { setEditingIntelField(`tsd-${tc.id}-linkedin`); setEditingIntelValue(''); }} className="text-gray-400 text-12px italic hover:text-[#0A66C2]">Add LinkedIn...</button>
                           </div>
                         )}
                       </div>
@@ -2869,7 +3089,17 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-11px text-gray-600">Comm Pref</span>
-                          <span className="text-11px font-medium text-gray-900">{tc.commPref}</span>
+                          {editingIntelField === `tsd-${tc.id}-commPref` ? (
+                            <div className="flex gap-1">
+                              <input autoFocus value={editingIntelValue} onChange={e => setEditingIntelValue(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') { updateTsdField('commPref', editingIntelValue); setEditingIntelField(null); } if (e.key === 'Escape') setEditingIntelField(null); }}
+                                className="w-24 text-11px border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" />
+                              <button onClick={() => { updateTsdField('commPref', editingIntelValue); setEditingIntelField(null); }} className="text-[#157A6E]"><CheckCircle className="w-3 h-3" /></button>
+                              <button onClick={() => setEditingIntelField(null)} className="text-gray-400"><X className="w-3 h-3" /></button>
+                            </div>
+                          ) : (
+                            <span onClick={() => { setEditingIntelField(`tsd-${tc.id}-commPref`); setEditingIntelValue(tc.commPref); }} className="text-11px font-medium text-gray-900 cursor-pointer hover:text-[#157A6E] hover:bg-teal-50/50 rounded px-1 -mx-1 py-0.5 transition-colors">{tc.commPref}</span>
+                          )}
                         </div>
                       </div>
                     </div>
