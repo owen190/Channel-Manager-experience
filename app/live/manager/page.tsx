@@ -3260,20 +3260,13 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     });
 
 
-    // ── Active playbooks (dynamic, tied to real advisor data) ──
-    const playbooks = [
-      ...atRiskAdvisors.slice(0, 2).map(a => ({ priority: 'critical' as const, templateId: 'win-back', title: `Win-Back: ${a.name}`, desc: `${a.diagnosis || 'Custom retention strategy needed'}. ${formatCurrency(a.mrr)} at risk.`, amount: formatCurrency(a.mrr), amountRaw: a.mrr, days: 7, currentStep: 2, steps: [{ label: 'Pull complaint history', done: true }, { label: 'Executive outreach call', active: true }, { label: 'Service credit + SLA', done: false }, { label: 'Weekly check-in cadence', done: false }], signalTitle: `Churn Risk — ${a.name}`, signalType: 'churn' as const, advisorId: a.id })),
-      ...advisors.filter(a => a.trajectory === 'Accelerating' || a.trajectory === 'Climbing').slice(0, 1).map(a => ({ priority: 'high' as const, templateId: 'cross-sell', title: `Growth: ${a.name} → Cross-Sell`, desc: `${a.trajectory} trajectory. Expand product footprint.`, amount: `+${formatCurrency(Math.round(a.mrr * 0.6))}`, amountRaw: Math.round(a.mrr * 0.6), days: 14, currentStep: 1, steps: [{ label: 'Identify cross-sell products', done: true }, { label: 'Build joint proposal', active: true }, { label: 'Strategy call', done: false }, { label: 'First deal registered', done: false }], signalTitle: `Expansion — ${a.name}`, signalType: 'growth' as const, advisorId: a.id })),
-      ...frictionIssues.slice(0, 1).map(a => ({ priority: 'medium' as const, templateId: 'win-back', title: `Retention: ${a.name}`, desc: `${a.friction} friction. QBR + service review needed.`, amount: formatCurrency(a.mrr), amountRaw: a.mrr, days: 10, currentStep: 2, steps: [{ label: 'Resolve open tickets', done: true }, { label: 'Acknowledge issues', done: true }, { label: 'Schedule QBR', active: true }, { label: 'Monthly check-in commitment', done: false }], signalTitle: `Churn Risk — ${a.name}`, signalType: 'churn' as const, advisorId: a.id })),
-      ...advisors.filter(a => a.tier === 'gold' && (a.trajectory === 'Accelerating' || a.trajectory === 'Climbing')).slice(0, 1).map(a => ({ priority: 'high' as const, templateId: 'tier-upgrade', title: `Tier Upgrade: ${a.name} → Platinum`, desc: `Strong trajectory. ${formatCurrency(a.mrr)} MRR with room to grow.`, amount: `+${formatCurrency(Math.round(a.mrr * 0.4))}`, amountRaw: Math.round(a.mrr * 0.4), days: 30, currentStep: 1, steps: [{ label: 'Strategic plan review', done: true }, { label: 'Set Platinum criteria', active: true }, { label: 'Assign dedicated SE', done: false }, { label: 'Pipeline acceleration sprint', done: false }, { label: 'Tier promotion decision', done: false }], signalTitle: `Growth — ${a.name}`, signalType: 'growth' as const, advisorId: a.id })),
-      ...advisors.filter(a => a.tier === 'silver' && a.pulse === 'Fading').slice(0, 1).map(a => ({ priority: 'medium' as const, templateId: 'activation', title: `Activate: ${a.name}`, desc: `Dormant Silver partner. ${formatCurrency(a.mrr)} MRR. Low engagement — needs re-activation.`, amount: formatCurrency(a.mrr), amountRaw: a.mrr, days: 21, currentStep: 0, steps: [{ label: 'Audit partner history', done: true }, { label: 'Personal outreach — no pitch', active: true }, { label: 'Share competitive intelligence', done: false }, { label: 'Bring a warm lead', done: false }, { label: 'Activation assessment', done: false }], signalTitle: `Dormant — ${a.name}`, signalType: 'stall' as const, advisorId: a.id })),
-    ];
+    // All playbooks come from launchedPlaybooks (user-created). No phantom auto-generated playbooks.
 
     // ── Recommended playbooks (suggestions based on advisor signals) ──
     const recommendedPlaybooks: Array<{template: typeof playbookTemplates[0]; advisors: Advisor[]; reason: string; urgency: 'critical' | 'high' | 'medium'}> = [];
 
     // Win-back recommendations
-    const winBackCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.pulse === 'Fading' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall') && !playbooks.some(p => p.advisorId === a.id));
+    const winBackCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.pulse === 'Fading' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall') && !launchedPlaybooks.some(p => p.advisorId === a.id));
     if (winBackCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[0], advisors: winBackCandidates.slice(0, 3), reason: `${winBackCandidates.length} partner${winBackCandidates.length > 1 ? 's' : ''} showing declining engagement — ${formatCurrency(winBackCandidates.reduce((s,a)=>s+a.mrr,0))} MRR at risk`, urgency: 'critical' });
     }
@@ -3285,13 +3278,13 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     }
 
     // Tier upgrade recommendations
-    const tierUpgradeCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && a.tier === 'gold' && (a.pulse === 'Strong' || a.trajectory === 'Accelerating') && !playbooks.some(p => p.advisorId === a.id));
+    const tierUpgradeCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && a.tier === 'gold' && (a.pulse === 'Strong' || a.trajectory === 'Accelerating') && !launchedPlaybooks.some(p => p.advisorId === a.id));
     if (tierUpgradeCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[2], advisors: tierUpgradeCandidates.slice(0, 3), reason: `${tierUpgradeCandidates.length} Gold partner${tierUpgradeCandidates.length > 1 ? 's' : ''} showing Platinum potential — invest now to capture growth`, urgency: 'high' });
     }
 
     // Activation recommendations
-    const activationCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && a.tier === 'silver' && (a.engagementBreakdown?.engagement === 'Fading' || a.pulse === 'Fading') && !playbooks.some(p => p.advisorId === a.id));
+    const activationCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && a.tier === 'silver' && (a.engagementBreakdown?.engagement === 'Fading' || a.pulse === 'Fading') && !launchedPlaybooks.some(p => p.advisorId === a.id));
     if (activationCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[3], advisors: activationCandidates.slice(0, 3), reason: `${activationCandidates.length} Silver partner${activationCandidates.length > 1 ? 's' : ''} going dormant — activate before they defect`, urgency: 'medium' });
     }
@@ -3303,7 +3296,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     }
 
     // Cross-sell recommendations
-    const crossSellCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.tier === 'platinum' || a.tier === 'gold') && a.trajectory === 'Accelerating' && !playbooks.some(p => p.templateId === 'cross-sell' && p.advisorId === a.id));
+    const crossSellCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.tier === 'platinum' || a.tier === 'gold') && a.trajectory === 'Accelerating' && !launchedPlaybooks.some(p => p.templateId === 'cross-sell' && p.advisorId === a.id));
     if (crossSellCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[5], advisors: crossSellCandidates.slice(0, 3), reason: `${crossSellCandidates.length} high-performers selling single product — whitespace expansion opportunity`, urgency: 'high' });
     }
@@ -3311,13 +3304,13 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     const healthPartners = [...advisors].filter(a => !flatlinedAdvisorIds.includes(a.id)).sort((a, b) => b.mrr - a.mrr).slice(0, 8);
 
     const roadmapItems = [
-      ...playbooks.slice(0, 2).map(p => ({ phase: 'active' as const, title: p.title, desc: `${p.days} days remaining` })),
+      ...launchedPlaybooks.slice(0, 2).map(p => ({ phase: 'active' as const, title: p.playbookName || p.templateId.replace('-', ' '), desc: `${p.advisorName} · ${(p.customSteps || []).length} steps` })),
       ...coMarketingOpportunities.slice(0, 2).map(o => ({ phase: 'next' as const, title: `Co-Marketing: ${o.advisor.name}`, desc: o.type })),
       { phase: 'planned' as const, title: 'Mid-Quarter Pipeline Review', desc: 'End of April' },
     ];
 
     const calEvents = [
-      { day: 9, label: playbooks[0]?.title || 'Retention deadline' },
+      { day: 9, label: launchedPlaybooks[0]?.playbookName || launchedPlaybooks[0]?.advisorName || 'No active playbooks' },
       { day: 15, label: 'Campaign launch' },
       { day: 30, label: 'Mid-quarter pipeline review' },
     ];
@@ -3356,7 +3349,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
         {([
           { id: 'overview' as const, label: 'Overview' },
           { id: 'signals' as const, label: 'Signals', count: signals.length },
-          { id: 'playbooks' as const, label: 'Playbooks', count: playbooks.length },
+          { id: 'playbooks' as const, label: 'Playbooks', count: launchedPlaybooks.length },
           { id: 'diagnostics' as const, label: 'Diagnostics' },
         ]).map(tab => (
           <button key={tab.id} onClick={() => setIntelligenceSubTab(tab.id)}
@@ -3453,20 +3446,37 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
             <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Active Playbooks</h3>
-                <button onClick={() => setIntelligenceSubTab('playbooks')} className="text-[10px] text-[#157A6E] font-semibold cursor-pointer hover:underline">View all {playbooks.length} →</button>
+                <button onClick={() => setIntelligenceSubTab('playbooks')} className="text-[10px] text-[#157A6E] font-semibold cursor-pointer hover:underline">View all {launchedPlaybooks.length} →</button>
               </div>
               <div className="space-y-2">
-                {playbooks.map((pb, i) => (
-                  <div key={i} className={`border-l-[3px] rounded-r-md bg-gray-50 p-3 ${pb.priority === 'critical' ? 'border-red-500' : pb.priority === 'high' ? 'border-amber-400' : 'border-[#157A6E]'}`}>
-                    <h4 className="text-[12px] font-semibold text-gray-800">{pb.title}</h4>
-                    <p className="text-[11px] text-gray-500 mt-0.5">{pb.desc}</p>
-                    <div className="flex items-center gap-3 mt-1.5 text-[10px] text-gray-400">
-                      <span className={pb.priority === 'critical' ? 'text-red-500 font-semibold' : pb.priority === 'high' ? 'text-amber-600 font-semibold' : ''}>{pb.priority.charAt(0).toUpperCase() + pb.priority.slice(1)}</span>
-                      <span className="text-[#157A6E] font-semibold">{pb.amount}</span>
-                      <span>{pb.days} days</span>
+                {launchedPlaybooks.length > 0 ? launchedPlaybooks.slice(0, 4).map((lp, i) => {
+                  const lpSteps = lp.customSteps || [];
+                  const effective = lpSteps.length - lp.skippedSteps.length;
+                  const pct = effective > 0 ? Math.round((lp.completedSteps.length / effective) * 100) : 100;
+                  const lpAdvisor = advisors.find(a => a.id === lp.advisorId);
+                  return (
+                    <div key={i} className={`border-l-[3px] rounded-r-md bg-gray-50 p-3 cursor-pointer hover:bg-gray-100 transition-colors ${lp.priority === 'critical' ? 'border-red-500' : lp.priority === 'high' ? 'border-amber-400' : 'border-[#157A6E]'}`}
+                      onClick={() => { setIntelligenceSubTab('playbooks'); setEditingPlaybookIdx(i); }}>
+                      <h4 className="text-[12px] font-semibold text-gray-800">{lp.playbookName || lp.templateId.replace('-', ' ')}: {lp.advisorName}</h4>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <div className="flex-1 h-[4px] bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-[10px] font-bold text-[#157A6E]">{pct}%</span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-400">
+                        <span className={lp.priority === 'critical' ? 'text-red-500 font-semibold' : lp.priority === 'high' ? 'text-amber-600 font-semibold' : ''}>{lp.priority.charAt(0).toUpperCase() + lp.priority.slice(1)}</span>
+                        {lpAdvisor && <span className="text-[#157A6E] font-semibold">{formatCurrency(lpAdvisor.mrr)}</span>}
+                        <span>{lpSteps.length} steps</span>
+                      </div>
                     </div>
+                  );
+                }) : (
+                  <div className="text-center py-4">
+                    <p className="text-[11px] text-gray-400">No active playbooks</p>
+                    <button onClick={() => setIntelligenceSubTab('playbooks')} className="text-[10px] text-[#157A6E] font-semibold mt-1 hover:underline">Create one →</button>
                   </div>
-                ))}
+                )}
               </div>
             </div>
             <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
@@ -3638,9 +3648,15 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     // SUB-TAB: PLAYBOOKS
     // ════════════════════════════════════════
     if (intelligenceSubTab === 'playbooks') {
-      const protectedMRR = playbooks.filter(p => p.priority === 'critical' || p.priority === 'medium').reduce((s, p) => s + p.amountRaw, 0);
-      const expansionMRR = playbooks.filter(p => p.priority === 'high').reduce((s, p) => s + p.amountRaw, 0);
-      const avgDays = Math.round(playbooks.reduce((s, p) => s + p.days, 0) / (playbooks.length || 1));
+      const protectedMRR = launchedPlaybooks.filter(p => p.priority === 'critical' || p.priority === 'medium').reduce((s, p) => {
+        const adv = advisors.find(a => a.id === p.advisorId);
+        return s + (adv?.mrr || 0);
+      }, 0);
+      const expansionMRR = launchedPlaybooks.filter(p => p.priority === 'high').reduce((s, p) => {
+        const adv = advisors.find(a => a.id === p.advisorId);
+        return s + (adv?.mrr || 0);
+      }, 0);
+      const avgSteps = launchedPlaybooks.length > 0 ? Math.round(launchedPlaybooks.reduce((s, p) => s + (p.customSteps?.length || 0), 0) / launchedPlaybooks.length) : 0;
 
       const phaseColors: Record<string, string> = {
         'Diagnose': 'bg-red-100 text-red-700', 'Engage': 'bg-orange-100 text-orange-700', 'Recover': 'bg-amber-100 text-amber-700', 'Activate': 'bg-green-100 text-green-700',
@@ -4152,7 +4168,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
 
           {/* KPIs */}
           <div className="grid grid-cols-4 gap-4">
-            <KPICard label="Active Playbooks" value={`${playbooks.length + launchedPlaybooks.length}`} change={`${playbooks.filter(p=>p.priority==='critical').length + launchedPlaybooks.filter(p=>p.priority==='critical').length} critical`} changeType="neutral" />
+            <KPICard label="Active Playbooks" value={`${launchedPlaybooks.length}`} change={`${launchedPlaybooks.filter(p=>p.priority==='critical').length} critical`} changeType="neutral" />
             <KPICard label="MRR Protected" value={formatCurrency(protectedMRR)} change="In active retention" changeType="negative" />
             <KPICard label="MRR Targeted" value={`+${formatCurrency(expansionMRR)}`} change="Growth & expansion" changeType="positive" />
             <KPICard label="Recommendations" value={`${recommendedPlaybooks.length}`} change="Based on signals" changeType="neutral" />
@@ -4199,64 +4215,14 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
 
           <div className="grid grid-cols-[1fr_280px] gap-4">
             <div className="space-y-4">
-              {playbooks.map((pb, i) => {
-                const doneSteps = pb.steps.filter(s => s.done).length;
-                const totalSteps = pb.steps.length;
-                const pct = Math.round((doneSteps / totalSteps) * 100);
-                const template = playbookTemplates.find(t => t.id === pb.templateId);
-                return (
-                  <div key={i} onClick={() => { if (pb.templateId) { setSelectedPlaybookTemplate(pb.templateId); setPlaybookAssignees([]); } }} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-5 border-l-4 cursor-pointer hover:shadow-md transition-all ${pb.priority === 'critical' ? 'border-l-red-500' : pb.priority === 'high' ? 'border-l-amber-400' : 'border-l-blue-500'}`}>
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${pb.priority === 'critical' ? 'bg-red-100 text-red-800' : pb.priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
-                            {pb.priority}
-                          </span>
-                          {template && <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${template.tagColor}`}>{template.category}</span>}
-                        </div>
-                        <h3 className="text-[15px] font-bold text-gray-800 font-serif">{pb.title}</h3>
-                        <p className="text-[12px] text-gray-500 mt-1 leading-relaxed max-w-xl">{pb.desc}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className={`text-[18px] font-bold ${pb.priority === 'high' ? 'text-[#157A6E]' : 'text-red-500'}`}>{pb.amount}</div>
-                        <div className="text-[10px] text-gray-400">{pb.priority === 'high' ? 'Expansion potential' : 'MRR at risk'}</div>
-                        <div className={`text-[10px] font-semibold mt-1 ${pb.days <= 7 ? 'text-red-500' : 'text-amber-600'}`}>Deadline: {pb.days} days</div>
-                      </div>
-                    </div>
-
-                    {/* Progress bar */}
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="flex-1 h-[6px] bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#157A6E] rounded-full transition-all" style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className="text-[11px] font-bold text-[#157A6E]">{pct}%</span>
-                    </div>
-
-                    {/* Steps */}
-                    <div className="space-y-2">
-                      <h4 className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Action Steps</h4>
-                      {pb.steps.map((step, si) => (
-                        <div key={si} className="flex items-start gap-3">
-                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${step.done ? 'bg-green-100 text-green-700' : step.active ? 'bg-[#157A6E] text-white' : 'bg-gray-100 text-gray-400'}`}>
-                            {step.done ? '✓' : si + 1}
-                          </div>
-                          <span className={`text-[12px] ${step.done ? 'text-gray-400 line-through' : step.active ? 'text-gray-800 font-semibold' : 'text-gray-500'}`}>{step.label}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Signal source */}
-                    <div className="mt-4 pt-3 border-t border-gray-100">
-                      <span className="text-[9px] font-bold uppercase text-gray-400">Created from signal</span>
-                      <div className="flex items-center gap-2 mt-1.5 bg-gray-50 rounded-md px-3 py-2">
-                        <div className={`w-[7px] h-[7px] rounded-full ${signalDotColor(pb.signalType)}`} />
-                        <span className="text-[11px] text-gray-600 font-medium">{pb.signalTitle}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              {/* Launched playbooks from assignment (template, custom, and AI) */}
+              {launchedPlaybooks.length === 0 && (
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
+                  <PlayCircle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-[13px] font-semibold text-gray-600">No active playbooks</p>
+                  <p className="text-[11px] text-gray-400 mt-1">Assign a playbook to a partner from Relationships, or create one below.</p>
+                </div>
+              )}
+              {/* All playbooks — user-assigned (template, custom, and AI) */}
               {launchedPlaybooks.map((lp, lpi) => {
                 const lpTemplate = playbookTemplates.find(t => t.id === lp.templateId);
                 const lpAdvisor = advisors.find(a => a.id === lp.advisorId);
@@ -4343,24 +4309,28 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
             <div className="space-y-4 self-start sticky top-[105px]">
               <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
                 <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-3">Upcoming Deadlines</h3>
-                {[...playbooks].sort((a,b) => a.days - b.days).map((pb, i) => (
-                  <div key={i} className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-b-0">
-                    <div className={`w-2 h-2 rounded-full ${pb.priority === 'critical' ? 'bg-red-500' : pb.priority === 'high' ? 'bg-amber-400' : 'bg-blue-500'}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium text-gray-700 truncate">{pb.title}</p>
+                {launchedPlaybooks.length > 0 ? launchedPlaybooks.map((lp, i) => {
+                  const lpSteps = lp.customSteps || [];
+                  const remaining = lpSteps.length - lp.completedSteps.length - lp.skippedSteps.length;
+                  return (
+                    <div key={i} className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-b-0 cursor-pointer hover:bg-gray-50 rounded" onClick={() => setEditingPlaybookIdx(i)}>
+                      <div className={`w-2 h-2 rounded-full ${lp.priority === 'critical' ? 'bg-red-500' : lp.priority === 'high' ? 'bg-amber-400' : 'bg-blue-500'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-medium text-gray-700 truncate">{lp.playbookName || lp.templateId.replace('-', ' ')}: {lp.advisorName}</p>
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-500">{remaining} left</span>
                     </div>
-                    <span className={`text-[10px] font-bold ${pb.days <= 7 ? 'text-red-500' : 'text-amber-600'}`}>{pb.days}d</span>
-                  </div>
-                ))}
+                  );
+                }) : <p className="text-[10px] text-gray-400">No active playbooks</p>}
               </div>
               <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
                 <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-3">Playbook Stats</h3>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { label: 'Active', value: playbooks.length },
-                    { label: 'Critical', value: playbooks.filter(p=>p.priority==='critical').length },
-                    { label: 'Avg Progress', value: `${Math.round(playbooks.reduce((s,p) => { const done = p.steps.filter(st=>st.done).length; return s + (done/p.steps.length)*100; }, 0) / (playbooks.length||1))}%` },
-                    { label: 'Total MRR', value: formatCurrency(playbooks.reduce((s,p) => s + p.amountRaw, 0)) },
+                    { label: 'Active', value: launchedPlaybooks.length },
+                    { label: 'Critical', value: launchedPlaybooks.filter(p=>p.priority==='critical').length },
+                    { label: 'Avg Progress', value: `${launchedPlaybooks.length > 0 ? Math.round(launchedPlaybooks.reduce((s,p) => { const steps = p.customSteps?.length || 0; const effective = steps - p.skippedSteps.length; return s + (effective > 0 ? (p.completedSteps.length/effective)*100 : 100); }, 0) / launchedPlaybooks.length) : 0}%` },
+                    { label: 'Total MRR', value: formatCurrency(launchedPlaybooks.reduce((s,p) => { const adv = advisors.find(a => a.id === p.advisorId); return s + (adv?.mrr || 0); }, 0)) },
                   ].map((stat, i) => (
                     <div key={i} className="bg-gray-50 rounded-md p-2.5 text-center">
                       <div className="text-[10px] text-gray-400">{stat.label}</div>
@@ -4599,8 +4569,15 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
 
               {/* Actions */}
               <div className="flex gap-2">
-                <button onClick={() => { setPlaybookModalAdvisor(a); setPlaybookModalMode('template'); setSelectedPlaybookTemplate(null); setShowPlaybookModal(true); }} className="px-3 py-1.5 bg-[#157A6E] text-white text-[11px] font-semibold rounded-md hover:bg-[#126a5f]">
-                  {playbooks.find(p => p.title.includes(a.name)) ? 'View Playbook →' : 'Create Playbook →'}
+                <button onClick={() => {
+                  const existingIdx = launchedPlaybooks.findIndex(p => p.advisorId === a.id);
+                  if (existingIdx >= 0) {
+                    setActiveView('intelligence'); setIntelligenceSubTab('playbooks'); setEditingPlaybookIdx(existingIdx);
+                  } else {
+                    setPlaybookModalAdvisor(a); setPlaybookModalMode('template'); setSelectedPlaybookTemplate(null); setShowPlaybookModal(true);
+                  }
+                }} className="px-3 py-1.5 bg-[#157A6E] text-white text-[11px] font-semibold rounded-md hover:bg-[#126a5f]">
+                  {launchedPlaybooks.some(p => p.advisorId === a.id) ? 'View Playbook →' : 'Assign Playbook →'}
                 </button>
                 <button className="px-3 py-1.5 bg-gray-100 text-gray-600 text-[11px] font-medium rounded-md hover:bg-gray-200" onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}>
                   Contact History
