@@ -32,6 +32,19 @@ import { adaptAdvisor, adaptDeal } from '@/lib/db/adapter';
 
 type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Stalled';
 
+// localStorage helpers
+function loadFromStorage<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : fallback;
+  } catch { return fallback; }
+}
+function saveToStorage<T>(key: string, value: T): void {
+  if (typeof window === 'undefined') return;
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
+
 export default function LiveManagerPage() {
   const [advisors, setAdvisors] = useState<Advisor[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
@@ -78,7 +91,7 @@ export default function LiveManagerPage() {
   const [playbookDeadline, setPlaybookDeadline] = useState(14);
   const [selectedPlaybookTemplate, setSelectedPlaybookTemplate] = useState<string | null>(null);
   const [playbookAssignees, setPlaybookAssignees] = useState<string[]>([]);
-  const [launchedPlaybooks, setLaunchedPlaybooks] = useState<Array<{templateId: string; advisorId: string; advisorName: string; launchedAt: string; priority: 'critical' | 'high' | 'medium'; completedSteps: number[]; skippedSteps: number[]; customSteps?: Array<{day: number; label: string; desc: string; phase: string}>; notes?: string; playbookName?: string}>>([]);
+  const [launchedPlaybooks, setLaunchedPlaybooks] = useState<Array<{templateId: string; advisorId: string; advisorName: string; launchedAt: string; priority: 'critical' | 'high' | 'medium'; completedSteps: number[]; skippedSteps: number[]; customSteps?: Array<{day: number; label: string; desc: string; phase: string}>; notes?: string; playbookName?: string}>>(() => loadFromStorage('cc_launchedPlaybooks', []));
   const [editingPlaybookIdx, setEditingPlaybookIdx] = useState<number | null>(null);
   const [ccKpiDrill, setCcKpiDrill] = useState<string | null>(null);
   const [showCoMarketingNotif, setShowCoMarketingNotif] = useState(true);
@@ -91,7 +104,7 @@ export default function LiveManagerPage() {
   const [stageFilter, setStageFilter] = useState<string>('All');
   const [pipelineSearch, setPipelineSearch] = useState('');
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
-  const [completedActions, setCompletedActions] = useState<string[]>([]);
+  const [completedActions, setCompletedActions] = useState<string[]>(() => loadFromStorage('cc_completedActions', []));
   const [actionFilter, setActionFilter] = useState<'all' | 'critical' | 'playbook' | 'cadence' | 'deals'>('all');
   const [playbookModalAdvisor, setPlaybookModalAdvisor] = useState<Advisor | null>(null);
   const [playbookModalMode, setPlaybookModalMode] = useState<'template' | 'custom' | 'ai'>('template');
@@ -103,7 +116,7 @@ export default function LiveManagerPage() {
   const [customPlaybookSteps, setCustomPlaybookSteps] = useState<Array<{label: string; desc: string; day: number}>>([{label: '', desc: '', day: 1}]);
   const [showAbandonModal, setShowAbandonModal] = useState<{advisorId: string; advisorName: string; company: string; tier: PartnerTier; mrr: number} | null>(null);
   const [abandonNotes, setAbandonNotes] = useState('');
-  const [flatlinedAdvisorIds, setFlatlinedAdvisorIds] = useState<string[]>([]);
+  const [flatlinedAdvisorIds, setFlatlinedAdvisorIds] = useState<string[]>(() => loadFromStorage('cc_flatlinedAdvisorIds', []));
   const [modalEditSteps, setModalEditSteps] = useState<Array<{day: number; label: string; desc: string; phase: string}>>([]);
   const [deleteTemplateConfirm, setDeleteTemplateConfirm] = useState<string | null>(null);
   const [playbookTemplates, setPlaybookTemplates] = useState<Array<{
@@ -432,6 +445,41 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     }
   };
   useEffect(() => { fetchData(); }, []);
+
+  // Persist key state to localStorage
+  useEffect(() => { saveToStorage('cc_launchedPlaybooks', launchedPlaybooks); }, [launchedPlaybooks]);
+  useEffect(() => { saveToStorage('cc_completedActions', completedActions); }, [completedActions]);
+  useEffect(() => { saveToStorage('cc_flatlinedAdvisorIds', flatlinedAdvisorIds); }, [flatlinedAdvisorIds]);
+
+  // Delete handlers
+  const handleDeleteAdvisor = async (advisorId: string) => {
+    try {
+      const response = await fetch(`/api/live/advisors?id=${advisorId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Failed to delete advisor');
+      setAdvisors(prev => prev.filter(a => a.id !== advisorId));
+      setDeals(prev => prev.filter(d => d.advisorId !== advisorId));
+      setLaunchedPlaybooks(prev => prev.filter(p => p.advisorId !== advisorId));
+      if (selectedAdvisor?.id === advisorId) { setSelectedAdvisor(null); setPanelOpen(false); }
+    } catch (err) {
+      console.error('Error deleting advisor:', err);
+    }
+  };
+
+  const handleDeleteDeal = async (dealId: string) => {
+    try {
+      const response = await fetch(`/api/live/deals?id=${dealId}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Failed to delete deal');
+      setDeals(prev => prev.filter(d => d.id !== dealId));
+      if (selectedDeal?.id === dealId) setSelectedDeal(null);
+    } catch (err) {
+      console.error('Error deleting deal:', err);
+    }
+  };
+
+  const handleDeletePlaybook = (idx: number) => {
+    setLaunchedPlaybooks(prev => prev.filter((_, i) => i !== idx));
+    if (editingPlaybookIdx === idx) setEditingPlaybookIdx(null);
+  };
 
   const handleSavePartner = async (partnerData: Partial<Advisor>) => {
     try {
@@ -1404,6 +1452,12 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                     className="w-full px-3 py-2 text-[11px] font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
                   >
                     Abandon Advisor
+                  </button>
+                  <button
+                    onClick={() => { if (confirm(`Permanently delete ${selectedAdvisor.name}? This cannot be undone.`)) handleDeleteAdvisor(selectedAdvisor.id); }}
+                    className="w-full px-3 py-2 text-[11px] font-semibold text-red-400 hover:text-red-700 transition-colors mt-2"
+                  >
+                    Delete Advisor
                   </button>
                 </div>
 
@@ -2566,6 +2620,12 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                 >
                   Edit Deal
                 </button>
+                <button
+                  onClick={() => { if (confirm(`Delete "${selectedDeal.name}"? This cannot be undone.`)) handleDeleteDeal(selectedDeal.id); }}
+                  className="px-4 py-2 text-12px font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                >
+                  Delete
+                </button>
               </div>
             </div>
 
@@ -3629,9 +3689,15 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
             {subTabBar}
 
             {/* Back + header */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between">
               <button onClick={() => setEditingPlaybookIdx(null)} className="flex items-center gap-1.5 text-[12px] text-gray-500 hover:text-[#157A6E] transition-colors font-medium">
                 <ArrowLeft className="w-4 h-4" /> Back to Playbooks
+              </button>
+              <button
+                onClick={() => { if (confirm('Delete this playbook? This cannot be undone.')) handleDeletePlaybook(editingPlaybookIdx!); }}
+                className="px-3 py-1.5 text-[11px] font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+              >
+                Delete Playbook
               </button>
             </div>
 

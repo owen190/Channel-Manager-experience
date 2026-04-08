@@ -592,6 +592,11 @@ export const db = {
     return rowToDeal(rows[0]);
   },
 
+  async deleteDeal(id: string): Promise<boolean> {
+    const result = await sql`DELETE FROM deals WHERE id = ${id}`;
+    return result.count > 0;
+  },
+
   // --- Notes ---
   async getNotes(filters?: { advisorId?: string; dealId?: string }): Promise<LiveNote[]> {
     if (filters?.advisorId && filters?.dealId) {
