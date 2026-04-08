@@ -3051,69 +3051,230 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
 
 
         {/* ── ALL CONTACTS SUB-TAB ── */}
-        {relationshipViewMode === 'all' && (
+        {relationshipViewMode === 'all' && (() => {
+          const q = partnerSearch.toLowerCase();
+          const filteredPartners = advisorsWithDeals.filter(a => !q || a.name.toLowerCase().includes(q) || a.company.toLowerCase().includes(q));
+          const filteredTsdContacts = TSD_COMPANIES.flatMap(co => co.contacts.map(c => ({ ...c, company: co.name, companyLogo: co.logo }))).filter(c => !q || c.name.toLowerCase().includes(q) || c.company.toLowerCase().includes(q));
+          const totalContacts = filteredPartners.length + filteredTsdContacts.length;
+
+          const pulseDotAll: Record<string, string> = { Strong: '#16A34A', Steady: '#84CC16', Rising: '#2563EB', Fading: '#F59E0B', Flatline: '#EF4444' };
+          const trajDotAll: Record<string, string> = { Accelerating: '#16A34A', Climbing: '#84CC16', Stable: '#6B7280', Slipping: '#F59E0B', Freefall: '#EF4444' };
+          const fricDotAll: Record<string, string> = { Low: '#16A34A', Moderate: '#F59E0B', High: '#F97316', Critical: '#EF4444' };
+          const engDotAll: Record<string, string> = { High: '#16A34A', Medium: '#F59E0B', Low: '#6B7280' };
+          const sentDotAll: Record<string, string> = { Warm: '#16A34A', Cool: '#2563EB', Neutral: '#6B7280' };
+
+          const getPhoneAll = (id: string) => {
+            const area = Math.floor(seededRandom(id + '-area') * 800) + 200;
+            const mid = Math.floor(seededRandom(id + '-mid') * 900) + 100;
+            const end = Math.floor(seededRandom(id + '-end') * 9000) + 1000;
+            return `(${area}) ${mid}-${end}`;
+          };
+
+          const totalMRR = filteredPartners.reduce((s, a) => s + a.mrr, 0) + filteredTsdContacts.reduce((s, c) => s + c.revenueAttributed, 0);
+
+          return (
           <div className="space-y-4">
-            <div className="bg-white rounded-[10px] border border-[#e8e5e1]">
-              <div className="p-4 border-b border-[#e8e5e1] flex items-center gap-3">
-                <input placeholder="Search all contacts..." value={partnerSearch} onChange={e => setPartnerSearch(e.target.value)} className="flex-1 text-13px border border-[#e8e5e1] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
-                <span className="text-11px text-gray-400">{advisorsWithDeals.filter(a => !partnerSearch || a.name.toLowerCase().includes(partnerSearch.toLowerCase()) || a.company.toLowerCase().includes(partnerSearch.toLowerCase())).length + TSD_COMPANIES.reduce((s, c) => s + c.contacts.filter(ct => !partnerSearch || ct.name.toLowerCase().includes(partnerSearch.toLowerCase()) || c.name.toLowerCase().includes(partnerSearch.toLowerCase())).length, 0)} total contacts</span>
+            {/* Toolbar */}
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 flex items-center gap-4 flex-wrap">
+              <div className="flex-1 min-w-[200px] relative">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={partnerSearch}
+                  onChange={(e) => setPartnerSearch(e.target.value)}
+                  placeholder="Search all contacts..."
+                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-full text-12px font-['Inter'] focus:outline-none focus:border-[#157A6E] focus:ring-1 focus:ring-[#157A6E]/20"
+                />
               </div>
-              <div className="divide-y divide-[#e8e5e1]">
-                {/* Partners */}
-                {advisorsWithDeals.filter(a => !partnerSearch || a.name.toLowerCase().includes(partnerSearch.toLowerCase()) || a.company.toLowerCase().includes(partnerSearch.toLowerCase())).map(a => {
-                  const lastDays = Math.floor((new Date().getTime() - new Date(a.lastContact).getTime()) / (1000*60*60*24));
-                  const advisorDeals = deals.filter(d => d.advisorId === a.id);
-                  return (
-                    <div key={a.id} onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 cursor-pointer transition-colors">
-                      <div className="w-9 h-9 bg-[#157A6E] rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-white text-[11px] font-semibold">{a.name.split(' ').map(n => n[0]).join('')}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-13px font-medium text-gray-900">{a.name}</p>
-                        <p className="text-11px text-gray-500">{a.company}</p>
-                      </div>
-                      <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[10px] font-medium rounded">Partner</span>
-                      <TierBadge tier={a.tier} />
-                      <PulseBadge pulse={a.pulse} />
-                      <div className="text-right w-20">
-                        <p className="text-12px font-bold text-gray-700 tabular-nums">{formatCurrency(a.mrr)}</p>
-                        <p className="text-[9px] text-gray-400">{advisorDeals.length} deal{advisorDeals.length !== 1 ? 's' : ''}</p>
-                      </div>
-                      <div className="text-right w-16">
-                        <p className={`text-11px font-medium ${lastDays <= 7 ? 'text-emerald-600' : lastDays <= 14 ? 'text-amber-600' : 'text-red-500'}`}>{lastDays}d ago</p>
-                      </div>
-                    </div>
-                  );
-                })}
-                {/* TSD contacts */}
-                {TSD_COMPANIES.flatMap(co => co.contacts.map(c => ({ ...c, company: co.name, companyLogo: co.logo }))).filter(c => !partnerSearch || c.name.toLowerCase().includes(partnerSearch.toLowerCase()) || c.company.toLowerCase().includes(partnerSearch.toLowerCase())).map(c => {
-                  const daysSince = Math.floor((new Date().getTime() - new Date(c.lastContact).getTime()) / (1000*60*60*24));
-                  return (
-                    <div key={c.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 cursor-pointer transition-colors">
-                      <div className="w-9 h-9 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-white text-[11px] font-semibold">{c.name.split(' ').map(n => n[0]).join('')}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-13px font-medium text-gray-900">{c.name}</p>
-                        <p className="text-11px text-gray-500">{c.role} · {c.company}</p>
-                      </div>
-                      <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-medium rounded">TSD</span>
-                      <span className={`px-2 py-0.5 text-[10px] font-medium rounded ${c.engagement === 'High' ? 'bg-emerald-50 text-emerald-700' : c.engagement === 'Medium' ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>{c.engagement}</span>
-                      <span className={`text-11px font-medium ${c.sentiment === 'Warm' ? 'text-emerald-600' : c.sentiment === 'Cool' ? 'text-blue-600' : 'text-gray-600'}`}>{c.sentiment}</span>
-                      <div className="text-right w-20">
-                        <p className="text-12px font-bold text-gray-700 tabular-nums">{formatCurrency(c.revenueAttributed)}</p>
-                        <p className="text-[9px] text-gray-400">{c.introsQTD} intros QTD</p>
-                      </div>
-                      <div className="text-right w-16">
-                        <p className={`text-11px font-medium ${daysSince <= 7 ? 'text-emerald-600' : daysSince <= 14 ? 'text-amber-600' : 'text-red-500'}`}>{daysSince}d ago</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <span className="text-11px text-gray-400">{totalContacts} contacts</span>
+              <button onClick={() => {
+                const csvRows = ['Name,Company,Type,Role,MRR/Revenue,Last Contact'];
+                filteredPartners.forEach(a => {
+                  csvRows.push(`"${a.name}","${a.company}","Partner","",${a.mrr},"${a.lastContact}"`);
+                });
+                filteredTsdContacts.forEach(c => {
+                  csvRows.push(`"${c.name}","${c.company}","TSD","${c.role}",${c.revenueAttributed},"${c.lastContact}"`);
+                });
+                const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const el = document.createElement('a'); el.href = url; el.download = 'all-contacts-export.csv'; el.click();
+                URL.revokeObjectURL(url);
+              }} className="flex items-center gap-1.5 px-3 py-2 text-11px font-semibold text-gray-600 border border-[#e8e5e1] rounded-md hover:bg-gray-50 transition-colors">
+                <ArrowUpRight className="w-3 h-3" /> Export
+              </button>
+            </div>
+
+            {/* Data table */}
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-[#FAFAF8]">
+                    <th className="text-left px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]" style={{ minWidth: 220 }}>Contact</th>
+                    <th className="text-center px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Type</th>
+                    <th className="text-left px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Pulse / Engagement</th>
+                    <th className="text-left px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Trajectory / Sentiment</th>
+                    <th className="text-left px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Friction</th>
+                    <th className="text-left px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Phone</th>
+                    <th className="text-right px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">MRR / Revenue</th>
+                    <th className="text-center px-3 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Contact</th>
+                    <th className="text-right px-4 py-3 text-[10px] font-semibold text-gray-400 uppercase tracking-wider border-b border-[#e8e5e1]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {totalContacts === 0 && (
+                    <tr><td colSpan={9} className="text-center py-8 text-12px text-gray-400">No contacts match your search</td></tr>
+                  )}
+                  {/* Partner rows */}
+                  {filteredPartners.map((a, i) => {
+                    const daysSince = getDaysSinceContact(a.lastContact);
+                    const initials = a.name.split(' ').map(n => n[0]).join('').slice(0, 2);
+                    const advisorDeals = deals.filter(d => d.advisorId === a.id);
+                    return (
+                      <tr
+                        key={`p-${a.id}`}
+                        onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}
+                        className={`group cursor-pointer transition-colors hover:bg-[#F0F9F8] ${i % 2 === 0 ? 'bg-white' : 'bg-[#FAFAF8]'}`}
+                        style={{ height: 52 }}
+                      >
+                        <td className="px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-[#157A6E] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                              {initials}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-13px font-semibold text-gray-900 truncate group-hover:text-[#157A6E] transition-colors">{a.name}</p>
+                              <p className="text-[10px] text-gray-400 truncate">{a.company}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 text-center">
+                          <span className="inline-block px-2.5 py-1 rounded-full text-[10px] font-medium bg-teal-50 text-teal-700">Partner</span>
+                        </td>
+                        <td className="px-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-[6px] h-[6px] rounded-full inline-block flex-shrink-0" style={{ backgroundColor: pulseDotAll[a.pulse] || '#6B7280' }} />
+                            <span className="text-11px text-gray-600">{a.pulse}</span>
+                          </div>
+                        </td>
+                        <td className="px-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-[6px] h-[6px] rounded-full inline-block flex-shrink-0" style={{ backgroundColor: trajDotAll[a.trajectory] || '#6B7280' }} />
+                            <span className="text-11px text-gray-600">{a.trajectory}</span>
+                          </div>
+                        </td>
+                        <td className="px-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-[6px] h-[6px] rounded-full inline-block flex-shrink-0" style={{ backgroundColor: fricDotAll[a.friction] || '#6B7280' }} />
+                            <span className="text-11px text-gray-600">{a.friction}</span>
+                          </div>
+                        </td>
+                        <td className="px-3">
+                          <span className="text-11px text-gray-500 whitespace-nowrap">{getPhoneAll(a.id)}</span>
+                        </td>
+                        <td className="px-4 text-right">
+                          <span className="text-13px font-semibold text-[#157A6E]">{formatCurrency(a.mrr)}</span>
+                          <p className="text-[9px] text-gray-400">{advisorDeals.length} deal{advisorDeals.length !== 1 ? 's' : ''}</p>
+                        </td>
+                        <td className="px-3 text-center">
+                          <span className={`text-13px font-medium ${daysSince <= 3 ? 'text-green-500' : daysSince <= 7 ? 'text-yellow-500' : 'text-red-500'}`}>
+                            {daysSince}d
+                          </span>
+                        </td>
+                        <td className="px-4">
+                          <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={(e) => { e.stopPropagation(); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-[#157A6E] hover:text-white flex items-center justify-center text-gray-400 transition-colors" title="Email">
+                              <Mail className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-[#157A6E] hover:text-white flex items-center justify-center text-gray-400 transition-colors" title="Call">
+                              <Phone className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-[#157A6E] hover:text-white flex items-center justify-center text-gray-400 transition-colors" title="Schedule">
+                              <Calendar className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {/* TSD contact rows */}
+                  {filteredTsdContacts.map((c, i) => {
+                    const daysSince = Math.floor((new Date().getTime() - new Date(c.lastContact).getTime()) / (1000*60*60*24));
+                    const initials = c.name.split(' ').map(n => n[0]).join('').slice(0, 2);
+                    const rowIdx = filteredPartners.length + i;
+                    return (
+                      <tr
+                        key={`t-${c.id}`}
+                        className={`group cursor-pointer transition-colors hover:bg-[#F0F9F8] ${rowIdx % 2 === 0 ? 'bg-white' : 'bg-[#FAFAF8]'}`}
+                        style={{ height: 52 }}
+                      >
+                        <td className="px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                              {initials}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-13px font-semibold text-gray-900 truncate group-hover:text-purple-600 transition-colors">{c.name}</p>
+                              <p className="text-[10px] text-gray-400 truncate">{c.role} · {c.company}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 text-center">
+                          <span className="inline-block px-2.5 py-1 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700">TSD</span>
+                        </td>
+                        <td className="px-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-[6px] h-[6px] rounded-full inline-block flex-shrink-0" style={{ backgroundColor: engDotAll[c.engagement] || '#6B7280' }} />
+                            <span className="text-11px text-gray-600">{c.engagement}</span>
+                          </div>
+                        </td>
+                        <td className="px-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-[6px] h-[6px] rounded-full inline-block flex-shrink-0" style={{ backgroundColor: sentDotAll[c.sentiment] || '#6B7280' }} />
+                            <span className="text-11px text-gray-600">{c.sentiment}</span>
+                          </div>
+                        </td>
+                        <td className="px-3">
+                          <span className="text-11px text-gray-400">—</span>
+                        </td>
+                        <td className="px-3">
+                          <span className="text-11px text-gray-500 whitespace-nowrap">{getPhoneAll(c.id)}</span>
+                        </td>
+                        <td className="px-4 text-right">
+                          <span className="text-13px font-semibold text-purple-600">{formatCurrency(c.revenueAttributed)}</span>
+                          <p className="text-[9px] text-gray-400">{c.introsQTD} intros QTD</p>
+                        </td>
+                        <td className="px-3 text-center">
+                          <span className={`text-13px font-medium ${daysSince <= 3 ? 'text-green-500' : daysSince <= 7 ? 'text-yellow-500' : 'text-red-500'}`}>
+                            {daysSince}d
+                          </span>
+                        </td>
+                        <td className="px-4">
+                          <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={(e) => { e.stopPropagation(); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-purple-500 hover:text-white flex items-center justify-center text-gray-400 transition-colors" title="Email">
+                              <Mail className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-purple-500 hover:text-white flex items-center justify-center text-gray-400 transition-colors" title="Call">
+                              <Phone className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); }} className="w-7 h-7 rounded bg-gray-100 hover:bg-purple-500 hover:text-white flex items-center justify-center text-gray-400 transition-colors" title="Schedule">
+                              <Calendar className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Summary bar */}
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] px-5 py-3 text-center text-12px text-gray-500">
+              Showing <strong className="text-gray-800">{totalContacts}</strong> contacts ({filteredPartners.length} partners, {filteredTsdContacts.length} TSD) · Total Revenue: <strong className="text-gray-800">{formatCurrency(totalMRR)}</strong>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* ── GROUPS SUB-TAB ── */}
         {relationshipViewMode === 'groups' && (
