@@ -121,6 +121,54 @@ export default function LiveManagerPage() {
   const [deleteTemplateConfirm, setDeleteTemplateConfirm] = useState<string | null>(null);
   const [showDeleteAdvisorConfirm, setShowDeleteAdvisorConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
+  // Call logs
+  const [callLogs, setCallLogs] = useState<Array<{id: string; advisorId: string; advisorName: string; date: string; duration: string; notes: string; dealMentioned?: string; newDealName?: string; sentiment: 'positive' | 'neutral' | 'negative'}>>(() => loadFromStorage('cc_callLogs', []));
+  const [showLogCallModal, setShowLogCallModal] = useState(false);
+  const [logCallAdvisor, setLogCallAdvisor] = useState<Advisor | null>(null);
+  const [logCallNotes, setLogCallNotes] = useState('');
+  const [logCallDuration, setLogCallDuration] = useState('15');
+  const [logCallSentiment, setLogCallSentiment] = useState<'positive' | 'neutral' | 'negative'>('neutral');
+  const [logCallDealMentioned, setLogCallDealMentioned] = useState('');
+  const [logCallNewDeal, setLogCallNewDeal] = useState(false);
+  const [logCallNewDealName, setLogCallNewDealName] = useState('');
+
+  // Editable personal intel per advisor
+  const [advisorPersonalIntel, setAdvisorPersonalIntel] = useState<Record<string, {birthday?: string; education?: string; family?: string; hobbies?: string; funFact?: string}>>(() => loadFromStorage('cc_advisorPersonalIntel', {}));
+  const [editingIntelField, setEditingIntelField] = useState<string | null>(null);
+  const [editingIntelValue, setEditingIntelValue] = useState('');
+
+  // Editable white space notes per advisor
+  const [advisorWhiteSpaceNotes, setAdvisorWhiteSpaceNotes] = useState<Record<string, string>>(() => loadFromStorage('cc_advisorWhiteSpaceNotes', {}));
+  const [editingWhiteSpace, setEditingWhiteSpace] = useState(false);
+  const [editingWhiteSpaceValue, setEditingWhiteSpaceValue] = useState('');
+
+  // Editable co-marketing notes per advisor
+  const [advisorCoMarketingNotes, setAdvisorCoMarketingNotes] = useState<Record<string, string>>(() => loadFromStorage('cc_advisorCoMarketingNotes', {}));
+  const [editingCoMarketing, setEditingCoMarketing] = useState(false);
+  const [editingCoMarketingValue, setEditingCoMarketingValue] = useState('');
+
+  // Editable action items per advisor
+  const [advisorActionItems, setAdvisorActionItems] = useState<Record<string, Array<{id: string; title: string; due: string; status: 'overdue' | 'pending' | 'low' | 'done'}>>>(() => loadFromStorage('cc_advisorActionItems', {}));
+  const [editingActionItem, setEditingActionItem] = useState<string | null>(null);
+  const [editingActionValue, setEditingActionValue] = useState('');
+  const [showAddAction, setShowAddAction] = useState(false);
+  const [newActionTitle, setNewActionTitle] = useState('');
+  const [newActionDue, setNewActionDue] = useState('');
+
+  // Contact groups
+  const [contactGroups, setContactGroups] = useState<Array<{id: string; name: string; advisorIds: string[]; rules?: {cadenceDays?: number; autoActions?: boolean; emailTemplateId?: string}}>>(() => loadFromStorage('cc_contactGroups', []));
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupAdvisors, setNewGroupAdvisors] = useState<string[]>([]);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [showGroupRules, setShowGroupRules] = useState<string | null>(null);
+  const [groupRuleCadence, setGroupRuleCadence] = useState('14');
+  const [groupRuleAutoActions, setGroupRuleAutoActions] = useState(false);
+
+  // Contacts view
+  const [contactsView, setContactsView] = useState<'partners' | 'tsds' | 'all' | 'groups'>('partners');
+
   const [playbookTemplates, setPlaybookTemplates] = useState<Array<{
     id: string;
     icon: string;
@@ -452,6 +500,12 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
   useEffect(() => { saveToStorage('cc_launchedPlaybooks', launchedPlaybooks); }, [launchedPlaybooks]);
   useEffect(() => { saveToStorage('cc_completedActions', completedActions); }, [completedActions]);
   useEffect(() => { saveToStorage('cc_flatlinedAdvisorIds', flatlinedAdvisorIds); }, [flatlinedAdvisorIds]);
+  useEffect(() => { saveToStorage('cc_callLogs', callLogs); }, [callLogs]);
+  useEffect(() => { saveToStorage('cc_advisorPersonalIntel', advisorPersonalIntel); }, [advisorPersonalIntel]);
+  useEffect(() => { saveToStorage('cc_advisorWhiteSpaceNotes', advisorWhiteSpaceNotes); }, [advisorWhiteSpaceNotes]);
+  useEffect(() => { saveToStorage('cc_advisorCoMarketingNotes', advisorCoMarketingNotes); }, [advisorCoMarketingNotes]);
+  useEffect(() => { saveToStorage('cc_advisorActionItems', advisorActionItems); }, [advisorActionItems]);
+  useEffect(() => { saveToStorage('cc_contactGroups', contactGroups); }, [contactGroups]);
 
   // Delete handlers
   const handleDeleteAdvisor = async (advisorId: string) => {
@@ -496,6 +550,57 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
       console.error('Error saving partner:', err);
       throw err;
     }
+  };
+
+  const handleLogCall = () => {
+    if (!logCallAdvisor || !logCallNotes.trim()) return;
+    const newLog = {
+      id: `call-${Date.now()}`,
+      advisorId: logCallAdvisor.id,
+      advisorName: logCallAdvisor.name,
+      date: new Date().toISOString(),
+      duration: logCallDuration,
+      notes: logCallNotes,
+      sentiment: logCallSentiment as 'positive' | 'neutral' | 'negative',
+      ...(logCallDealMentioned ? { dealMentioned: logCallDealMentioned } : {}),
+      ...(logCallNewDeal && logCallNewDealName ? { newDealName: logCallNewDealName } : {}),
+    };
+    setCallLogs(prev => [newLog, ...prev]);
+
+    // If new deal mentioned, create it
+    if (logCallNewDeal && logCallNewDealName.trim()) {
+      const newDeal: any = {
+        id: `deal-${Date.now()}`,
+        name: logCallNewDealName,
+        advisorId: logCallAdvisor.id,
+        stage: 'Discovery',
+        mrr: 0,
+        health: 'Healthy',
+        probability: 10,
+        daysInStage: 0,
+        lastActivity: new Date().toISOString().split('T')[0],
+        nextStep: 'Initial qualification',
+        decisionMaker: logCallAdvisor.name,
+        products: [],
+        actionItems: [`Follow up on ${logCallNewDealName} from call`],
+      };
+      setDeals(prev => [...prev, newDeal]);
+      // Also persist via API
+      fetch('/api/live/deals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: logCallNewDealName, advisorId: logCallAdvisor.id, stage: 'Discovery', mrr: 0, probability: 10, health: 'Healthy', daysInStage: 0 }),
+      }).catch(console.error);
+    }
+
+    // Reset modal
+    setShowLogCallModal(false);
+    setLogCallNotes('');
+    setLogCallDuration('15');
+    setLogCallSentiment('neutral');
+    setLogCallDealMentioned('');
+    setLogCallNewDeal(false);
+    setLogCallNewDealName('');
   };
 
   // Wire up advisor -> deal relationship
@@ -811,6 +916,19 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     [...platinumOverdue, ...goldOverdue, ...silverOverdue].forEach(a => {
       if (todayActions.some(act => act.advisorId === a.id)) return; // don't duplicate
       todayActions.push({ id: `cadence-${a.id}`, title: `Check in with ${a.name}`, context: `${a.tier === 'platinum' ? 'Platinum' : a.tier === 'gold' ? 'Gold' : 'Silver'} · Last contact ${getDaysSinceContact(a.lastContact)} days ago · ${a.tier === 'platinum' ? 'Weekly' : a.tier === 'gold' ? 'Bi-weekly' : 'Monthly'} cadence overdue`, tag: 'Cadence', type: 'cadence', advisorId: a.id, mrrImpact: a.mrr, impactType: 'growth' });
+    });
+
+    // Group rule cadence actions
+    contactGroups.forEach(group => {
+      if (!group.rules?.cadenceDays || !group.rules?.autoActions) return;
+      group.advisorIds.forEach(advId => {
+        const a = advisors.find(adv => adv.id === advId);
+        if (!a || todayActions.some(act => act.advisorId === a.id)) return;
+        const daysSince = getDaysSinceContact(a.lastContact);
+        if (daysSince > group.rules!.cadenceDays!) {
+          todayActions.push({ id: `grp-${group.id}-${a.id}`, title: `${group.name}: Reach out to ${a.name}`, context: `Group rule: every ${group.rules!.cadenceDays}d · Last contact ${daysSince}d ago`, tag: group.name, type: 'cadence', advisorId: a.id, mrrImpact: a.mrr, impactType: 'growth' });
+        }
+      });
     });
 
     // Growth: accelerating/climbing advisors not already in actions
@@ -1350,7 +1468,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
       const lastContactDays = Math.floor(seededRandom(`${selectedAdvisor.id}-contact`) * 30);
 
       // Mock recent activity timeline
-      const activityTimeline = [
+      const mockActivityTimeline = [
         { id: 1, type: 'call' as const, icon: Phone, title: 'Quarterly Business Review', details: `Discussed Q2 targets and new product roadmap with ${selectedAdvisor.name}`, time: `${lastContactDays}d ago` },
         { id: 2, type: 'email' as const, icon: Mail, title: 'Campaign Follow-up', details: 'Sent Q2 promotional materials and launch timeline', time: `${lastContactDays + 3}d ago` },
         { id: 3, type: 'meeting' as const, icon: Calendar, title: 'Product Demo', details: `Presented new Analytics Suite with ${selectedAdvisor.name.split(' ')[0]} and team`, time: `${lastContactDays + 8}d ago` },
@@ -1358,6 +1476,17 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
         { id: 5, type: 'note' as const, icon: MessageCircle, title: 'Personal Note', details: `${selectedAdvisor.name.split(' ')[0]} mentioned upcoming family plans`, time: `${lastContactDays + 16}d ago` },
         { id: 6, type: 'email' as const, icon: Mail, title: 'Initial Outreach', details: 'First contact email introducing partnership opportunities', time: '1mo ago' },
       ];
+
+      // Prepend real call logs
+      const realCallLogs = callLogs.filter(c => c.advisorId === selectedAdvisor.id).map((c, i) => ({
+        id: 100 + i,
+        type: 'call' as const,
+        icon: Phone,
+        title: `Call with ${selectedAdvisor.name.split(' ')[0]}${c.newDealName ? ` — New deal: ${c.newDealName}` : ''}`,
+        details: c.notes.length > 80 ? c.notes.slice(0, 80) + '...' : c.notes,
+        time: (() => { const d = new Date(c.date); const now = new Date(); const diff = Math.floor((now.getTime() - d.getTime()) / (1000*60*60*24)); return diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : `${diff}d ago`; })(),
+      }));
+      const activityTimeline = [...realCallLogs, ...mockActivityTimeline];
 
       // Mock action items
       const actionItems = [
@@ -1437,12 +1566,12 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                   {/* Action Buttons */}
                   <div className="grid grid-cols-4 gap-2 mb-2">
                     {[
-                      { label: 'Email', icon: Mail },
-                      { label: 'Call', icon: Phone },
-                      { label: 'Schedule', icon: Calendar },
-                      { label: 'Log Call', icon: FileText },
+                      { label: 'Email', icon: Mail, action: () => {} },
+                      { label: 'Call', icon: Phone, action: () => {} },
+                      { label: 'Schedule', icon: Calendar, action: () => {} },
+                      { label: 'Log Call', icon: FileText, action: () => { setLogCallAdvisor(selectedAdvisor); setShowLogCallModal(true); } },
                     ].map(btn => (
-                      <button key={btn.label} className="flex flex-col items-center gap-1 px-2 py-2.5 border border-[#157A6E]/30 text-[#157A6E] rounded-lg hover:bg-[#157A6E]/5 transition-colors">
+                      <button key={btn.label} onClick={btn.action} className="flex flex-col items-center gap-1 px-2 py-2.5 border border-[#157A6E]/30 text-[#157A6E] rounded-lg hover:bg-[#157A6E]/5 transition-colors">
                         <btn.icon className="w-4 h-4" />
                         <span className="text-[10px] font-medium">{btn.label}</span>
                       </button>
@@ -1528,20 +1657,48 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
 
                 {/* Personal Intel */}
                 <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-                  <h3 className="text-13px font-semibold font-['Newsreader'] text-gray-900 mb-3">Personal Intel</h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-13px font-semibold font-['Newsreader'] text-gray-900">Personal Intel</h3>
+                    <span className="text-[9px] text-gray-400">Click to edit</span>
+                  </div>
                   <div className="space-y-2.5">
                     {[
-                      { icon: Cake, label: 'Birthday', value: selectedAdvisor.birthday || personalIntel.birthday },
-                      { icon: GraduationCap, label: 'Education', value: selectedAdvisor.education || personalIntel.education?.degree },
-                      { icon: Heart, label: 'Family', value: selectedAdvisor.family || personalIntel.family },
-                      { icon: Star, label: 'Hobbies', value: selectedAdvisor.hobbies || personalIntel.hobbies },
-                      { icon: Lightbulb, label: 'Fun Fact', value: selectedAdvisor.funFact || personalIntel.funFact },
+                      { icon: Cake, label: 'Birthday', field: 'birthday', value: (advisorPersonalIntel[selectedAdvisor.id]?.birthday) || selectedAdvisor.birthday || personalIntel.birthday },
+                      { icon: GraduationCap, label: 'Education', field: 'education', value: (advisorPersonalIntel[selectedAdvisor.id]?.education) || selectedAdvisor.education || personalIntel.education?.degree },
+                      { icon: Heart, label: 'Family', field: 'family', value: (advisorPersonalIntel[selectedAdvisor.id]?.family) || selectedAdvisor.family || personalIntel.family },
+                      { icon: Star, label: 'Hobbies', field: 'hobbies', value: (advisorPersonalIntel[selectedAdvisor.id]?.hobbies) || selectedAdvisor.hobbies || personalIntel.hobbies },
+                      { icon: Lightbulb, label: 'Fun Fact', field: 'funFact', value: (advisorPersonalIntel[selectedAdvisor.id]?.funFact) || selectedAdvisor.funFact || personalIntel.funFact },
                     ].map(item => (
-                      <div key={item.label} className="flex items-start gap-2.5">
+                      <div key={item.label} className="flex items-start gap-2.5 group">
                         <item.icon className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <p className="text-[10px] text-gray-500">{item.label}</p>
-                          <p className="text-11px font-medium text-gray-900">{item.value}</p>
+                          {editingIntelField === `${selectedAdvisor.id}-${item.field}` ? (
+                            <div className="flex gap-1 mt-0.5">
+                              <input
+                                autoFocus
+                                value={editingIntelValue}
+                                onChange={e => setEditingIntelValue(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    setAdvisorPersonalIntel(prev => ({ ...prev, [selectedAdvisor.id]: { ...prev[selectedAdvisor.id], [item.field]: editingIntelValue } }));
+                                    setEditingIntelField(null);
+                                  }
+                                  if (e.key === 'Escape') setEditingIntelField(null);
+                                }}
+                                className="flex-1 text-11px border border-[#157A6E] rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]"
+                              />
+                              <button onClick={() => { setAdvisorPersonalIntel(prev => ({ ...prev, [selectedAdvisor.id]: { ...prev[selectedAdvisor.id], [item.field]: editingIntelValue } })); setEditingIntelField(null); }} className="text-[#157A6E] hover:text-[#0f5550]"><CheckCircle className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => setEditingIntelField(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
+                            </div>
+                          ) : (
+                            <p
+                              onClick={() => { setEditingIntelField(`${selectedAdvisor.id}-${item.field}`); setEditingIntelValue(item.value || ''); }}
+                              className="text-11px font-medium text-gray-900 cursor-pointer hover:text-[#157A6E] hover:bg-teal-50/50 rounded px-1 -mx-1 py-0.5 transition-colors"
+                            >
+                              {item.value || <span className="text-gray-400 italic">Click to add...</span>}
+                            </p>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1557,20 +1714,54 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
               <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">Action Items</h3>
-                  <span className="text-10px font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">{actionItems.filter(a => a.status === 'overdue').length} overdue</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-10px font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                      {(advisorActionItems[selectedAdvisor.id] || actionItems).filter(a => a.status === 'overdue').length} overdue
+                    </span>
+                    <button onClick={() => setShowAddAction(true)} className="text-[#157A6E] hover:text-[#0f5550]"><Plus className="w-4 h-4" /></button>
+                  </div>
                 </div>
+                {showAddAction && (
+                  <div className="mb-3 p-3 bg-teal-50/50 rounded-lg border border-[#157A6E]/20">
+                    <div className="flex gap-2 mb-2">
+                      <input placeholder="Action item..." value={newActionTitle} onChange={e => setNewActionTitle(e.target.value)} className="flex-1 text-12px border border-[#e8e5e1] rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" />
+                      <input type="date" value={newActionDue} onChange={e => setNewActionDue(e.target.value)} className="text-11px border border-[#e8e5e1] rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => {
+                        if (!newActionTitle.trim()) return;
+                        const newItem = { id: `action-${Date.now()}`, title: newActionTitle, due: newActionDue || 'No date', status: 'pending' as const };
+                        setAdvisorActionItems(prev => ({ ...prev, [selectedAdvisor.id]: [...(prev[selectedAdvisor.id] || actionItems), newItem] }));
+                        setNewActionTitle(''); setNewActionDue(''); setShowAddAction(false);
+                      }} className="px-3 py-1 text-11px font-medium bg-[#157A6E] text-white rounded hover:bg-[#0f5550]">Add</button>
+                      <button onClick={() => { setShowAddAction(false); setNewActionTitle(''); setNewActionDue(''); }} className="px-3 py-1 text-11px font-medium text-gray-500 hover:text-gray-700">Cancel</button>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2">
-                  {actionItems.map(item => (
+                  {(advisorActionItems[selectedAdvisor.id] || actionItems).filter(a => a.status !== 'done').map(item => (
                     <div key={item.id} className={`flex items-center gap-3 p-3 rounded-lg border-l-3 ${item.status === 'overdue' ? 'bg-red-50/50 border-l-red-400' : item.status === 'pending' ? 'bg-amber-50/30 border-l-amber-300' : 'bg-gray-50 border-l-gray-200'}`}>
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${item.status === 'overdue' ? 'border-red-400' : 'border-gray-300'}`}>
+                      <button onClick={() => {
+                        setAdvisorActionItems(prev => {
+                          const items = prev[selectedAdvisor.id] || actionItems;
+                          return { ...prev, [selectedAdvisor.id]: items.map(a => a.id === item.id ? { ...a, status: 'done' as const } : a) };
+                        });
+                      }} className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${item.status === 'overdue' ? 'border-red-400 hover:bg-red-100' : 'border-gray-300 hover:bg-gray-100'} transition-colors`}>
                         {item.status === 'overdue' && <AlertCircle className="w-3 h-3 text-red-500" />}
-                      </div>
+                      </button>
                       <div className="flex-1 min-w-0">
-                        <p className="text-12px font-medium text-gray-900 truncate">{item.title}</p>
+                        {editingActionItem === item.id ? (
+                          <input autoFocus value={editingActionValue} onChange={e => setEditingActionValue(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { setAdvisorActionItems(prev => ({ ...prev, [selectedAdvisor.id]: (prev[selectedAdvisor.id] || actionItems).map(a => a.id === item.id ? { ...a, title: editingActionValue } : a) })); setEditingActionItem(null); } if (e.key === 'Escape') setEditingActionItem(null); }}
+                            className="w-full text-12px border border-[#157A6E] rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" />
+                        ) : (
+                          <p onClick={() => { setEditingActionItem(item.id); setEditingActionValue(item.title); }} className="text-12px font-medium text-gray-900 truncate cursor-pointer hover:text-[#157A6E]">{item.title}</p>
+                        )}
                       </div>
                       <span className={`text-10px font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${item.status === 'overdue' ? 'bg-red-100 text-red-700' : item.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
                         {item.due}
                       </span>
+                      <button onClick={() => { setAdvisorActionItems(prev => ({ ...prev, [selectedAdvisor.id]: (prev[selectedAdvisor.id] || actionItems).filter(a => a.id !== item.id) })); }} className="text-gray-300 hover:text-red-500 transition-colors"><X className="w-3.5 h-3.5" /></button>
                     </div>
                   ))}
                 </div>
@@ -1646,7 +1837,10 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                   {/* White Space */}
                   {whiteSpace && (
                     <div>
-                      <h4 className="text-12px font-semibold text-gray-900 mb-3">White Space Analysis</h4>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-12px font-semibold text-gray-900">White Space Analysis</h4>
+                        {!editingWhiteSpace && <button onClick={() => { setEditingWhiteSpace(true); setEditingWhiteSpaceValue(advisorWhiteSpaceNotes[selectedAdvisor.id] || ''); }} className="text-[#157A6E] hover:text-[#0f5550]"><Edit className="w-3 h-3" /></button>}
+                      </div>
                       <div className="space-y-3">
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
@@ -1667,12 +1861,26 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                           </div>
                         </div>
                         <p className="text-11px text-gray-600">Est. Opportunity: <span className="font-bold text-gray-900">{formatCurrency(whiteSpace.opportunityMRR)}</span></p>
+                        {editingWhiteSpace ? (
+                          <div>
+                            <textarea value={editingWhiteSpaceValue} onChange={e => setEditingWhiteSpaceValue(e.target.value)} placeholder="Add notes about white space opportunities..." className="w-full text-11px border border-[#157A6E] rounded p-2 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" rows={2} />
+                            <div className="flex gap-1 mt-1">
+                              <button onClick={() => { setAdvisorWhiteSpaceNotes(prev => ({ ...prev, [selectedAdvisor.id]: editingWhiteSpaceValue })); setEditingWhiteSpace(false); }} className="px-2 py-1 text-[10px] font-medium bg-[#157A6E] text-white rounded">Save</button>
+                              <button onClick={() => setEditingWhiteSpace(false)} className="px-2 py-1 text-[10px] text-gray-500">Cancel</button>
+                            </div>
+                          </div>
+                        ) : advisorWhiteSpaceNotes[selectedAdvisor.id] ? (
+                          <p className="text-11px text-gray-700 bg-gray-50 rounded p-2 italic">{advisorWhiteSpaceNotes[selectedAdvisor.id]}</p>
+                        ) : null}
                       </div>
                     </div>
                   )}
                   {/* Co-Marketing */}
                   <div>
-                    <h4 className="text-12px font-semibold text-gray-900 mb-3">Co-Marketing</h4>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-12px font-semibold text-gray-900">Co-Marketing</h4>
+                      {!editingCoMarketing && <button onClick={() => { setEditingCoMarketing(true); setEditingCoMarketingValue(advisorCoMarketingNotes[selectedAdvisor.id] || ''); }} className="text-[#157A6E] hover:text-[#0f5550]"><Edit className="w-3 h-3" /></button>}
+                    </div>
                     {coMarketingMatch ? (
                       <div className="space-y-3">
                         <p className="text-11px text-gray-600">{coMarketingMatch.reason}</p>
@@ -1685,6 +1893,17 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                     ) : (
                       <p className="text-11px text-gray-600">Not currently eligible for co-marketing campaigns</p>
                     )}
+                    {editingCoMarketing ? (
+                      <div className="mt-3">
+                        <textarea value={editingCoMarketingValue} onChange={e => setEditingCoMarketingValue(e.target.value)} placeholder="Add co-marketing notes, ideas, or campaign details..." className="w-full text-11px border border-[#157A6E] rounded p-2 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" rows={2} />
+                        <div className="flex gap-1 mt-1">
+                          <button onClick={() => { setAdvisorCoMarketingNotes(prev => ({ ...prev, [selectedAdvisor.id]: editingCoMarketingValue })); setEditingCoMarketing(false); }} className="px-2 py-1 text-[10px] font-medium bg-[#157A6E] text-white rounded">Save</button>
+                          <button onClick={() => setEditingCoMarketing(false)} className="px-2 py-1 text-[10px] text-gray-500">Cancel</button>
+                        </div>
+                      </div>
+                    ) : advisorCoMarketingNotes[selectedAdvisor.id] ? (
+                      <p className="text-11px text-gray-700 bg-gray-50 rounded p-2 mt-3 italic">{advisorCoMarketingNotes[selectedAdvisor.id]}</p>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -2358,10 +2577,10 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
 
                       <div className="grid grid-cols-4 gap-2 mb-2">
                         {[
-                          { label: 'Email', icon: Mail }, { label: 'Call', icon: Phone },
-                          { label: 'Schedule', icon: Calendar }, { label: 'Log Call', icon: FileText },
+                          { label: 'Email', icon: Mail, action: () => {} }, { label: 'Call', icon: Phone, action: () => {} },
+                          { label: 'Schedule', icon: Calendar, action: () => {} }, { label: 'Log Call', icon: FileText, action: () => {} },
                         ].map(btn => (
-                          <button key={btn.label} className="flex flex-col items-center gap-1 px-2 py-2.5 border border-[#157A6E]/30 text-[#157A6E] rounded-lg hover:bg-[#157A6E]/5 transition-colors">
+                          <button key={btn.label} onClick={btn.action} className="flex flex-col items-center gap-1 px-2 py-2.5 border border-[#157A6E]/30 text-[#157A6E] rounded-lg hover:bg-[#157A6E]/5 transition-colors">
                             <btn.icon className="w-4 h-4" />
                             <span className="text-[10px] font-medium">{btn.label}</span>
                           </button>
@@ -4709,6 +4928,212 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     );
   };
 
+  const renderContacts = () => {
+    const allPartners = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id));
+    const tsdContacts = [
+      { id: 'tsd-1', name: 'Sarah Mitchell', role: 'Account Executive', company: 'Telarus', email: 'sarah.mitchell@telarus.com', phone: '(801) 555-0142' },
+      { id: 'tsd-2', name: 'James Rodriguez', role: 'Solutions Engineer', company: 'Avant', email: 'james.rodriguez@avant.com', phone: '(312) 555-0198' },
+      { id: 'tsd-3', name: 'Emily Chen', role: 'Channel Manager', company: 'Intelisys', email: 'emily.chen@intelisys.com', phone: '(416) 555-0234' },
+      { id: 'tsd-4', name: 'Michael Torres', role: 'VP of Partnerships', company: 'Sandler Partners', email: 'michael.torres@sandlerpartners.com', phone: '(323) 555-0177' },
+      { id: 'tsd-5', name: 'Rachel Kim', role: 'Partner Success', company: 'AppDirect', email: 'rachel.kim@appdirect.com', phone: '(415) 555-0156' },
+    ];
+
+    return (
+      <div className="space-y-5">
+        {/* View Tabs */}
+        <div className="flex items-center gap-4 border-b border-[#e8e5e1] pb-3">
+          {[
+            { key: 'partners' as const, label: 'Partners', count: allPartners.length },
+            { key: 'tsds' as const, label: 'TSDs', count: tsdContacts.length },
+            { key: 'all' as const, label: 'All Contacts', count: allPartners.length + tsdContacts.length },
+            { key: 'groups' as const, label: 'Groups', count: contactGroups.length },
+          ].map(tab => (
+            <button key={tab.key} onClick={() => setContactsView(tab.key)}
+              className={`px-4 py-2 text-[13px] font-semibold border-b-2 -mb-[13px] transition-colors ${contactsView === tab.key ? 'text-[#157A6E] border-[#157A6E]' : 'text-gray-500 border-transparent hover:text-gray-700'}`}>
+              {tab.label} <span className="ml-1 text-[11px] opacity-60">{tab.count}</span>
+            </button>
+          ))}
+          <div className="flex-1" />
+          <button onClick={() => setShowCreateGroup(true)} className="px-3 py-1.5 text-[11px] font-semibold text-[#157A6E] border border-[#157A6E] rounded-lg hover:bg-teal-50 flex items-center gap-1">
+            <Plus className="w-3 h-3" /> Create Group
+          </button>
+        </div>
+
+        {/* Create Group Modal */}
+        {showCreateGroup && (
+          <div className="bg-white rounded-[10px] border-2 border-[#157A6E]/30 p-5">
+            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-3">Create Contact Group</h3>
+            <input value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="Group name..." className="w-full text-13px border border-[#e8e5e1] rounded-lg px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
+            <p className="text-11px text-gray-500 mb-2">Select contacts to add:</p>
+            <div className="max-h-48 overflow-y-auto space-y-1 mb-3 border border-[#e8e5e1] rounded-lg p-2">
+              {allPartners.map(a => (
+                <label key={a.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer">
+                  <input type="checkbox" checked={newGroupAdvisors.includes(a.id)} onChange={e => setNewGroupAdvisors(prev => e.target.checked ? [...prev, a.id] : prev.filter(id => id !== a.id))} className="rounded border-gray-300 text-[#157A6E] focus:ring-[#157A6E]" />
+                  <span className="text-12px text-gray-800">{a.name}</span>
+                  <span className="text-[10px] text-gray-400 ml-auto">{a.company}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => {
+                if (!newGroupName.trim()) return;
+                setContactGroups(prev => [...prev, { id: `grp-${Date.now()}`, name: newGroupName, advisorIds: newGroupAdvisors }]);
+                setNewGroupName(''); setNewGroupAdvisors([]); setShowCreateGroup(false);
+              }} className="px-4 py-2 text-12px font-semibold bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550]">Create Group</button>
+              <button onClick={() => { setShowCreateGroup(false); setNewGroupName(''); setNewGroupAdvisors([]); }} className="px-4 py-2 text-12px font-medium text-gray-500 hover:text-gray-700">Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* Groups View */}
+        {contactsView === 'groups' && (
+          <div className="space-y-4">
+            {contactGroups.length === 0 ? (
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
+                <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-13px font-semibold text-gray-700">No groups yet</p>
+                <p className="text-11px text-gray-400 mt-1">Create a group to organize contacts and set outreach rules</p>
+              </div>
+            ) : contactGroups.map(group => (
+              <div key={group.id} className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h4 className="text-[14px] font-semibold text-gray-900">{group.name}</h4>
+                    <p className="text-11px text-gray-500">{group.advisorIds.length} contacts</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowGroupRules(showGroupRules === group.id ? null : group.id)} className="px-3 py-1.5 text-[10px] font-semibold text-[#157A6E] border border-[#157A6E]/30 rounded-lg hover:bg-teal-50">
+                      {group.rules ? 'Edit Rules' : 'Set Rules'}
+                    </button>
+                    <button onClick={() => setContactGroups(prev => prev.filter(g => g.id !== group.id))} className="px-2 py-1.5 text-[10px] text-red-500 hover:text-red-700"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+                {/* Rules editor */}
+                {showGroupRules === group.id && (
+                  <div className="mb-4 p-3 bg-teal-50/50 rounded-lg border border-[#157A6E]/20">
+                    <h5 className="text-11px font-semibold text-gray-800 mb-2">Outreach Rules</h5>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3">
+                        <label className="text-11px text-gray-600 w-24">Cadence (days)</label>
+                        <input type="number" value={group.rules?.cadenceDays || groupRuleCadence} onChange={e => setGroupRuleCadence(e.target.value)} className="w-20 text-11px border border-[#e8e5e1] rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="text-11px text-gray-600 w-24">Auto-actions</label>
+                        <button onClick={() => setGroupRuleAutoActions(!groupRuleAutoActions)} className={`w-8 h-4.5 rounded-full transition-colors ${groupRuleAutoActions ? 'bg-[#157A6E]' : 'bg-gray-300'} relative`}>
+                          <span className={`absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform ${groupRuleAutoActions ? 'left-4' : 'left-0.5'}`} />
+                        </button>
+                        <span className="text-[10px] text-gray-500">Generate action items when cadence is overdue</span>
+                      </div>
+                    </div>
+                    <button onClick={() => {
+                      setContactGroups(prev => prev.map(g => g.id === group.id ? { ...g, rules: { cadenceDays: parseInt(groupRuleCadence), autoActions: groupRuleAutoActions } } : g));
+                      setShowGroupRules(null);
+                    }} className="mt-2 px-3 py-1.5 text-[10px] font-semibold bg-[#157A6E] text-white rounded hover:bg-[#0f5550]">Save Rules</button>
+                  </div>
+                )}
+                {/* Group members */}
+                <div className="space-y-1">
+                  {group.advisorIds.map(id => {
+                    const a = advisors.find(adv => adv.id === id);
+                    if (!a) return null;
+                    return (
+                      <div key={id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer" onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}>
+                        <div className={`w-2 h-2 rounded-sm ${a.tier === 'platinum' ? 'bg-[#157A6E]' : a.tier === 'gold' ? 'bg-amber-400' : a.tier === 'silver' ? 'bg-gray-400' : 'bg-blue-400'}`} />
+                        <span className="text-12px font-medium text-gray-800 flex-1">{a.name}</span>
+                        <span className="text-[10px] text-gray-400">{a.company}</span>
+                        <span className="text-11px font-bold text-gray-700">{formatCurrency(a.mrr)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Partners View */}
+        {contactsView === 'partners' && (
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1]">
+            <div className="p-4 border-b border-[#e8e5e1]">
+              <input placeholder="Search partners..." value={partnerSearch} onChange={e => setPartnerSearch(e.target.value)} className="w-full text-13px border border-[#e8e5e1] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
+            </div>
+            <div className="divide-y divide-[#e8e5e1]">
+              {allPartners.filter(a => !partnerSearch || a.name.toLowerCase().includes(partnerSearch.toLowerCase()) || a.company.toLowerCase().includes(partnerSearch.toLowerCase())).map(a => (
+                <div key={a.id} onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors">
+                  <div className="w-8 h-8 bg-[#157A6E] rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-[11px] font-semibold">{a.name.split(' ').map(n => n[0]).join('')}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-13px font-medium text-gray-900">{a.name}</p>
+                    <p className="text-11px text-gray-500">{a.company}</p>
+                  </div>
+                  <TierBadge tier={a.tier} />
+                  <PulseBadge pulse={a.pulse} />
+                  <span className="text-12px font-bold text-gray-700 tabular-nums w-20 text-right">{formatCurrency(a.mrr)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TSDs View */}
+        {contactsView === 'tsds' && (
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1]">
+            <div className="divide-y divide-[#e8e5e1]">
+              {tsdContacts.map(c => (
+                <div key={c.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors">
+                  <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-[11px] font-semibold">{c.name.split(' ').map(n => n[0]).join('')}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-13px font-medium text-gray-900">{c.name}</p>
+                    <p className="text-11px text-gray-500">{c.role} · {c.company}</p>
+                  </div>
+                  <span className="text-11px text-gray-400">{c.email}</span>
+                  <span className="text-11px text-gray-400">{c.phone}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* All Contacts View */}
+        {contactsView === 'all' && (
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1]">
+            <div className="divide-y divide-[#e8e5e1]">
+              {allPartners.map(a => (
+                <div key={a.id} onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors">
+                  <div className="w-8 h-8 bg-[#157A6E] rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-[11px] font-semibold">{a.name.split(' ').map(n => n[0]).join('')}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-13px font-medium text-gray-900">{a.name}</p>
+                    <p className="text-11px text-gray-500">{a.company}</p>
+                  </div>
+                  <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[10px] font-medium rounded">Partner</span>
+                  <span className="text-12px font-bold text-gray-700 tabular-nums w-20 text-right">{formatCurrency(a.mrr)}</span>
+                </div>
+              ))}
+              {tsdContacts.map(c => (
+                <div key={c.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors">
+                  <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-[11px] font-semibold">{c.name.split(' ').map(n => n[0]).join('')}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-13px font-medium text-gray-900">{c.name}</p>
+                    <p className="text-11px text-gray-500">{c.role} · {c.company}</p>
+                  </div>
+                  <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-medium rounded">TSD</span>
+                  <span className="text-11px text-gray-400 w-20 text-right">{c.phone}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ════════════════════════════════════════════════
   // VIEW ROUTING
   // ════════════════════════════════════════════════
@@ -4717,6 +5142,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     'intelligence': renderIntelligence,
     'relationships': renderRelationships,
     'pipeline': renderPipeline,
+    'contacts': renderContacts,
   };
 
   return (
@@ -5334,6 +5760,68 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
         advisors={advisors}
         existingCompanies={[...new Set(advisors.map(a => a.company).filter(Boolean))].sort()}
       />
+      {/* Log Call Modal */}
+      {showLogCallModal && logCallAdvisor && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowLogCallModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-[520px] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-[#e8e5e1] bg-gradient-to-r from-[#F7F5F2] to-white">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Log Call</h2>
+                <button onClick={() => setShowLogCallModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              </div>
+              <p className="text-12px text-gray-500 mt-1">with {logCallAdvisor.name} · {logCallAdvisor.company}</p>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Duration */}
+              <div>
+                <label className="text-11px font-semibold text-gray-700 mb-1 block">Duration (minutes)</label>
+                <input type="number" value={logCallDuration} onChange={e => setLogCallDuration(e.target.value)} className="w-24 text-13px border border-[#e8e5e1] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
+              </div>
+              {/* Sentiment */}
+              <div>
+                <label className="text-11px font-semibold text-gray-700 mb-2 block">Call Sentiment</label>
+                <div className="flex gap-2">
+                  {(['positive', 'neutral', 'negative'] as const).map(s => (
+                    <button key={s} onClick={() => setLogCallSentiment(s)} className={`px-4 py-2 text-12px font-medium rounded-lg border transition-colors ${logCallSentiment === s ? (s === 'positive' ? 'bg-emerald-50 border-emerald-400 text-emerald-700' : s === 'negative' ? 'bg-red-50 border-red-400 text-red-700' : 'bg-gray-100 border-gray-400 text-gray-700') : 'border-[#e8e5e1] text-gray-500 hover:border-gray-300'}`}>
+                      {s === 'positive' ? '😊 Positive' : s === 'negative' ? '😟 Negative' : '😐 Neutral'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Notes */}
+              <div>
+                <label className="text-11px font-semibold text-gray-700 mb-1 block">Call Notes</label>
+                <textarea value={logCallNotes} onChange={e => setLogCallNotes(e.target.value)} placeholder="What was discussed? Key takeaways, commitments made, next steps..." className="w-full text-12px border border-[#e8e5e1] rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" rows={4} />
+              </div>
+              {/* Deal mention */}
+              <div>
+                <label className="text-11px font-semibold text-gray-700 mb-1 block">Deal Discussed</label>
+                <select value={logCallDealMentioned} onChange={e => setLogCallDealMentioned(e.target.value)} className="w-full text-12px border border-[#e8e5e1] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#157A6E]">
+                  <option value="">None</option>
+                  {deals.filter(d => d.advisorId === logCallAdvisor.id).map(d => (
+                    <option key={d.id} value={d.id}>{d.name} ({d.stage})</option>
+                  ))}
+                </select>
+              </div>
+              {/* New deal toggle */}
+              <div className="p-3 bg-amber-50/50 rounded-lg border border-amber-200">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" checked={logCallNewDeal} onChange={e => setLogCallNewDeal(e.target.checked)} className="rounded border-gray-300 text-[#157A6E] focus:ring-[#157A6E]" />
+                  <span className="text-12px font-medium text-gray-800">New deal mentioned on this call</span>
+                </label>
+                {logCallNewDeal && (
+                  <input value={logCallNewDealName} onChange={e => setLogCallNewDealName(e.target.value)} placeholder="Deal name..." className="mt-2 w-full text-12px border border-[#e8e5e1] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
+                )}
+              </div>
+              {/* Submit */}
+              <button onClick={handleLogCall} disabled={!logCallNotes.trim()} className="w-full px-4 py-2.5 text-13px font-semibold bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                Log Call
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <AIChat role="manager" selectedAdvisor={selectedAdvisor} live={true} />
     </div>
   );
