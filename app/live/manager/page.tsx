@@ -135,6 +135,7 @@ export default function LiveManagerPage() {
   const [logCallDealMentioned, setLogCallDealMentioned] = useState('');
   const [logCallNewDeal, setLogCallNewDeal] = useState(false);
   const [logCallNewDealName, setLogCallNewDealName] = useState('');
+  const [logContactType, setLogContactType] = useState<'call' | 'email'>('call');
 
   // Editable personal intel per advisor
   const [advisorPersonalIntel, setAdvisorPersonalIntel] = useState<Record<string, {birthday?: string; education?: string; family?: string; hobbies?: string; funFact?: string; linkedin?: string}>>(() => loadFromStorage('cc_advisorPersonalIntel', {}));
@@ -1817,10 +1818,10 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                   {/* Action Buttons */}
                   <div className="grid grid-cols-4 gap-2 mb-2">
                     {[
-                      { label: 'Email', icon: Mail, action: () => { window.open('mailto:' + selectedAdvisor.name.toLowerCase().replace(' ', '.') + '@' + selectedAdvisor.company.toLowerCase().replace(/\s+/g, '') + '.com'); } },
-                      { label: 'Call', icon: Phone, action: () => { window.open('tel:+1' + Math.floor(seededRandom(selectedAdvisor.id + '-area') * 900 + 100).toString() + Math.floor(seededRandom(selectedAdvisor.id + '-ph1') * 900 + 100).toString() + Math.floor(seededRandom(selectedAdvisor.id + '-ph2') * 9000 + 1000).toString()); } },
+                      { label: 'Email', icon: Mail, action: () => { setLogContactType('email'); setLogCallAdvisor(selectedAdvisor); setShowLogCallModal(true); } },
+                      { label: 'Call', icon: Phone, action: () => { setLogContactType('call'); setLogCallAdvisor(selectedAdvisor); setShowLogCallModal(true); } },
                       { label: 'Schedule', icon: Calendar, action: () => { window.open('https://calendar.google.com/calendar/render?action=TEMPLATE&text=Meeting+with+' + encodeURIComponent(selectedAdvisor.name)); } },
-                      { label: 'Log Call', icon: FileText, action: () => { setLogCallAdvisor(selectedAdvisor); setShowLogCallModal(true); } },
+                      { label: 'Log Call', icon: FileText, action: () => { setLogContactType('call'); setLogCallAdvisor(selectedAdvisor); setShowLogCallModal(true); } },
                     ].map(btn => (
                       <button key={btn.label} onClick={btn.action} className="flex flex-col items-center gap-1 px-2 py-2.5 border border-[#157A6E]/30 text-[#157A6E] rounded-lg hover:bg-[#157A6E]/5 transition-colors">
                         <btn.icon className="w-4 h-4" />
@@ -3037,7 +3038,7 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
 
                       <div className="grid grid-cols-4 gap-2 mb-2">
                         {[
-                          { label: 'Email', icon: Mail, action: () => { window.open('mailto:' + tc.email); } }, { label: 'Call', icon: Phone, action: () => { window.open('tel:' + tc.phone.replace(/[^\d+]/g, '')); } },
+                          { label: 'Email', icon: Mail, action: () => { setLogContactType('email'); setLogCallAdvisor({ id: tc.id, name: tc.name, company: tc.companyName } as any); setShowLogCallModal(true); } }, { label: 'Call', icon: Phone, action: () => { setLogContactType('call'); setLogCallAdvisor({ id: tc.id, name: tc.name, company: tc.companyName } as any); setShowLogCallModal(true); } },
                           { label: 'Schedule', icon: Calendar, action: () => { window.open('https://calendar.google.com/calendar/render?action=TEMPLATE&text=Meeting+with+' + encodeURIComponent(tc.name)); } }, { label: 'Log Call', icon: FileText, action: () => {} },
                         ].map(btn => (
                           <button key={btn.label} onClick={btn.action} className="flex flex-col items-center gap-1 px-2 py-2.5 border border-[#157A6E]/30 text-[#157A6E] rounded-lg hover:bg-[#157A6E]/5 transition-colors">
@@ -6700,20 +6701,22 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
           <div className="bg-white rounded-xl shadow-xl w-[520px] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="p-6 border-b border-[#e8e5e1] bg-gradient-to-r from-[#F7F5F2] to-white">
               <div className="flex items-center justify-between">
-                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Log Call</h2>
+                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">{logContactType === 'email' ? 'Log Email' : 'Log Call'}</h2>
                 <button onClick={() => setShowLogCallModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
               </div>
               <p className="text-12px text-gray-500 mt-1">with {logCallAdvisor.name} · {logCallAdvisor.company}</p>
             </div>
             <div className="p-6 space-y-4">
               {/* Duration */}
+              {logContactType === 'call' && (
               <div>
                 <label className="text-11px font-semibold text-gray-700 mb-1 block">Duration (minutes)</label>
                 <input type="number" value={logCallDuration} onChange={e => setLogCallDuration(e.target.value)} className="w-24 text-13px border border-[#e8e5e1] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
               </div>
+              )}
               {/* Sentiment */}
               <div>
-                <label className="text-11px font-semibold text-gray-700 mb-2 block">Call Sentiment</label>
+                <label className="text-11px font-semibold text-gray-700 mb-2 block">{logContactType === 'email' ? 'Email Sentiment' : 'Call Sentiment'}</label>
                 <div className="flex gap-2">
                   {(['positive', 'neutral', 'negative'] as const).map(s => (
                     <button key={s} onClick={() => setLogCallSentiment(s)} className={`px-4 py-2 text-12px font-medium rounded-lg border transition-colors ${logCallSentiment === s ? (s === 'positive' ? 'bg-emerald-50 border-emerald-400 text-emerald-700' : s === 'negative' ? 'bg-red-50 border-red-400 text-red-700' : 'bg-gray-100 border-gray-400 text-gray-700') : 'border-[#e8e5e1] text-gray-500 hover:border-gray-300'}`}>
@@ -6724,12 +6727,12 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
               </div>
               {/* Notes */}
               <div>
-                <label className="text-11px font-semibold text-gray-700 mb-1 block">Call Notes</label>
-                <textarea value={logCallNotes} onChange={e => setLogCallNotes(e.target.value)} placeholder="What was discussed? Key takeaways, commitments made, next steps..." className="w-full text-12px border border-[#e8e5e1] rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" rows={4} />
+                <label className="text-11px font-semibold text-gray-700 mb-1 block">{logContactType === 'email' ? 'Email Summary' : 'Call Notes'}</label>
+                <textarea value={logCallNotes} onChange={e => setLogCallNotes(e.target.value)} placeholder={logContactType === 'email' ? "What was the email about? Key points, follow-ups, commitments..." : "What was discussed? Key takeaways, commitments made, next steps..."} className="w-full text-12px border border-[#e8e5e1] rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" rows={4} />
               </div>
               {/* Deal mention */}
               <div>
-                <label className="text-11px font-semibold text-gray-700 mb-1 block">Deal Discussed</label>
+                <label className="text-11px font-semibold text-gray-700 mb-1 block">{logContactType === 'email' ? 'Deal Referenced' : 'Deal Discussed'}</label>
                 <select value={logCallDealMentioned} onChange={e => setLogCallDealMentioned(e.target.value)} className="w-full text-12px border border-[#e8e5e1] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#157A6E]">
                   <option value="">None</option>
                   {deals.filter(d => d.advisorId === logCallAdvisor.id).map(d => (
@@ -6741,7 +6744,7 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
               <div className="p-3 bg-amber-50/50 rounded-lg border border-amber-200">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input type="checkbox" checked={logCallNewDeal} onChange={e => setLogCallNewDeal(e.target.checked)} className="rounded border-gray-300 text-[#157A6E] focus:ring-[#157A6E]" />
-                  <span className="text-12px font-medium text-gray-800">New deal mentioned on this call</span>
+                  <span className="text-12px font-medium text-gray-800">{logContactType === 'email' ? 'New deal mentioned in this email' : 'New deal mentioned on this call'}</span>
                 </label>
                 {logCallNewDeal && (
                   <input value={logCallNewDealName} onChange={e => setLogCallNewDealName(e.target.value)} placeholder="Deal name..." className="mt-2 w-full text-12px border border-[#e8e5e1] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
@@ -6749,7 +6752,7 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
               </div>
               {/* Submit */}
               <button onClick={handleLogCall} disabled={!logCallNotes.trim()} className="w-full px-4 py-2.5 text-13px font-semibold bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                Log Call
+                {logContactType === 'email' ? 'Log Email' : 'Log Call'}
               </button>
             </div>
           </div>
