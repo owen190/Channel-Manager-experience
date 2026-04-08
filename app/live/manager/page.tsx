@@ -119,6 +119,8 @@ export default function LiveManagerPage() {
   const [flatlinedAdvisorIds, setFlatlinedAdvisorIds] = useState<string[]>(() => loadFromStorage('cc_flatlinedAdvisorIds', []));
   const [modalEditSteps, setModalEditSteps] = useState<Array<{day: number; label: string; desc: string; phase: string}>>([]);
   const [deleteTemplateConfirm, setDeleteTemplateConfirm] = useState<string | null>(null);
+  const [showDeleteAdvisorConfirm, setShowDeleteAdvisorConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [playbookTemplates, setPlaybookTemplates] = useState<Array<{
     id: string;
     icon: string;
@@ -1447,18 +1449,32 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                     ))}
                   </div>
                   <p className="text-[9px] text-gray-400 text-center mb-4">Links configured in Settings</p>
-                  <button
-                    onClick={() => setShowAbandonModal({ advisorId: selectedAdvisor.id, advisorName: selectedAdvisor.name, company: selectedAdvisor.company, tier: selectedAdvisor.tier, mrr: selectedAdvisor.mrr })}
-                    className="w-full px-3 py-2 text-[11px] font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                  >
-                    Abandon Advisor
-                  </button>
-                  <button
-                    onClick={() => { if (confirm(`Permanently delete ${selectedAdvisor.name}? This cannot be undone.`)) handleDeleteAdvisor(selectedAdvisor.id); }}
-                    className="w-full px-3 py-2 text-[11px] font-semibold text-red-400 hover:text-red-700 transition-colors mt-2"
-                  >
-                    Delete Advisor
-                  </button>
+                  {(() => {
+                    const existingPb = launchedPlaybooks.findIndex(p => p.advisorId === selectedAdvisor.id);
+                    if (existingPb >= 0) {
+                      const pb = launchedPlaybooks[existingPb];
+                      const steps = pb.customSteps || [];
+                      const effective = steps.length - pb.skippedSteps.length;
+                      const pct = effective > 0 ? Math.round((pb.completedSteps.length / effective) * 100) : 100;
+                      return (
+                        <button
+                          onClick={() => { setActiveView('intelligence'); setIntelligenceSubTab('playbooks'); setEditingPlaybookIdx(existingPb); }}
+                          className="w-full px-3 py-2.5 text-[11px] font-semibold text-[#157A6E] border border-[#157A6E]/30 rounded-lg hover:bg-teal-50 transition-colors flex items-center justify-between"
+                        >
+                          <span className="flex items-center gap-2"><PlayCircle className="w-4 h-4" /> View Active Playbook</span>
+                          <span className="text-[10px] font-bold">{pct}%</span>
+                        </button>
+                      );
+                    }
+                    return (
+                      <button
+                        onClick={() => { setPlaybookModalAdvisor(selectedAdvisor); setPlaybookModalMode('template'); setSelectedPlaybookTemplate(null); setShowPlaybookModal(true); }}
+                        className="w-full px-3 py-2.5 text-[11px] font-semibold text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f] transition-colors flex items-center justify-center gap-2"
+                      >
+                        <PlayCircle className="w-4 h-4" /> Run Playbook
+                      </button>
+                    );
+                  })()}
                 </div>
 
                 {/* Key Metrics */}
@@ -1684,6 +1700,77 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                 <button className="px-4 py-2 text-12px font-medium bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] transition-colors">Save Note</button>
               </div>
 
+            </div>
+          </div>
+
+          {/* ═══ DANGER ZONE — at bottom of profile, requires scroll ═══ */}
+          <div className="mt-10 pt-6 border-t border-red-100">
+            <h3 className="text-[12px] font-bold uppercase tracking-wide text-red-400 mb-4">Danger Zone</h3>
+            <div className="space-y-3">
+              {/* Abandon */}
+              <div className="bg-white rounded-[10px] border border-red-100 p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[13px] font-semibold text-gray-800">Abandon Advisor</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Move to Flatlined tier with quarterly reignition cadence. Active playbooks will be cancelled.</p>
+                </div>
+                <button
+                  onClick={() => setShowAbandonModal({ advisorId: selectedAdvisor.id, advisorName: selectedAdvisor.name, company: selectedAdvisor.company, tier: selectedAdvisor.tier, mrr: selectedAdvisor.mrr })}
+                  className="px-4 py-2 text-[11px] font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors shrink-0"
+                >
+                  Abandon
+                </button>
+              </div>
+
+              {/* Delete with type-to-confirm */}
+              <div className="bg-white rounded-[10px] border border-red-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-[13px] font-semibold text-gray-800">Delete Advisor Permanently</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">This will permanently remove {selectedAdvisor.name}, all their deals, playbooks, and history. This action cannot be undone.</p>
+                  </div>
+                </div>
+                {!showDeleteAdvisorConfirm ? (
+                  <button
+                    onClick={() => { setShowDeleteAdvisorConfirm(true); setDeleteConfirmText(''); }}
+                    className="px-4 py-2 text-[11px] font-semibold text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                  >
+                    Delete Advisor...
+                  </button>
+                ) : (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
+                    <p className="text-[11px] text-red-700 font-medium">Type <span className="font-bold font-mono bg-red-100 px-1.5 py-0.5 rounded">delete</span> to confirm:</p>
+                    <input
+                      type="text"
+                      value={deleteConfirmText}
+                      onChange={e => setDeleteConfirmText(e.target.value)}
+                      placeholder="Type 'delete' to confirm"
+                      className="w-full px-3 py-2 border border-red-300 rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-red-400 bg-white"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          if (deleteConfirmText.toLowerCase() === 'delete') {
+                            handleDeleteAdvisor(selectedAdvisor.id);
+                            setShowDeleteAdvisorConfirm(false);
+                            setDeleteConfirmText('');
+                          }
+                        }}
+                        disabled={deleteConfirmText.toLowerCase() !== 'delete'}
+                        className="px-4 py-2 text-[11px] font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        Permanently Delete {selectedAdvisor.name}
+                      </button>
+                      <button
+                        onClick={() => { setShowDeleteAdvisorConfirm(false); setDeleteConfirmText(''); }}
+                        className="px-4 py-2 text-[11px] font-medium text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
