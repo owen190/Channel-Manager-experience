@@ -137,6 +137,9 @@ export default function LiveManagerPage() {
   const [logCallNewDealName, setLogCallNewDealName] = useState('');
   const [logContactType, setLogContactType] = useState<'call' | 'email'>('call');
 
+  // Persisted TSD contact edits (overrides for static TSD data)
+  const [tsdContactOverrides, setTsdContactOverrides] = useState<Record<string, Record<string, string>>>(() => loadFromStorage('cc_tsdContactOverrides', {}));
+
   // Editable personal intel per advisor
   const [advisorPersonalIntel, setAdvisorPersonalIntel] = useState<Record<string, {birthday?: string; education?: string; family?: string; hobbies?: string; funFact?: string; linkedin?: string}>>(() => loadFromStorage('cc_advisorPersonalIntel', {}));
   const [editingIntelField, setEditingIntelField] = useState<string | null>(null);
@@ -591,6 +594,7 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
   useEffect(() => { saveToStorage('cc_advisorActionItems', advisorActionItems); }, [advisorActionItems]);
   useEffect(() => { saveToStorage('cc_advisorNotes', advisorNotes); }, [advisorNotes]);
   useEffect(() => { saveToStorage('cc_contactGroups', contactGroups); }, [contactGroups]);
+  useEffect(() => { saveToStorage('cc_tsdContactOverrides', tsdContactOverrides); }, [tsdContactOverrides]);
 
   // Delete handlers
   const handleDeleteAdvisor = async (advisorId: string) => {
@@ -893,14 +897,19 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
     });
 
     return companies.map(c => {
+      // Apply saved overrides from localStorage to TSD contacts
+      const contactsWithOverrides = c.contacts.map(ct => {
+        const overrides = tsdContactOverrides[ct.id];
+        return overrides ? { ...ct, ...overrides } : ct;
+      });
       const partners = partnersByTsd[c.name] || [];
       const revenue = partners.reduce((s, p) => s + p.mrr, 0);
-      const totalIntrosQTD = c.contacts.reduce((s, ct) => s + ct.introsQTD, 0);
-      const totalIntrosAllTime = c.contacts.reduce((s, ct) => s + ct.introsAllTime, 0);
-      const totalRevenueAttributed = c.contacts.reduce((s, ct) => s + ct.revenueAttributed, 0);
-      return { ...c, partners, revenue, totalIntrosQTD, totalIntrosAllTime, totalRevenueAttributed, introTarget: 8 };
+      const totalIntrosQTD = contactsWithOverrides.reduce((s, ct) => s + ct.introsQTD, 0);
+      const totalIntrosAllTime = contactsWithOverrides.reduce((s, ct) => s + ct.introsAllTime, 0);
+      const totalRevenueAttributed = contactsWithOverrides.reduce((s, ct) => s + ct.revenueAttributed, 0);
+      return { ...c, contacts: contactsWithOverrides, partners, revenue, totalIntrosQTD, totalIntrosAllTime, totalRevenueAttributed, introTarget: 8 };
     });
-  }, [advisorsWithDeals, seededRandom]);
+  }, [advisorsWithDeals, seededRandom, tsdContactOverrides]);
 
   // Co-marketing opportunity detection
   const coMarketingOpportunities = useMemo(() => {
@@ -1660,7 +1669,8 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
         const updated = { ...selectedAdvisor, [field]: value };
         setAdvisors(prev => prev.map(a => a.id === selectedAdvisor.id ? { ...a, [field]: value } : a));
         setSelectedAdvisor(updated);
-        fetch('/api/live/advisors', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: selectedAdvisor.id, [field]: value }) }).catch(console.error);
+        // Use POST (upsert) — no PUT handler exists
+        fetch('/api/live/advisors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...selectedAdvisor, [field]: value }) }).catch(console.error);
       };
 
       return (
@@ -2904,6 +2914,11 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
             const updateTsdField = (field: string, value: string) => {
               (tc as any)[field] = value;
               setSelectedTsdContact({ ...tc, [field]: value });
+              // Persist to localStorage so edits survive refresh
+              setTsdContactOverrides(prev => ({
+                ...prev,
+                [tc.id]: { ...(prev[tc.id] || {}), [field]: value }
+              }));
             };
 
             // Mock activity for this TSD contact
