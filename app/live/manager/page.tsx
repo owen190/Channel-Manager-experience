@@ -296,24 +296,66 @@ export default function LiveManagerPage() {
   const sendAiPlaybookMessage = async (text: string) => {
     if (!text.trim()) return;
     const advisor = playbookModalAdvisor;
-    const updatedMessages = [...aiPlaybookMessages, { type: 'user' as const, text }];
-    setAiPlaybookMessages(updatedMessages);
+
+    // Add user message to chat immediately
+    const newUserMsg = { type: 'user' as const, text };
+    setAiPlaybookMessages(prev => [...prev, newUserMsg]);
     setAiPlaybookInput('');
     setAiPlaybookLoading(true);
 
     try {
-      const systemContext = advisor
-        ? `You are helping a channel manager create a playbook for their partner advisor. The advisor is ${advisor.name} at ${advisor.company}, ${advisor.tier} tier, ${formatCurrency(advisor.mrr)} MRR, ${advisor.trajectory} trajectory, ${advisor.pulse} pulse, ${advisor.friction} friction. ${advisor.diagnosis || ''}
+      // Build system prompt with deep channel management context
+      const advisorContext = advisor
+        ? `ADVISOR PROFILE:
+- Name: ${advisor.name}
+- Company: ${advisor.company}
+- Tier: ${advisor.tier}
+- MRR: ${formatCurrency(advisor.mrr)}
+- Trajectory: ${advisor.trajectory}
+- Pulse: ${advisor.pulse}
+- Friction: ${advisor.friction}
+- Diagnosis: ${advisor.diagnosis || 'None provided'}
+- Last Contact: ${advisor.lastContact || 'Unknown'}`
+        : '';
 
-When the user describes what they want, generate a playbook as a JSON array of steps. Each step has: day (number), label (short action title), desc (detailed description), phase (grouping label like "Week 1", "Diagnose", "Execute", etc).
+      const systemContext = `You are a channel management strategist helping a supplier's channel manager build an actionable playbook for a partner advisor at a TSD (Technology Solutions Distributor).
 
-ALWAYS include your playbook as a JSON code block like:
+${advisorContext}
+
+YOUR JOB: Generate a concrete, day-by-day action plan that the channel manager can execute. Each step should be a specific task they will do on that day — not vague advice.
+
+PLAYBOOK RULES:
+- Steps should be real actions: "Call [advisor name] to review Q2 pipeline" not "Reach out to partner"
+- Use the advisor's actual name, company, tier, and data in the steps
+- Day numbers represent business days from when the playbook starts
+- Each step needs a clear label (what to do) and description (how to do it, what to say, what to prepare)
+- Group steps into phases that make sense for the goal (e.g., "Discovery", "Engagement", "Execution", "Follow-through")
+- Include 5-12 steps depending on complexity
+- Space steps realistically — not everything on Day 1
+- For at-risk/declining advisors: front-load with diagnosis and quick wins
+- For growth plays: build momentum with early engagement before asking for commitments
+- For onboarding: map to typical TSD partner activation milestones
+- For win-back: start with listening, then rebuild with small asks
+
+RESPONSE FORMAT:
+1. Brief explanation of your approach (2-3 sentences max)
+2. The playbook as a JSON code block:
+
 \`\`\`json
-[{"day": 1, "label": "Step title", "desc": "Step description", "phase": "Phase name"}]
+[
+  {"day": 1, "label": "Action title", "desc": "Detailed description of what to do", "phase": "Phase Name"},
+  {"day": 3, "label": "Action title", "desc": "Detailed description", "phase": "Phase Name"}
+]
 \`\`\`
 
-Also include a brief conversational explanation before or after the JSON. Ask clarifying questions if the user's intent is unclear. Suggest improvements.`
-        : `You are helping a channel manager create a custom playbook. Generate steps as JSON when ready.`;
+3. One sentence asking if they want to adjust anything
+
+If the user asks you to revise, regenerate the FULL JSON block with changes applied. Always output the complete updated playbook, never a partial diff.
+If the user's request is vague, ask ONE clarifying question — don't generate a playbook until you understand the goal.`;
+
+      // Send only prior history (not the current message) to avoid duplication
+      // The API route will add the current message separately
+      const priorHistory = aiPlaybookMessages.map(m => ({ type: m.type, text: m.text }));
 
       const res = await fetch('/api/live/ai', {
         method: 'POST',
@@ -323,7 +365,8 @@ Also include a brief conversational explanation before or after the JSON. Ask cl
           role: 'manager',
           advisorId: advisor?.id,
           systemPrompt: systemContext,
-          conversationHistory: updatedMessages.map(m => ({ type: m.type, text: m.text })),
+          conversationHistory: priorHistory,
+          maxTokens: 4096,
         }),
       });
       const data = await res.json();
@@ -331,15 +374,17 @@ Also include a brief conversational explanation before or after the JSON. Ask cl
 
       setAiPlaybookMessages(prev => [...prev, { type: 'assistant', text: responseText }]);
 
-      // Try to extract JSON steps from the response
+      // Extract JSON steps from the response
       const jsonMatch = responseText.match(/```json\s*([\s\S]*?)```/);
       if (jsonMatch) {
         try {
           const steps = JSON.parse(jsonMatch[1]);
-          if (Array.isArray(steps) && steps.length > 0 && steps[0].label) {
+          if (Array.isArray(steps) && steps.length > 0 && steps[0].label && steps[0].day !== undefined) {
             setAiGeneratedSteps(steps);
           }
-        } catch {}
+        } catch (parseErr) {
+          console.error('Failed to parse AI playbook JSON:', parseErr);
+        }
       }
     } catch (err) {
       setAiPlaybookMessages(prev => [...prev, { type: 'assistant', text: 'Could not reach AI service. Try again or create steps manually.' }]);

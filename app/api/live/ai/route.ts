@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { db } from '@/lib/db';
 
-const SYSTEM_PROMPT = `You are an AI assistant embedded in Channel Companion, a channel management platform.
+const DEFAULT_SYSTEM_PROMPT = `You are an AI assistant embedded in Channel Companion, a channel management platform.
 You help channel managers and sales leaders manage their partner relationships, pipeline, and team performance.
 
 Your tone is professional but warm — like a sharp colleague who's read all the CRM data and call notes.
@@ -21,17 +21,22 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const { message, advisorId, role, conversationHistory } = await req.json();
+  const { message, advisorId, role, conversationHistory, systemPrompt, maxTokens } = await req.json();
 
   // Build context from database
   const context = await db.buildAIContext(advisorId || undefined);
 
   const client = new Anthropic({ apiKey });
 
+  // Use custom system prompt if provided (e.g. for playbook generation), otherwise default
+  const activeSystemPrompt = systemPrompt
+    ? `${systemPrompt}\n\n[LIVE CRM DATA]\n${context}`
+    : `${DEFAULT_SYSTEM_PROMPT}\n\n[LIVE CRM DATA]\n${context}`;
+
   try {
     const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
 
-    // Include conversation history if provided
+    // Include conversation history (excluding the current message — it's sent separately)
     if (conversationHistory && Array.isArray(conversationHistory)) {
       for (const msg of conversationHistory.slice(-10)) {
         messages.push({
@@ -41,16 +46,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Add current message with context
-    messages.push({
-      role: 'user',
-      content: `[LIVE DATA CONTEXT]\n${context}\n\n[USER ROLE: ${role || 'manager'}]\n\n${message}`,
-    });
+    // Ensure messages alternate properly — Claude requires user/assistant alternation
+    // Deduplicate: if the last history message is the same as the current message, don't add it again
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'user' && lastMsg.content === message) {
+      // Current message is already in history, don't duplicate
+    } else {
+      messages.push({
+        role: 'user',
+        content: `[USER ROLE: ${role || 'manager'}]\n\n${message}`,
+      });
+    }
+
+    // Use higher token limit for structured generation (playbooks need room for JSON)
+    const tokenLimit = maxTokens || (systemPrompt ? 4096 : 1024);
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
+      max_tokens: tokenLimit,
+      system: activeSystemPrompt,
       messages,
     });
 
