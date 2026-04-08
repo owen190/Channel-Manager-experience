@@ -8,7 +8,7 @@ import {
   Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle, RefreshCw,
   Megaphone, Star, TrendingUp as TrendingUpIcon, CheckCircle, AlertCircle as AlertCircleIcon, Edit, Plus,
   LayoutGrid, Map, FileText, Mail, Building2, ArrowUpRight, BarChart3, UserPlus, Calendar, Shield, PlayCircle, ChevronRight, Search,
-  Send, Loader2, Bell,
+  Send, Loader2, Bell, ExternalLink,
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -137,7 +137,7 @@ export default function LiveManagerPage() {
   const [logCallNewDealName, setLogCallNewDealName] = useState('');
 
   // Editable personal intel per advisor
-  const [advisorPersonalIntel, setAdvisorPersonalIntel] = useState<Record<string, {birthday?: string; education?: string; family?: string; hobbies?: string; funFact?: string}>>(() => loadFromStorage('cc_advisorPersonalIntel', {}));
+  const [advisorPersonalIntel, setAdvisorPersonalIntel] = useState<Record<string, {birthday?: string; education?: string; family?: string; hobbies?: string; funFact?: string; linkedin?: string}>>(() => loadFromStorage('cc_advisorPersonalIntel', {}));
   const [editingIntelField, setEditingIntelField] = useState<string | null>(null);
   const [editingIntelValue, setEditingIntelValue] = useState('');
 
@@ -519,6 +519,45 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
 
   useEffect(() => { fetchData(); }, []);
 
+  // Auto-create advisors for onboarding playbook contacts that don't exist yet
+  useEffect(() => {
+    if (advisors.length === 0 || launchedPlaybooks.length === 0) return;
+    const advisorIds = new Set(advisors.map(a => a.id));
+    const orphanedPlaybooks = launchedPlaybooks.filter(pb => !advisorIds.has(pb.advisorId) && pb.templateId.startsWith('onboarding-'));
+    if (orphanedPlaybooks.length === 0) return;
+
+    const createMissing = async () => {
+      for (const pb of orphanedPlaybooks) {
+        try {
+          await fetch('/api/live/advisors', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: pb.advisorId,
+              name: pb.advisorName,
+              company: 'Unknown',
+              title: 'Partner',
+              tier: 'building',
+              mrr: 0,
+              pulse: 'Fading',
+              trajectory: 'Stable',
+              friction: 'Moderate',
+              diagnosis: `Created from onboarding playbook: ${pb.playbookName || 'Relationship playbook'}`,
+              lastContact: new Date().toISOString().split('T')[0],
+              location: '',
+              email: '',
+              phone: '',
+            }),
+          });
+        } catch (err) {
+          console.error('Failed to create advisor from onboarding playbook:', err);
+        }
+      }
+      fetchData(); // Refresh to pick up new advisors
+    };
+    createMissing();
+  }, [advisors.length, launchedPlaybooks]);
+
   // Global search keyboard shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -788,9 +827,9 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
         logo: '🟦',
         description: 'Largest privately-held technology solutions distributor',
         contacts: [
-          { id: 'tel-1', name: 'Sarah Mitchell', title: 'Channel Development Manager', role: 'Channel Manager', email: 's.mitchell@telarus.com', phone: '(801) 555-4821', lastContact: '2026-03-29', introsQTD: 8, introsAllTime: 47, revenueAttributed: 142000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Proactively sending intro leads — 3 new ones this week', signalType: 'positive' as const, location: 'Salt Lake City, UT', commPref: 'Slack', notes: 'Key ally at Telarus. Always responds same-day. Advocates for Aptum in internal supplier reviews.' },
-          { id: 'tel-2', name: 'James Thornton', title: 'Solutions Engineer', role: 'Sales Engineer', email: 'j.thornton@telarus.com', phone: '(801) 555-3392', lastContact: '2026-03-25', introsQTD: 5, introsAllTime: 31, revenueAttributed: 88000, responsiveness: 'Moderate' as const, sentiment: 'Neutral' as const, engagement: 'Medium' as const, signal: 'Requested updated technical docs for SD-WAN — possible upcoming RFP', signalType: 'info' as const, location: 'Salt Lake City, UT', commPref: 'Email', notes: 'Strong technical knowledge. Prefers detailed spec sheets over marketing collateral.' },
-          { id: 'tel-3', name: 'Rachael Nguyen', title: 'Partner Success Lead', role: 'Channel Manager', email: 'r.nguyen@telarus.com', phone: '(801) 555-1104', lastContact: '2026-04-01', introsQTD: 12, introsAllTime: 63, revenueAttributed: 215000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Top intro source this quarter — asked to co-host a webinar', signalType: 'positive' as const, location: 'Austin, TX', commPref: 'Slack', notes: 'Our #1 champion at Telarus. Drives more intros than anyone. Nominated us for Supplier of the Year.' },
+          { id: 'tel-1', name: 'Sarah Mitchell', title: 'Channel Development Manager', role: 'Channel Manager', email: 's.mitchell@telarus.com', phone: '(801) 555-4821', lastContact: '2026-03-29', introsQTD: 8, introsAllTime: 47, revenueAttributed: 142000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Proactively sending intro leads — 3 new ones this week', signalType: 'positive' as const, location: 'Salt Lake City, UT', commPref: 'Slack', notes: 'Key ally at Telarus. Always responds same-day. Advocates for Aptum in internal supplier reviews.', linkedin: 'linkedin.com/in/sarah-mitchell-telarus' },
+          { id: 'tel-2', name: 'James Thornton', title: 'Solutions Engineer', role: 'Sales Engineer', email: 'j.thornton@telarus.com', phone: '(801) 555-3392', lastContact: '2026-03-25', introsQTD: 5, introsAllTime: 31, revenueAttributed: 88000, responsiveness: 'Moderate' as const, sentiment: 'Neutral' as const, engagement: 'Medium' as const, signal: 'Requested updated technical docs for SD-WAN — possible upcoming RFP', signalType: 'info' as const, location: 'Salt Lake City, UT', commPref: 'Email', notes: 'Strong technical knowledge. Prefers detailed spec sheets over marketing collateral.', linkedin: 'linkedin.com/in/james-thornton-se' },
+          { id: 'tel-3', name: 'Rachael Nguyen', title: 'Partner Success Lead', role: 'Channel Manager', email: 'r.nguyen@telarus.com', phone: '(801) 555-1104', lastContact: '2026-04-01', introsQTD: 12, introsAllTime: 63, revenueAttributed: 215000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Top intro source this quarter — asked to co-host a webinar', signalType: 'positive' as const, location: 'Austin, TX', commPref: 'Slack', notes: 'Our #1 champion at Telarus. Drives more intros than anyone. Nominated us for Supplier of the Year.', linkedin: 'linkedin.com/in/rachael-nguyen' },
         ],
       },
       {
@@ -798,8 +837,8 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
         logo: '🟧',
         description: 'Leading channel platform for IT decision making',
         contacts: [
-          { id: 'av-1', name: 'Derek Paulson', title: 'Channel Account Manager', role: 'Channel Manager', email: 'd.paulson@avant.com', phone: '(312) 555-6678', lastContact: '2026-03-31', introsQTD: 10, introsAllTime: 52, revenueAttributed: 178000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Pushing Aptum for 2 net-new enterprise accounts this month', signalType: 'positive' as const, location: 'Chicago, IL', commPref: 'Email', notes: 'Very results-driven. Responds well to SPIFs and incentive programs. Always hits his intro targets.' },
-          { id: 'av-2', name: 'Monica Reeves', title: 'Solutions Architect', role: 'Sales Engineer', email: 'm.reeves@avant.com', phone: '(312) 555-2241', lastContact: '2026-03-28', introsQTD: 6, introsAllTime: 28, revenueAttributed: 95000, responsiveness: 'Moderate' as const, sentiment: 'Neutral' as const, engagement: 'Medium' as const, signal: 'Joined a competitor webinar last week — monitor for mindshare drift', signalType: 'warning' as const, location: 'Chicago, IL', commPref: 'Email', notes: 'Great technical depth. Helps close complex deals. Schedules are tight — book 2 weeks ahead.' },
+          { id: 'av-1', name: 'Derek Paulson', title: 'Channel Account Manager', role: 'Channel Manager', email: 'd.paulson@avant.com', phone: '(312) 555-6678', lastContact: '2026-03-31', introsQTD: 10, introsAllTime: 52, revenueAttributed: 178000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Pushing Aptum for 2 net-new enterprise accounts this month', signalType: 'positive' as const, location: 'Chicago, IL', commPref: 'Email', notes: 'Very results-driven. Responds well to SPIFs and incentive programs. Always hits his intro targets.', linkedin: 'linkedin.com/in/derek-paulson' },
+          { id: 'av-2', name: 'Monica Reeves', title: 'Solutions Architect', role: 'Sales Engineer', email: 'm.reeves@avant.com', phone: '(312) 555-2241', lastContact: '2026-03-28', introsQTD: 6, introsAllTime: 28, revenueAttributed: 95000, responsiveness: 'Moderate' as const, sentiment: 'Neutral' as const, engagement: 'Medium' as const, signal: 'Joined a competitor webinar last week — monitor for mindshare drift', signalType: 'warning' as const, location: 'Chicago, IL', commPref: 'Email', notes: 'Great technical depth. Helps close complex deals. Schedules are tight — book 2 weeks ahead.', linkedin: 'linkedin.com/in/monica-reeves-sa' },
         ],
       },
       {
@@ -807,8 +846,8 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
         logo: '🟩',
         description: 'Technology advisory and distribution platform',
         contacts: [
-          { id: 'bp-1', name: 'Kevin Marsh', title: 'VP Channel Partnerships', role: 'Leadership', email: 'k.marsh@bridgepointe.com', phone: '(925) 555-8812', lastContact: '2026-03-22', introsQTD: 4, introsAllTime: 19, revenueAttributed: 67000, responsiveness: 'Slow' as const, sentiment: 'Cool' as const, engagement: 'Low' as const, signal: 'Hasn\'t responded to last 2 emails — relationship cooling', signalType: 'warning' as const, location: 'San Ramon, CA', commPref: 'Phone', notes: 'C-level relationship — strategic but hard to reach. Best approached through Alicia first.' },
-          { id: 'bp-2', name: 'Alicia Tran', title: 'Partner Development Rep', role: 'PDM/SPDM', email: 'a.tran@bridgepointe.com', phone: '(925) 555-3350', lastContact: '2026-03-27', introsQTD: 7, introsAllTime: 34, revenueAttributed: 112000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Scheduled joint training session for advisors next week', signalType: 'positive' as const, location: 'San Ramon, CA', commPref: 'Slack', notes: 'Day-to-day contact at Bridgepointe. Very organized. Keeps detailed notes on advisor preferences.' },
+          { id: 'bp-1', name: 'Kevin Marsh', title: 'VP Channel Partnerships', role: 'Leadership', email: 'k.marsh@bridgepointe.com', phone: '(925) 555-8812', lastContact: '2026-03-22', introsQTD: 4, introsAllTime: 19, revenueAttributed: 67000, responsiveness: 'Slow' as const, sentiment: 'Cool' as const, engagement: 'Low' as const, signal: 'Hasn\'t responded to last 2 emails — relationship cooling', signalType: 'warning' as const, location: 'San Ramon, CA', commPref: 'Phone', notes: 'C-level relationship — strategic but hard to reach. Best approached through Alicia first.', linkedin: 'linkedin.com/in/kevin-marsh-bp' },
+          { id: 'bp-2', name: 'Alicia Tran', title: 'Partner Development Rep', role: 'PDM/SPDM', email: 'a.tran@bridgepointe.com', phone: '(925) 555-3350', lastContact: '2026-03-27', introsQTD: 7, introsAllTime: 34, revenueAttributed: 112000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Scheduled joint training session for advisors next week', signalType: 'positive' as const, location: 'San Ramon, CA', commPref: 'Slack', notes: 'Day-to-day contact at Bridgepointe. Very organized. Keeps detailed notes on advisor preferences.', linkedin: 'linkedin.com/in/alicia-tran' },
         ],
       },
       {
@@ -816,9 +855,9 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
         logo: '🟪',
         description: 'Telecommunications master agent and solutions distributor',
         contacts: [
-          { id: 'in-1', name: 'Robert Cianci', title: 'Channel Director', role: 'Leadership', email: 'r.cianci@intelisys.com', phone: '(203) 555-9901', lastContact: '2026-03-30', introsQTD: 9, introsAllTime: 41, revenueAttributed: 156000, responsiveness: 'Moderate' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Invited us to Intelisys supplier summit — keynote opportunity', signalType: 'positive' as const, location: 'Petaluma, CA', commPref: 'Phone', notes: 'Senior leader with strong influence. Sets strategic direction for which suppliers get prioritized.' },
-          { id: 'in-2', name: 'Patricia Dunn', title: 'Sales Engineer', role: 'Sales Engineer', email: 'p.dunn@intelisys.com', phone: '(203) 555-4478', lastContact: '2026-03-18', introsQTD: 3, introsAllTime: 22, revenueAttributed: 71000, responsiveness: 'Slow' as const, sentiment: 'Neutral' as const, engagement: 'Low' as const, signal: 'Low intro volume — may need enablement refresh on our solutions', signalType: 'info' as const, location: 'Milford, CT', commPref: 'Email', notes: 'Technically capable but not proactive. Needs regular check-ins to stay engaged.' },
-          { id: 'in-3', name: 'Tyler Washington', title: 'Partner Enablement Manager', role: 'Channel Manager', email: 't.washington@intelisys.com', phone: '(203) 555-6632', lastContact: '2026-04-01', introsQTD: 11, introsAllTime: 55, revenueAttributed: 198000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Created custom Aptum battlecard for advisors — high advocacy', signalType: 'positive' as const, location: 'Petaluma, CA', commPref: 'Slack', notes: 'Enablement-focused. Loves co-branded content. Great at arming advisors with our talking points.' },
+          { id: 'in-1', name: 'Robert Cianci', title: 'Channel Director', role: 'Leadership', email: 'r.cianci@intelisys.com', phone: '(203) 555-9901', lastContact: '2026-03-30', introsQTD: 9, introsAllTime: 41, revenueAttributed: 156000, responsiveness: 'Moderate' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Invited us to Intelisys supplier summit — keynote opportunity', signalType: 'positive' as const, location: 'Petaluma, CA', commPref: 'Phone', notes: 'Senior leader with strong influence. Sets strategic direction for which suppliers get prioritized.', linkedin: 'linkedin.com/in/robert-cianci' },
+          { id: 'in-2', name: 'Patricia Dunn', title: 'Sales Engineer', role: 'Sales Engineer', email: 'p.dunn@intelisys.com', phone: '(203) 555-4478', lastContact: '2026-03-18', introsQTD: 3, introsAllTime: 22, revenueAttributed: 71000, responsiveness: 'Slow' as const, sentiment: 'Neutral' as const, engagement: 'Low' as const, signal: 'Low intro volume — may need enablement refresh on our solutions', signalType: 'info' as const, location: 'Milford, CT', commPref: 'Email', notes: 'Technically capable but not proactive. Needs regular check-ins to stay engaged.', linkedin: 'linkedin.com/in/patricia-dunn-intelisys' },
+          { id: 'in-3', name: 'Tyler Washington', title: 'Partner Enablement Manager', role: 'Channel Manager', email: 't.washington@intelisys.com', phone: '(203) 555-6632', lastContact: '2026-04-01', introsQTD: 11, introsAllTime: 55, revenueAttributed: 198000, responsiveness: 'Fast' as const, sentiment: 'Warm' as const, engagement: 'High' as const, signal: 'Created custom Aptum battlecard for advisors — high advocacy', signalType: 'positive' as const, location: 'Petaluma, CA', commPref: 'Slack', notes: 'Enablement-focused. Loves co-branded content. Great at arming advisors with our talking points.', linkedin: 'linkedin.com/in/tyler-washington' },
         ],
       },
       {
@@ -826,8 +865,8 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
         logo: '🔵',
         description: 'B2B subscription commerce platform and marketplace',
         contacts: [
-          { id: 'ad-1', name: 'Yuki Tanaka', title: 'Partner Growth Manager', role: 'Channel Manager', email: 'y.tanaka@appdirect.com', phone: '(415) 555-7723', lastContact: '2026-03-26', introsQTD: 6, introsAllTime: 25, revenueAttributed: 83000, responsiveness: 'Moderate' as const, sentiment: 'Neutral' as const, engagement: 'Medium' as const, signal: 'Requested updated pricing matrix — potential deal in pipeline', signalType: 'info' as const, location: 'San Francisco, CA', commPref: 'Email', notes: 'Newer relationship. Methodical and data-driven. Appreciates ROI-focused messaging.' },
-          { id: 'ad-2', name: 'Chris Brennan', title: 'Solutions Consultant', role: 'Sales Engineer', email: 'c.brennan@appdirect.com', phone: '(415) 555-1198', lastContact: '2026-03-20', introsQTD: 2, introsAllTime: 14, revenueAttributed: 45000, responsiveness: 'Slow' as const, sentiment: 'Cool' as const, engagement: 'Low' as const, signal: 'Engagement dropping — last meeting was cancelled twice', signalType: 'warning' as const, location: 'San Francisco, CA', commPref: 'Phone', notes: 'Was more engaged 6 months ago. May be shifting focus to other suppliers. Needs re-engagement.' },
+          { id: 'ad-1', name: 'Yuki Tanaka', title: 'Partner Growth Manager', role: 'Channel Manager', email: 'y.tanaka@appdirect.com', phone: '(415) 555-7723', lastContact: '2026-03-26', introsQTD: 6, introsAllTime: 25, revenueAttributed: 83000, responsiveness: 'Moderate' as const, sentiment: 'Neutral' as const, engagement: 'Medium' as const, signal: 'Requested updated pricing matrix — potential deal in pipeline', signalType: 'info' as const, location: 'San Francisco, CA', commPref: 'Email', notes: 'Newer relationship. Methodical and data-driven. Appreciates ROI-focused messaging.', linkedin: 'linkedin.com/in/yuki-tanaka-ad' },
+          { id: 'ad-2', name: 'Chris Brennan', title: 'Solutions Consultant', role: 'Sales Engineer', email: 'c.brennan@appdirect.com', phone: '(415) 555-1198', lastContact: '2026-03-20', introsQTD: 2, introsAllTime: 14, revenueAttributed: 45000, responsiveness: 'Slow' as const, sentiment: 'Cool' as const, engagement: 'Low' as const, signal: 'Engagement dropping — last meeting was cancelled twice', signalType: 'warning' as const, location: 'San Francisco, CA', commPref: 'Phone', notes: 'Was more engaged 6 months ago. May be shifting focus to other suppliers. Needs re-engagement.', linkedin: 'linkedin.com/in/chris-brennan' },
         ],
       },
     ];
@@ -1313,7 +1352,7 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                     <div key={idx} className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 rounded-lg p-1 -m-1 transition-colors" onClick={() => { setActiveView('intelligence'); setIntelligenceSubTab('playbooks'); setEditingPlaybookIdx(idx); }}>
                       <div className={`w-2 h-full min-h-[32px] rounded-full shrink-0 ${pb.priority === 'critical' ? 'bg-red-400' : pb.priority === 'high' ? 'bg-amber-400' : 'bg-blue-400'}`} />
                       <div className="flex-1 min-w-0">
-                        <div className="text-[11px] font-semibold text-gray-800 truncate">{pb.playbookName || playbookTemplates.find(t => t.id === pb.templateId)?.title || pb.templateId.replace('-', ' ')} — {pb.advisorName}</div>
+                        <div className="text-[11px] font-semibold text-gray-800 truncate">{pb.playbookName || playbookTemplates.find(t => t.id === pb.templateId)?.title || pb.templateId.replace('-', ' ')} — <button onClick={(e) => { e.stopPropagation(); const adv = advisors.find(a => a.id === pb.advisorId); if (adv) { setSelectedAdvisor(adv); setPanelOpen(true); } }} className="text-[#157A6E] hover:underline">{pb.advisorName}</button></div>
                         <div className="flex items-center gap-2 mt-1">
                           <div className="flex-1 h-[4px] bg-gray-100 rounded-full overflow-hidden">
                             <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${pct}%` }} />
@@ -1656,6 +1695,14 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                       <span className="text-gray-900 font-medium truncate">{selectedAdvisor.name.toLowerCase().replace(' ', '.')}@{selectedAdvisor.company.toLowerCase().replace(/\s+/g, '')}.com</span>
                     </div>
                     <div className="flex items-center gap-2.5 text-12px">
+                      <ExternalLink className="w-3.5 h-3.5 text-[#0A66C2] flex-shrink-0" />
+                      {advisorPersonalIntel[selectedAdvisor.id]?.linkedin ? (
+                        <a href={advisorPersonalIntel[selectedAdvisor.id]!.linkedin!.startsWith('http') ? advisorPersonalIntel[selectedAdvisor.id]!.linkedin! : `https://${advisorPersonalIntel[selectedAdvisor.id]!.linkedin!}`} target="_blank" rel="noopener noreferrer" className="text-[#0A66C2] font-medium hover:underline truncate">{advisorPersonalIntel[selectedAdvisor.id]!.linkedin}</a>
+                      ) : (
+                        <button onClick={() => { setEditingIntelField(`${selectedAdvisor.id}-linkedin`); setEditingIntelValue(''); }} className="text-gray-400 text-12px italic hover:text-[#0A66C2]">Add LinkedIn...</button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2.5 text-12px">
                       <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                       <span className="text-gray-700">{selectedAdvisor.location || 'Unknown'}</span>
                     </div>
@@ -1794,12 +1841,19 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                               <button onClick={() => setEditingIntelField(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3.5 h-3.5" /></button>
                             </div>
                           ) : (
-                            <p
-                              onClick={() => { setEditingIntelField(`${selectedAdvisor.id}-${item.field}`); setEditingIntelValue(item.value || ''); }}
-                              className="text-11px font-medium text-gray-900 cursor-pointer hover:text-[#157A6E] hover:bg-teal-50/50 rounded px-1 -mx-1 py-0.5 transition-colors"
-                            >
-                              {item.value || <span className="text-gray-400 italic">Click to add...</span>}
-                            </p>
+                            <div className="flex items-center gap-1">
+                              <p
+                                onClick={() => { setEditingIntelField(`${selectedAdvisor.id}-${item.field}`); setEditingIntelValue(item.value || ''); }}
+                                className="text-11px font-medium text-gray-900 cursor-pointer hover:text-[#157A6E] hover:bg-teal-50/50 rounded px-1 -mx-1 py-0.5 transition-colors flex-1"
+                              >
+                                {item.value || <span className="text-gray-400 italic">Click to add...</span>}
+                              </p>
+                              {item.field === 'linkedin' && item.value && (
+                                <a href={item.value.startsWith('http') ? item.value : `https://${item.value}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-[#0A66C2] hover:text-[#004182] flex-shrink-0" title="Open LinkedIn profile">
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -2743,6 +2797,12 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                         <div className="flex items-center gap-2.5 text-12px"><Mail className="w-3.5 h-3.5 text-gray-400" /><span className="text-gray-900 font-medium">{tc.email}</span></div>
                         <div className="flex items-center gap-2.5 text-12px"><MapPin className="w-3.5 h-3.5 text-gray-400" /><span className="text-gray-700">{tc.location}</span></div>
                         <div className="flex items-center gap-2.5 text-12px"><Building2 className="w-3.5 h-3.5 text-gray-400" /><span className="text-gray-700">{tc.companyName}</span></div>
+                        {tc.linkedin && (
+                          <div className="flex items-center gap-2.5 text-12px">
+                            <ExternalLink className="w-3.5 h-3.5 text-[#0A66C2]" />
+                            <a href={tc.linkedin.startsWith('http') ? tc.linkedin : `https://${tc.linkedin}`} target="_blank" rel="noopener noreferrer" className="text-[#0A66C2] font-medium hover:underline">LinkedIn Profile</a>
+                          </div>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-4 gap-2 mb-2">
@@ -5262,7 +5322,7 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                           {isCustomOrAi && <span className="inline-block px-2 py-0.5 rounded text-[9px] font-medium bg-purple-50 text-purple-700">{lp.templateId === 'ai-generated' ? '✦ AI' : '✎ Custom'}</span>}
                           {lp.skippedSteps.length > 0 && <span className="inline-block px-2 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-500">{lp.skippedSteps.length} skipped</span>}
                         </div>
-                        <h3 className="text-[15px] font-bold text-gray-800 font-serif">{displayName}: {lpAdvisor.name}</h3>
+                        <h3 className="text-[15px] font-bold text-gray-800 font-serif">{displayName}: <button onClick={(e) => { e.stopPropagation(); setSelectedAdvisor(lpAdvisor); setPanelOpen(true); }} className="text-[#157A6E] hover:underline">{lpAdvisor.name}</button></h3>
                         <p className="text-[12px] text-gray-500 mt-1">{lpSteps.length} action steps — {formatCurrency(lpAdvisor.mrr)} MRR</p>
                       </div>
                       <div className="text-right shrink-0">
