@@ -27,6 +27,7 @@ export interface Deal {
   id: string;
   name: string;
   advisorId: string;
+  advisorIds?: string[];
   repId?: string;
   mrr: number;
   health: DealHealth;
@@ -45,11 +46,16 @@ export interface Deal {
   lastModified: string;
 }
 
+export type RelationshipStage = 'Prospect' | 'Onboarding' | 'Activated' | 'Scaling' | 'Strategic';
+
 export interface Advisor {
   id: string;
   name: string;
   title: string;
   company: string;
+  phone?: string;
+  email?: string;
+  relationshipStage?: RelationshipStage;
   pulse: PulseState;
   trajectory: Trajectory;
   tone: Tone;

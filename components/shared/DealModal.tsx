@@ -22,6 +22,7 @@ export function DealModal({ isOpen, onClose, onSave, onSavePartner, editingDeal,
     editingDeal || {
       name: '',
       advisorId: '',
+      advisorIds: [],
       stage: 'Discovery',
       mrr: 0,
       probability: 50,
@@ -33,7 +34,7 @@ export function DealModal({ isOpen, onClose, onSave, onSavePartner, editingDeal,
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  // Advisor search state
+  // Advisor search state (multi-select)
   const [advisorSearch, setAdvisorSearch] = useState('');
   const [showAdvisorDropdown, setShowAdvisorDropdown] = useState(false);
   const [showNewAdvisorForm, setShowNewAdvisorForm] = useState(false);
@@ -43,23 +44,27 @@ export function DealModal({ isOpen, onClose, onSave, onSavePartner, editingDeal,
   const advisorDropdownRef = useRef<HTMLDivElement>(null);
   const companyDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Selected advisor IDs for multi-select
+  const selectedAdvisorIds: string[] = formData.advisorIds?.length
+    ? formData.advisorIds
+    : formData.advisorId
+      ? [formData.advisorId]
+      : [];
+
   // Reset form when editingDeal changes
   useEffect(() => {
     if (isOpen) {
-      setFormData(editingDeal || {
-        name: '', advisorId: '', stage: 'Discovery', mrr: 0,
+      const initialIds = editingDeal
+        ? (editingDeal.advisorIds?.length ? editingDeal.advisorIds : editingDeal.advisorId ? [editingDeal.advisorId] : [])
+        : [];
+      setFormData(editingDeal ? { ...editingDeal, advisorIds: initialIds } : {
+        name: '', advisorId: '', advisorIds: [], stage: 'Discovery', mrr: 0,
         probability: 50, health: 'Healthy', closeDate: '', competitor: '',
       });
       setAdvisorSearch('');
       setShowAdvisorDropdown(false);
       setShowNewAdvisorForm(false);
       setError('');
-
-      // Set advisor search text if editing
-      if (editingDeal?.advisorId) {
-        const adv = advisors.find(a => a.id === editingDeal.advisorId);
-        if (adv) setAdvisorSearch(`${adv.name} · ${adv.company}`);
-      }
     }
   }, [isOpen, editingDeal]);
 
@@ -91,18 +96,30 @@ export function DealModal({ isOpen, onClose, onSave, onSavePartner, editingDeal,
       )
     : advisors;
 
-  const selectedAdvisorObj = advisors.find(a => a.id === formData.advisorId);
+  const handleToggleAdvisor = (adv: Advisor) => {
+    const currentIds = [...selectedAdvisorIds];
+    const idx = currentIds.indexOf(adv.id);
+    if (idx >= 0) {
+      currentIds.splice(idx, 1);
+    } else {
+      currentIds.push(adv.id);
+    }
+    handleChange('advisorIds', currentIds);
+    // Keep primary advisorId as first selected
+    handleChange('advisorId', currentIds[0] || '');
+    setAdvisorSearch('');
+  };
+
+  const handleRemoveAdvisor = (id: string) => {
+    const currentIds = selectedAdvisorIds.filter(aid => aid !== id);
+    handleChange('advisorIds', currentIds);
+    handleChange('advisorId', currentIds[0] || '');
+  };
 
   // Filtered companies for new advisor form
   const filteredCompanies = newAdvisorCompanySearch.trim()
     ? existingCompanies.filter(c => c.toLowerCase().includes(newAdvisorCompanySearch.toLowerCase()))
     : existingCompanies;
-
-  const handleSelectAdvisor = (adv: Advisor) => {
-    handleChange('advisorId', adv.id);
-    setAdvisorSearch(`${adv.name} · ${adv.company}`);
-    setShowAdvisorDropdown(false);
-  };
 
   const handleCreateAndSelectAdvisor = async () => {
     if (!newAdvisor.name.trim()) return;
@@ -113,8 +130,6 @@ export function DealModal({ isOpen, onClose, onSave, onSavePartner, editingDeal,
           company: newAdvisor.company || newAdvisorCompanySearch,
           title: newAdvisor.title,
         } as Partial<Advisor>);
-        // After save, the advisors list will update — for now set search text
-        setAdvisorSearch(`${newAdvisor.name} · ${newAdvisor.company || newAdvisorCompanySearch}`);
         setShowNewAdvisorForm(false);
         setNewAdvisor({ name: '', company: '', title: '' });
         setNewAdvisorCompanySearch('');
@@ -127,11 +142,11 @@ export function DealModal({ isOpen, onClose, onSave, onSavePartner, editingDeal,
   const handleSave = async () => {
     setError('');
     if (!formData.name?.trim()) { setError('Deal name is required'); return; }
-    if (!formData.advisorId) { setError('Advisor is required'); return; }
+    if (selectedAdvisorIds.length === 0) { setError('At least one partner is required'); return; }
 
     setSaving(true);
     try {
-      await onSave(formData);
+      await onSave({ ...formData, advisorId: selectedAdvisorIds[0], advisorIds: selectedAdvisorIds });
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to save deal');
@@ -173,11 +188,33 @@ export function DealModal({ isOpen, onClose, onSave, onSavePartner, editingDeal,
             />
           </div>
 
-          {/* Advisor Search Combo-box */}
+          {/* Partner Multi-Select */}
           <div ref={advisorDropdownRef}>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Advisor <span className="text-red-500">*</span>
+              Partner(s) <span className="text-red-500">*</span>
             </label>
+
+            {/* Selected partners chips */}
+            {selectedAdvisorIds.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {selectedAdvisorIds.map(id => {
+                  const adv = advisors.find(a => a.id === id);
+                  if (!adv) return null;
+                  return (
+                    <span key={id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#157A6E]/10 text-[#157A6E] rounded-full text-11px font-medium">
+                      {adv.name}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAdvisor(id)}
+                        className="hover:text-red-500 transition-colors ml-0.5"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
 
             {!showNewAdvisorForm ? (
               <div className="relative">
@@ -188,41 +225,37 @@ export function DealModal({ isOpen, onClose, onSave, onSavePartner, editingDeal,
                   onChange={e => {
                     setAdvisorSearch(e.target.value);
                     setShowAdvisorDropdown(true);
-                    // Clear selection if user types
-                    if (formData.advisorId && selectedAdvisorObj) {
-                      const currentText = `${selectedAdvisorObj.name} · ${selectedAdvisorObj.company}`;
-                      if (e.target.value !== currentText) {
-                        handleChange('advisorId', '');
-                      }
-                    }
                   }}
                   onFocus={() => setShowAdvisorDropdown(true)}
-                  placeholder="Search advisors by name or company..."
+                  placeholder={selectedAdvisorIds.length > 0 ? "Add another partner..." : "Search partners by name or company..."}
                   className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#157A6E] focus:border-transparent"
                 />
 
                 {/* Dropdown */}
                 {showAdvisorDropdown && (
                   <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-[200px] overflow-y-auto">
-                    {filteredAdvisors.slice(0, 8).map(adv => (
-                      <button
-                        key={adv.id}
-                        onClick={() => handleSelectAdvisor(adv)}
-                        className={`w-full text-left px-3 py-2.5 hover:bg-[#F0F9F8] transition-colors flex items-center gap-3 ${
-                          formData.advisorId === adv.id ? 'bg-[#157A6E]/5' : ''
-                        }`}
-                      >
-                        <div className="w-7 h-7 rounded-full bg-[#157A6E] flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
-                          {adv.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                        </div>
-                        <div>
-                          <p className="text-12px font-medium text-gray-800">{adv.name}</p>
-                          <p className="text-[10px] text-gray-500">{adv.company} · {adv.title || 'Partner'}</p>
-                        </div>
-                      </button>
-                    ))}
+                    {filteredAdvisors.slice(0, 8).map(adv => {
+                      const isSelected = selectedAdvisorIds.includes(adv.id);
+                      return (
+                        <button
+                          key={adv.id}
+                          onClick={() => handleToggleAdvisor(adv)}
+                          className={`w-full text-left px-3 py-2.5 hover:bg-[#F0F9F8] transition-colors flex items-center gap-3 ${
+                            isSelected ? 'bg-[#157A6E]/5' : ''
+                          }`}
+                        >
+                          <div className={`w-7 h-7 rounded-full ${isSelected ? 'bg-[#157A6E]' : 'bg-gray-300'} flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0`}>
+                            {isSelected ? '✓' : adv.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                          </div>
+                          <div>
+                            <p className="text-12px font-medium text-gray-800">{adv.name}</p>
+                            <p className="text-[10px] text-gray-500">{adv.company} · {adv.title || 'Partner'}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
                     {filteredAdvisors.length === 0 && (
-                      <p className="px-3 py-2 text-12px text-gray-400 italic">No advisors match "{advisorSearch}"</p>
+                      <p className="px-3 py-2 text-12px text-gray-400 italic">No partners match &quot;{advisorSearch}&quot;</p>
                     )}
                     {/* Create new advisor option */}
                     <button
@@ -235,7 +268,7 @@ export function DealModal({ isOpen, onClose, onSave, onSavePartner, editingDeal,
                     >
                       <Plus className="w-4 h-4" />
                       <span className="text-12px font-medium">
-                        {advisorSearch.trim() ? `Create "${advisorSearch}"` : 'Create new advisor'}
+                        {advisorSearch.trim() ? `Create "${advisorSearch}"` : 'Create new partner'}
                       </span>
                     </button>
                   </div>
@@ -245,7 +278,7 @@ export function DealModal({ isOpen, onClose, onSave, onSavePartner, editingDeal,
               /* Inline New Advisor Form */
               <div className="border border-[#157A6E]/30 rounded-lg p-4 bg-[#157A6E]/5 space-y-3">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-12px font-semibold text-[#157A6E]">New Advisor</p>
+                  <p className="text-12px font-semibold text-[#157A6E]">New Partner</p>
                   <button
                     onClick={() => { setShowNewAdvisorForm(false); }}
                     className="text-11px text-gray-500 hover:text-gray-700"
@@ -297,7 +330,7 @@ export function DealModal({ isOpen, onClose, onSave, onSavePartner, editingDeal,
                           }}
                           className="w-full text-left px-3 py-2 text-12px text-[#157A6E] font-medium hover:bg-[#157A6E]/5 border-t border-gray-100"
                         >
-                          + Create "{newAdvisorCompanySearch}"
+                          + Create &quot;{newAdvisorCompanySearch}&quot;
                         </button>
                       )}
                     </div>
@@ -315,7 +348,7 @@ export function DealModal({ isOpen, onClose, onSave, onSavePartner, editingDeal,
                   disabled={!newAdvisor.name.trim()}
                   className="px-4 py-2 text-12px font-medium bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] transition-colors disabled:opacity-50"
                 >
-                  Create Advisor & Attach
+                  Create Partner & Attach
                 </button>
               </div>
             )}

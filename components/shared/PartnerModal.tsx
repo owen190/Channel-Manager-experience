@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { Advisor, PartnerTier } from '@/lib/types';
+import { Advisor, PartnerTier, RelationshipStage } from '@/lib/types';
 
 interface PartnerModalProps {
   isOpen: boolean;
@@ -26,9 +26,11 @@ export function PartnerModal({
     name: '',
     title: '',
     company: '',
+    phone: '',
     location: '',
     mrr: 0,
     tier: 'building' as PartnerTier,
+    relationshipStage: 'Prospect' as RelationshipStage,
     connectedSince: new Date().toISOString().split('T')[0],
     commPreference: '',
     bestDayToReach: '',
@@ -46,9 +48,11 @@ export function PartnerModal({
         name: editingPartner.name,
         title: editingPartner.title,
         company: editingPartner.company,
+        phone: editingPartner.phone || '',
         location: editingPartner.location,
         mrr: editingPartner.mrr,
         tier: editingPartner.tier,
+        relationshipStage: editingPartner.relationshipStage || 'Prospect',
         connectedSince: editingPartner.connectedSince,
         commPreference: editingPartner.commPreference,
         bestDayToReach: editingPartner.bestDayToReach,
@@ -61,9 +65,11 @@ export function PartnerModal({
         name: '',
         title: '',
         company: '',
+        phone: '',
         location: '',
         mrr: 0,
         tier: 'building' as PartnerTier,
+        relationshipStage: 'Prospect' as RelationshipStage,
         connectedSince: new Date().toISOString().split('T')[0],
         commPreference: '',
         bestDayToReach: '',
@@ -204,6 +210,34 @@ export function PartnerModal({
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-13px focus:outline-none focus:ring-2 focus:ring-[#157A6E] focus:border-transparent"
                 placeholder="e.g., San Francisco, CA"
               />
+            </div>
+          </div>
+
+          {/* Phone & Relationship Stage Row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-12px font-medium text-gray-700 mb-2">Phone</label>
+              <input
+                type="tel"
+                value={formData.phone || ''}
+                onChange={(e) => handleChange('phone', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-13px focus:outline-none focus:ring-2 focus:ring-[#157A6E] focus:border-transparent"
+                placeholder="(555) 123-4567"
+              />
+            </div>
+            <div>
+              <label className="block text-12px font-medium text-gray-700 mb-2">Relationship Stage</label>
+              <select
+                value={formData.relationshipStage || 'Prospect'}
+                onChange={(e) => handleChange('relationshipStage', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-13px focus:outline-none focus:ring-2 focus:ring-[#157A6E] focus:border-transparent bg-white"
+              >
+                <option value="Prospect">Prospect</option>
+                <option value="Onboarding">Onboarding</option>
+                <option value="Activated">Activated</option>
+                <option value="Scaling">Scaling</option>
+                <option value="Strategic">Strategic</option>
+              </select>
             </div>
           </div>
 

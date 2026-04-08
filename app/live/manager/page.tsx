@@ -176,6 +176,13 @@ export default function LiveManagerPage() {
   // Contacts view
   const [contactsView, setContactsView] = useState<'partners' | 'tsds' | 'all' | 'groups'>('partners');
 
+  // Helper: get all advisor IDs for a deal (backward-compatible)
+  const getDealAdvisorIds = (deal: any): string[] => {
+    if (deal.advisorIds?.length) return deal.advisorIds;
+    if (deal.advisorId) return [deal.advisorId];
+    return [];
+  };
+
   const [playbookTemplates, setPlaybookTemplates] = useState<Array<{
     id: string;
     icon: string;
@@ -890,7 +897,7 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
       const totalIntrosQTD = c.contacts.reduce((s, ct) => s + ct.introsQTD, 0);
       const totalIntrosAllTime = c.contacts.reduce((s, ct) => s + ct.introsAllTime, 0);
       const totalRevenueAttributed = c.contacts.reduce((s, ct) => s + ct.revenueAttributed, 0);
-      return { ...c, partners, revenue, totalIntrosQTD, totalIntrosAllTime, totalRevenueAttributed };
+      return { ...c, partners, revenue, totalIntrosQTD, totalIntrosAllTime, totalRevenueAttributed, introTarget: 8 };
     });
   }, [advisorsWithDeals, seededRandom]);
 
@@ -1385,6 +1392,7 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
     // Relationship Stage types (new channel-appropriate categories)
     const relationshipStages = ['Prospect', 'Onboarding', 'Activated', 'Scaling', 'Strategic'];
     const getRelationshipStage = (advisor: Advisor): string => {
+      if ((advisor as any).relationshipStage) return (advisor as any).relationshipStage;
       const stages = ['Prospect', 'Onboarding', 'Activated', 'Scaling', 'Strategic'];
       const idx = Math.floor(seededRandom(advisor.id + '-stage') * stages.length);
       return stages[idx];
@@ -1574,7 +1582,8 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
         ? company.contacts.reduce((sum, c) => sum + getDaysSinceContact(c.lastContact), 0) / company.contacts.length
         : 0;
 
-      const introsFrequency = company.totalIntrosQTD > 8 ? 1 : company.totalIntrosQTD > 4 ? 0.5 : 0;
+      const introTarget = (company as any).introTarget || 8;
+      const introsFrequency = company.totalIntrosQTD > introTarget ? 1 : company.totalIntrosQTD > (introTarget / 2) ? 0.5 : 0;
       const recentContact = avgDaysSinceContact < 7 ? 1 : avgDaysSinceContact < 14 ? 0.5 : 0;
       const revenueScale = company.totalRevenueAttributed > 100000 ? 1 : company.totalRevenueAttributed > 50000 ? 0.5 : 0;
 
@@ -1968,9 +1977,9 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                     <div className="flex gap-2">
                       <button onClick={() => {
                         if (!inlineDealName.trim()) return;
-                        const newDeal: any = { id: `deal-${Date.now()}`, name: inlineDealName, advisorId: selectedAdvisor.id, stage: 'Discovery', mrr: parseInt(inlineDealMRR) || 0, health: 'Healthy', probability: 10, daysInStage: 0, lastActivity: new Date().toISOString().split('T')[0], nextStep: 'Initial qualification', decisionMaker: selectedAdvisor.name, products: [], actionItems: [] };
+                        const newDeal: any = { id: `deal-${Date.now()}`, name: inlineDealName, advisorId: selectedAdvisor.id, advisorIds: [selectedAdvisor.id], stage: 'Discovery', mrr: parseInt(inlineDealMRR) || 0, health: 'Healthy', probability: 10, daysInStage: 0, lastActivity: new Date().toISOString().split('T')[0], nextStep: 'Initial qualification', decisionMaker: selectedAdvisor.name, products: [], actionItems: [] };
                         setDeals(prev => [...prev, newDeal]);
-                        fetch('/api/live/deals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: inlineDealName, advisorId: selectedAdvisor.id, stage: 'Discovery', mrr: parseInt(inlineDealMRR) || 0, probability: 10, health: 'Healthy', daysInStage: 0 }) }).catch(console.error);
+                        fetch('/api/live/deals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: inlineDealName, advisorId: selectedAdvisor.id, advisorIds: [selectedAdvisor.id], stage: 'Discovery', mrr: parseInt(inlineDealMRR) || 0, probability: 10, health: 'Healthy', daysInStage: 0 }) }).catch(console.error);
                         setInlineDealName(''); setInlineDealMRR(''); setShowInlineAddDeal(false);
                       }} className="px-3 py-1 text-11px font-medium bg-[#157A6E] text-white rounded hover:bg-[#0f5550]">Add Deal</button>
                       <button onClick={() => { setShowInlineAddDeal(false); setInlineDealName(''); setInlineDealMRR(''); }} className="px-3 py-1 text-11px font-medium text-gray-500 hover:text-gray-700">Cancel</button>
@@ -2708,7 +2717,8 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                 const avgDaysSinceContact = company.contacts.length > 0
                   ? company.contacts.reduce((s, c) => s + getDaysSinceContact(c.lastContact), 0) / company.contacts.length
                   : 0;
-                const introsFrequency = company.totalIntrosQTD > 8 ? 1 : company.totalIntrosQTD > 4 ? 0.5 : 0;
+                const cIntroTarget = (company as any).introTarget || 8;
+                const introsFrequency = company.totalIntrosQTD > cIntroTarget ? 1 : company.totalIntrosQTD > (cIntroTarget / 2) ? 0.5 : 0;
                 const recentContact = avgDaysSinceContact < 7 ? 1 : avgDaysSinceContact < 14 ? 0.5 : 0;
                 const revenueScale = company.totalRevenueAttributed > 100000 ? 1 : company.totalRevenueAttributed > 50000 ? 0.5 : 0;
                 return sum + (introsFrequency + recentContact + revenueScale) / 3;
@@ -3030,6 +3040,43 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
               <Plus className="w-4 h-4" /> Add TSD
             </button>
           </div>
+
+          {/* Intro Target Bar — shows when a specific TSD company is selected */}
+          {tsdCompanyFilter && (() => {
+            const selectedCompany = TSD_COMPANIES.find(c => c.name === tsdCompanyFilter);
+            if (!selectedCompany) return null;
+            const currentTarget = (selectedCompany as any).introTarget || 8;
+            const currentIntros = selectedCompany.totalIntrosQTD;
+            const pct = Math.min(100, Math.round((currentIntros / currentTarget) * 100));
+            return (
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] px-5 py-3 flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <span className="text-11px font-medium text-gray-600">Intro Target:</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={currentTarget}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 1;
+                      // Update the intro target on the company object
+                      (selectedCompany as any).introTarget = val;
+                    }}
+                    className="w-16 px-2 py-1 border border-gray-200 rounded text-12px text-center focus:outline-none focus:ring-1 focus:ring-[#157A6E]"
+                  />
+                  <span className="text-11px text-gray-400">intros / quarter</span>
+                </div>
+                <div className="flex-1 flex items-center gap-3">
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: pct >= 100 ? '#16A34A' : pct >= 50 ? '#FBBF24' : '#EF4444' }} />
+                  </div>
+                  <span className="text-11px font-semibold" style={{ color: pct >= 100 ? '#16A34A' : pct >= 50 ? '#92400E' : '#EF4444' }}>
+                    {currentIntros}/{currentTarget} ({pct}%)
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
             <table className="w-full border-collapse">
