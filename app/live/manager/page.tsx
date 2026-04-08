@@ -75,7 +75,7 @@ export default function LiveManagerPage() {
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [showPartnerModal, setShowPartnerModal] = useState(false);
   const [editingPartner, setEditingPartner] = useState<Advisor | null>(null);
-  const [relationshipViewMode, setRelationshipViewMode] = useState<'partners' | 'tsds' | 'groups'>('partners');
+  const [relationshipViewMode, setRelationshipViewMode] = useState<'partners' | 'tsds' | 'groups' | 'all'>('partners');
   const [contactTypeFilter, setContactTypeFilter] = useState<string>('All');
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [companyFilter, setCompanyFilter] = useState<string | null>(null);
@@ -2008,6 +2008,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
           {[
             { key: 'partners', label: 'Partners', icon: Users },
             { key: 'tsds', label: `TSDs (${TSD_COMPANIES.length})`, icon: Building2 },
+            { key: 'all', label: 'All Contacts', icon: LayoutGrid },
             { key: 'groups', label: `Groups (${contactGroups.length})`, icon: Shield },
           ].map(tab => (
             <button
@@ -2857,15 +2858,126 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
         })()}
 
 
+        {/* ── ALL CONTACTS SUB-TAB ── */}
+        {relationshipViewMode === 'all' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1]">
+              <div className="p-4 border-b border-[#e8e5e1]">
+                <input placeholder="Search all contacts..." value={partnerSearch} onChange={e => setPartnerSearch(e.target.value)} className="w-full text-13px border border-[#e8e5e1] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
+              </div>
+              <div className="divide-y divide-[#e8e5e1]">
+                {/* Partners */}
+                {advisorsWithDeals.filter(a => !partnerSearch || a.name.toLowerCase().includes(partnerSearch.toLowerCase()) || a.company.toLowerCase().includes(partnerSearch.toLowerCase())).map(a => (
+                  <div key={a.id} onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors">
+                    <div className="w-8 h-8 bg-[#157A6E] rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-[11px] font-semibold">{a.name.split(' ').map(n => n[0]).join('')}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-13px font-medium text-gray-900">{a.name}</p>
+                      <p className="text-11px text-gray-500">{a.company}</p>
+                    </div>
+                    <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[10px] font-medium rounded">Partner</span>
+                    <TierBadge tier={a.tier} />
+                    <span className="text-12px font-bold text-gray-700 tabular-nums w-20 text-right">{formatCurrency(a.mrr)}</span>
+                  </div>
+                ))}
+                {/* TSD contacts */}
+                {TSD_COMPANIES.flatMap(co => co.contacts.map(c => ({ ...c, company: co.name }))).filter(c => !partnerSearch || c.name.toLowerCase().includes(partnerSearch.toLowerCase()) || c.company.toLowerCase().includes(partnerSearch.toLowerCase())).map(c => (
+                  <div key={c.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors">
+                    <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-[11px] font-semibold">{c.name.split(' ').map(n => n[0]).join('')}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-13px font-medium text-gray-900">{c.name}</p>
+                      <p className="text-11px text-gray-500">{c.role} · {c.company}</p>
+                    </div>
+                    <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-medium rounded">TSD</span>
+                    <span className="text-11px text-gray-400 w-28 text-right truncate">{c.email}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── GROUPS SUB-TAB ── */}
         {relationshipViewMode === 'groups' && (
           <div className="space-y-4">
+            {/* Groups Explainer */}
+            <div className="bg-gradient-to-r from-[#157A6E]/5 to-teal-50/50 rounded-[10px] border border-[#157A6E]/20 p-5">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 bg-[#157A6E]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Users className="w-5 h-5 text-[#157A6E]" />
+                </div>
+                <div>
+                  <h3 className="text-[14px] font-semibold font-['Newsreader'] text-gray-900 mb-1">Organize your partners into groups</h3>
+                  <p className="text-12px text-gray-600 leading-relaxed">
+                    Groups help you manage subsets of your partners more effectively. Set custom cadence rules per group, auto-generate action items when outreach is overdue, and track how you're performing with each segment. Great for organizing by region, tier, product focus, or any criteria that matters to your workflow.
+                  </p>
+                  <div className="flex gap-4 mt-3">
+                    <div className="flex items-center gap-1.5 text-11px text-gray-500">
+                      <Calendar className="w-3 h-3 text-[#157A6E]" />
+                      Custom cadence per group
+                    </div>
+                    <div className="flex items-center gap-1.5 text-11px text-gray-500">
+                      <Zap className="w-3 h-3 text-[#157A6E]" />
+                      Auto-generate action items
+                    </div>
+                    <div className="flex items-center gap-1.5 text-11px text-gray-500">
+                      <BarChart3 className="w-3 h-3 text-[#157A6E]" />
+                      Group performance reports
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Create Group Form */}
             {showCreateGroup && (
               <div className="bg-white rounded-[10px] border-2 border-[#157A6E]/30 p-5">
                 <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-3">Create Contact Group</h3>
                 <input value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="Group name..." className="w-full text-13px border border-[#e8e5e1] rounded-lg px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
-                <p className="text-11px text-gray-500 mb-2">Select contacts to add:</p>
+
+                {/* Upload spreadsheet option */}
+                <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-white rounded-lg border border-[#e8e5e1] flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-4 h-4 text-[#157A6E]" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-12px font-medium text-gray-800">Import from spreadsheet</p>
+                      <p className="text-[10px] text-gray-500">Upload a .csv or .xlsx with partner names to auto-match</p>
+                    </div>
+                    <label className="px-3 py-1.5 text-[11px] font-semibold text-[#157A6E] border border-[#157A6E]/30 rounded-lg hover:bg-teal-50 cursor-pointer transition-colors">
+                      Upload
+                      <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          const text = ev.target?.result as string;
+                          if (file.name.endsWith('.csv')) {
+                            const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+                            const nameCol = lines[0]?.toLowerCase().includes('name') ? 0 : -1;
+                            const dataLines = nameCol >= 0 ? lines.slice(1) : lines;
+                            const names = dataLines.map(l => {
+                              const cols = l.split(',').map(c => c.replace(/"/g, '').trim());
+                              return nameCol >= 0 ? cols[nameCol] : cols[0];
+                            }).filter(Boolean);
+                            const matched = advisorsWithDeals.filter(a =>
+                              names.some(n => a.name.toLowerCase().includes(n.toLowerCase()) || n.toLowerCase().includes(a.name.toLowerCase()))
+                            );
+                            setNewGroupAdvisors(prev => [...new Set([...prev, ...matched.map(a => a.id)])]);
+                          }
+                        };
+                        reader.readAsText(file);
+                        e.target.value = '';
+                      }} />
+                    </label>
+                  </div>
+                </div>
+
+                <p className="text-11px text-gray-500 mb-2">Or select contacts manually:</p>
                 <div className="max-h-48 overflow-y-auto space-y-1 mb-3 border border-[#e8e5e1] rounded-lg p-2">
                   {advisorsWithDeals.map(a => (
                     <label key={a.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer">
@@ -2875,6 +2987,9 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                     </label>
                   ))}
                 </div>
+                {newGroupAdvisors.length > 0 && (
+                  <p className="text-11px text-[#157A6E] font-medium mb-2">{newGroupAdvisors.length} contact{newGroupAdvisors.length !== 1 ? 's' : ''} selected</p>
+                )}
                 <div className="flex gap-2">
                   <button onClick={() => {
                     if (!newGroupName.trim()) return;
@@ -2930,6 +3045,34 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                     }} className="mt-2 px-3 py-1.5 text-[10px] font-semibold bg-[#157A6E] text-white rounded hover:bg-[#0f5550]">Save Rules</button>
                   </div>
                 )}
+                {/* Group performance snapshot */}
+                {(() => {
+                  const members = group.advisorIds.map(id => advisors.find(adv => adv.id === id)).filter(Boolean) as Advisor[];
+                  const groupMRR = members.reduce((s, a) => s + a.mrr, 0);
+                  const groupDeals = deals.filter(d => group.advisorIds.includes(d.advisorId));
+                  const healthy = members.filter(a => a.pulse === 'Strong' || a.pulse === 'Steady').length;
+                  const atRisk = members.filter(a => a.friction === 'Critical' || a.friction === 'High').length;
+                  return (
+                    <div className="grid grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
+                      <div className="text-center">
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wide">MRR</p>
+                        <p className="text-[14px] font-bold text-[#157A6E]">{formatCurrency(groupMRR)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wide">Deals</p>
+                        <p className="text-[14px] font-bold text-gray-800">{groupDeals.length}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wide">Healthy</p>
+                        <p className="text-[14px] font-bold text-emerald-600">{healthy}/{members.length}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wide">At Risk</p>
+                        <p className={`text-[14px] font-bold ${atRisk > 0 ? 'text-red-500' : 'text-gray-400'}`}>{atRisk}</p>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {/* Group members */}
                 <div className="space-y-1">
                   {group.advisorIds.map(id => {
