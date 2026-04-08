@@ -51,7 +51,7 @@ import { managerBriefing } from '@/lib/data/briefings';
 import { NAV_ITEMS_MANAGER, STAGE_WEIGHTS, QUARTER_END, DAYS_REMAINING } from '@/lib/constants';
 import { Advisor, Deal, DealHealth, FrictionLevel, DiagnosticRow, EngagementScore } from '@/lib/types';
 
-type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Stalled';
+type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Closed Lost' | 'Stalled';
 
 export default function ManagerPage() {
   const [activeView, setActiveViewRaw] = useState('command-center');
@@ -108,20 +108,22 @@ export default function ManagerPage() {
 
   const getTierColor = (tier: string): string => {
     const colorMap: Record<string, string> = {
-      'platinum': '#157A6E',
-      'gold': '#2563eb',
-      'silver': '#9ca3af',
+      'anchor': '#157A6E',
+      'scaling': '#2563eb',
+      'building': '#9ca3af',
+      'launching': '#3b82f6',
     };
     return colorMap[tier] || '#9ca3af';
   };
 
   const calculateQuotesData = (advisor: Advisor): { submitted: number; won: number } => {
     const tierMultiplier: Record<string, number> = {
-      'platinum': 45,
-      'gold': 28,
-      'silver': 12,
+      'anchor': 45,
+      'scaling': 28,
+      'building': 12,
+      'launching': 8,
     };
-    const tier = advisor.tier || 'silver';
+    const tier = advisor.tier || 'building';
     const baseFactor = tierMultiplier[tier] || 12;
     const submitted = Math.floor(5 + (baseFactor * (advisor.mrr / 10000)));
     const conversionRate = 0.3 + ((advisor.mrr % 7) / 7) * 0.4;
@@ -253,6 +255,7 @@ export default function ManagerPage() {
       'Proposal': 0,
       'Negotiating': 0,
       'Closed Won': 0,
+      'Closed Lost': 0,
       'Stalled': 0
     };
     deals.forEach(deal => {
@@ -370,10 +373,10 @@ export default function ManagerPage() {
     switch (relationshipFilter) {
       case 'At Risk':
         return advisors.filter(a => ['Slipping', 'Freefall'].includes(a.trajectory) || ['Fading', 'Flatline'].includes(a.pulse));
-      case 'Platinum':
-        return advisors.filter(a => a.tier === 'platinum');
+      case 'Anchor':
+        return advisors.filter(a => a.tier === 'anchor');
       case 'Rising Stars':
-        return advisors.filter(a => a.tier === 'gold' && ['Climbing', 'Accelerating'].includes(a.trajectory) && ['Strong', 'Rising'].includes(a.pulse));
+        return advisors.filter(a => a.tier === 'scaling' && ['Climbing', 'Accelerating'].includes(a.trajectory) && ['Strong', 'Rising'].includes(a.pulse));
       case 'New':
         return advisors.filter(a => {
           const connected = new Date(a.connectedSince);
@@ -1574,7 +1577,7 @@ export default function ManagerPage() {
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-5">
                     <p className="text-10px uppercase font-semibold text-[#888] mb-1">Advisors</p>
                     <p className="text-2xl font-bold text-gray-900">{advisors.length}</p>
-                    <p className="text-11px text-[#157A6E] mt-1">{advisors.filter(a => a.tier === 'platinum').length} Platinum</p>
+                    <p className="text-11px text-[#157A6E] mt-1">{advisors.filter(a => a.tier === 'anchor').length} Anchor</p>
                   </div>
                   <div className="bg-white rounded-xl border border-[#e8e5e1] p-5">
                     <p className="text-10px uppercase font-semibold text-[#888] mb-1">Portfolio MRR</p>
@@ -1613,7 +1616,7 @@ export default function ManagerPage() {
                           const engagementScore = calculateEngagementScore(advisor);
                           const engagementX = (engagementScore / 100) * 80 + 10;
                           const mrrY = 100 - ((advisor.mrr / maxMRR) * 80 + 10);
-                          const tierColor = getTierColor(advisor.tier || 'silver');
+                          const tierColor = getTierColor(advisor.tier || 'building');
                           const showLabel = top5Ids.has(advisor.id);
 
                           return (
@@ -1660,14 +1663,15 @@ export default function ManagerPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {['platinum', 'gold', 'silver'].map((tier, idx) => {
+                          {['anchor', 'scaling', 'building', 'launching'].map((tier, idx) => {
                             const tierAdvisors = advisors.filter(a => a.tier === tier);
                             const tierMRR = tierAdvisors.reduce((sum, a) => sum + a.mrr, 0);
                             const avgMRR = tierAdvisors.length > 0 ? tierMRR / tierAdvisors.length : 0;
                             const tierLabels: Record<string, string> = {
-                              'platinum': 'Platinum',
-                              'gold': 'Gold',
-                              'silver': 'Silver',
+                              'anchor': 'Anchor',
+                              'scaling': 'Scaling',
+                              'building': 'Building',
+                              'launching': 'Launching',
                             };
 
                             const avgEngagementTier = tierAdvisors.length > 0

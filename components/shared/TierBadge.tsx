@@ -10,25 +10,25 @@ const tierConfig: Record<
   PartnerTier,
   { bg: string; text: string; label: string }
 > = {
-  platinum: {
+  anchor: {
     bg: 'bg-tcs-teal',
     text: 'text-white',
-    label: 'PLATINUM',
+    label: 'ANCHOR',
   },
-  gold: {
+  scaling: {
     bg: 'bg-amber-500',
     text: 'text-white',
-    label: 'GOLD',
+    label: 'SCALING',
   },
-  silver: {
+  building: {
     bg: 'bg-gray-400',
     text: 'text-white',
-    label: 'SILVER',
+    label: 'BUILDING',
   },
-  onboarding: {
+  launching: {
     bg: 'bg-blue-500',
     text: 'text-white',
-    label: 'ONBOARDING',
+    label: 'LAUNCHING',
   },
 };
 

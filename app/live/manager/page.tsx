@@ -30,7 +30,7 @@ import { NAV_ITEMS_MANAGER, STAGE_WEIGHTS, QUARTER_END, DAYS_REMAINING, SERVICE_
 import { Advisor, Deal, DealHealth, FrictionLevel, DiagnosticRow, EngagementScore, PartnerTier } from '@/lib/types';
 import { adaptAdvisor, adaptDeal } from '@/lib/db/adapter';
 
-type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Stalled';
+type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Closed Lost' | 'Stalled';
 
 // localStorage helpers
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -79,10 +79,10 @@ export default function LiveManagerPage() {
   const [contactTypeFilter, setContactTypeFilter] = useState<string>('All');
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [companyFilter, setCompanyFilter] = useState<string | null>(null);
-  const [pipelineMetricsView, setPipelineMetricsView] = useState<'kanban' | 'deals' | 'quotes-vs-sold' | 'by-advisor'>('kanban');
+  const [pipelineMetricsView, setPipelineMetricsView] = useState<'kanban' | 'deals' | 'quotes-vs-sold' | 'by-advisor'>('deals');
   const [selectedTsdAdvisors, setSelectedTsdAdvisors] = useState<Advisor[]>([]);
   const [expandedTsdCompany, setExpandedTsdCompany] = useState<string | null>(null);
-  const [intelligenceSubTab, setIntelligenceSubTab] = useState<'overview' | 'signals' | 'playbooks' | 'diagnostics'>('overview');
+  const [intelligenceSubTab, setIntelligenceSubTab] = useState<'overview' | 'signals' | 'playbooks' | 'diagnostics' | 'resources'>('overview');
   const [signalFilter, setSignalFilter] = useState<'all' | 'churn' | 'growth' | 'stall' | 'intel'>('all');
   const [showPlaybookModal, setShowPlaybookModal] = useState(false);
   const [playbookModalSignal, setPlaybookModalSignal] = useState<{type: string; title: string; desc: string; partnerName?: string; mrr?: number} | null>(null);
@@ -104,8 +104,11 @@ export default function LiveManagerPage() {
   const [stageFilter, setStageFilter] = useState<string>('All');
   const [pipelineSearch, setPipelineSearch] = useState('');
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   const [completedActions, setCompletedActions] = useState<string[]>(() => loadFromStorage('cc_completedActions', []));
   const [actionFilter, setActionFilter] = useState<'all' | 'critical' | 'playbook' | 'cadence' | 'deals'>('all');
+  const [showAllPriority, setShowAllPriority] = useState(false);
+  const [showAllDeadlines, setShowAllDeadlines] = useState(false);
   const [playbookModalAdvisor, setPlaybookModalAdvisor] = useState<Advisor | null>(null);
   const [playbookModalMode, setPlaybookModalMode] = useState<'template' | 'custom' | 'ai'>('template');
   const [aiPlaybookMessages, setAiPlaybookMessages] = useState<Array<{type: 'user' | 'assistant'; text: string}>>([]);
@@ -116,7 +119,7 @@ export default function LiveManagerPage() {
   const [customPlaybookSteps, setCustomPlaybookSteps] = useState<Array<{label: string; desc: string; day: number}>>([{label: '', desc: '', day: 1}]);
   const [showAbandonModal, setShowAbandonModal] = useState<{advisorId: string; advisorName: string; company: string; tier: PartnerTier; mrr: number} | null>(null);
   const [abandonNotes, setAbandonNotes] = useState('');
-  const [flatlinedAdvisorIds, setFlatlinedAdvisorIds] = useState<string[]>(() => loadFromStorage('cc_flatlinedAdvisorIds', []));
+  const [stalledAdvisorIds, setStalledAdvisorIds] = useState<string[]>(() => loadFromStorage('cc_stalledAdvisorIds', []));
   const [modalEditSteps, setModalEditSteps] = useState<Array<{day: number; label: string; desc: string; phase: string}>>([]);
   const [deleteTemplateConfirm, setDeleteTemplateConfirm] = useState<string | null>(null);
   const [showDeleteAdvisorConfirm, setShowDeleteAdvisorConfirm] = useState(false);
@@ -343,7 +346,7 @@ export default function LiveManagerPage() {
 
   // Abandon/Reignite Advisor functions
   const abandonAdvisor = (advisorId: string) => {
-    setFlatlinedAdvisorIds(prev => [...prev, advisorId]);
+    setStalledAdvisorIds(prev => [...prev, advisorId]);
     setLaunchedPlaybooks(prev => prev.filter(p => p.advisorId !== advisorId));
     setShowAbandonModal(null);
     setSelectedAdvisor(null);
@@ -352,7 +355,7 @@ export default function LiveManagerPage() {
   };
 
   const reigniteAdvisor = (advisorId: string) => {
-    setFlatlinedAdvisorIds(prev => prev.filter(id => id !== advisorId));
+    setStalledAdvisorIds(prev => prev.filter(id => id !== advisorId));
   };
 
   // AI Playbook generation
@@ -385,7 +388,9 @@ export default function LiveManagerPage() {
 
 ${advisorContext}
 
-YOUR JOB: Generate a concrete, day-by-day action plan that the channel manager can execute. Each step should be a specific task they will do on that day — not vague advice.
+YOUR JOB: Have a brief dialogue with the channel manager FIRST to understand their goals, then generate a concrete, day-by-day action plan they can execute.
+
+IMPORTANT: Before generating any playbook steps, you MUST ask the channel manager at least one clarifying question about their goals, the partner's situation, or what outcome they're targeting. Never generate a complete playbook on the first response. Have a brief dialogue first (1-2 questions), then generate the playbook with structured steps.
 
 PLAYBOOK RULES:
 - Steps should be real actions: "Call [advisor name] to review Q2 pipeline" not "Reach out to partner"
@@ -400,7 +405,7 @@ PLAYBOOK RULES:
 - For onboarding: map to typical TSD partner activation milestones
 - For win-back: start with listening, then rebuild with small asks
 
-RESPONSE FORMAT:
+RESPONSE FORMAT (when dialogue is complete and user is ready for the playbook):
 1. Brief explanation of your approach (2-3 sentences max)
 2. The playbook as a JSON code block:
 
@@ -413,8 +418,12 @@ RESPONSE FORMAT:
 
 3. One sentence asking if they want to adjust anything
 
+FORMATTING for generated steps:
+When you DO generate the playbook (after gathering context), format the steps in the JSON with this exact format for each step:
+Day X: [Step Title] — [Step description]
+
 If the user asks you to revise, regenerate the FULL JSON block with changes applied. Always output the complete updated playbook, never a partial diff.
-If the user's request is vague, ask ONE clarifying question — don't generate a playbook until you understand the goal.`;
+If the user's request is vague or you don't have enough context, ask ONE clarifying question — don't generate a playbook until you understand their specific goal.`;
 
       // Send only prior history (not the current message) to avoid duplication
       // The API route will add the current message separately
@@ -499,7 +508,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
   // Persist key state to localStorage
   useEffect(() => { saveToStorage('cc_launchedPlaybooks', launchedPlaybooks); }, [launchedPlaybooks]);
   useEffect(() => { saveToStorage('cc_completedActions', completedActions); }, [completedActions]);
-  useEffect(() => { saveToStorage('cc_flatlinedAdvisorIds', flatlinedAdvisorIds); }, [flatlinedAdvisorIds]);
+  useEffect(() => { saveToStorage('cc_stalledAdvisorIds', stalledAdvisorIds); }, [stalledAdvisorIds]);
   useEffect(() => { saveToStorage('cc_callLogs', callLogs); }, [callLogs]);
   useEffect(() => { saveToStorage('cc_advisorPersonalIntel', advisorPersonalIntel); }, [advisorPersonalIntel]);
   useEffect(() => { saveToStorage('cc_advisorWhiteSpaceNotes', advisorWhiteSpaceNotes); }, [advisorWhiteSpaceNotes]);
@@ -685,7 +694,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     const w = STAGE_WEIGHTS.find(s => s.stage === d.stage)?.weight || 0;
     return sum + d.mrr * w;
   }, 0);
-  const atRiskAdvisors = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.trajectory === 'Freefall' || a.trajectory === 'Slipping'));
+  const atRiskAdvisors = advisors.filter(a => !stalledAdvisorIds.includes(a.id) && (a.trajectory === 'Freefall' || a.trajectory === 'Slipping'));
   const atRiskMRR = atRiskAdvisors.reduce((sum, a) => sum + a.mrr, 0);
   const stalledDeals = deals.filter(d => d.stage === 'Stalled');
   const closedWonDeals = deals.filter(d => d.stage === 'Closed Won');
@@ -694,7 +703,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
   const formatCurrency = (v: number) => v >= 1000 ? `$${(v / 1000).toFixed(1)}K` : `$${v}`;
 
   // Stage distribution
-  const stages: DealStage[] = ['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Stalled'];
+  const stages: DealStage[] = ['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Closed Lost', 'Stalled'];
   const stageDistribution = stages.map(stage => {
     const stageDeals = deals.filter(d => d.stage === stage);
     return { stage, count: stageDeals.length, mrr: stageDeals.reduce((s, d) => s + d.mrr, 0) };
@@ -806,8 +815,8 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
   const coMarketingOpportunities = useMemo(() => {
     const opps: Array<{ advisor: Advisor; reason: string; type: string }> = [];
     advisorsWithDeals.forEach(a => {
-      if (a.pulse === 'Strong' && a.tier === 'platinum') {
-        opps.push({ advisor: a, reason: `${a.name} is a Platinum partner with strong engagement — ideal co-marketing candidate`, type: 'High-Value Amplification' });
+      if (a.pulse === 'Strong' && a.tier === 'anchor') {
+        opps.push({ advisor: a, reason: `${a.name} is an Anchor partner with strong engagement — ideal co-marketing candidate`, type: 'High-Value Amplification' });
       }
       if (a.trajectory === 'Accelerating' || a.trajectory === 'Climbing') {
         const advisorDeals = deals.filter(d => d.advisorId === a.id && d.stage === 'Closed Won');
@@ -910,12 +919,13 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     });
 
     // Cadence: overdue contacts by tier
-    const platinumOverdue = advisors.filter(a => a.tier === 'platinum' && getDaysSinceContact(a.lastContact) > 7);
-    const goldOverdue = advisors.filter(a => a.tier === 'gold' && getDaysSinceContact(a.lastContact) > 14);
-    const silverOverdue = advisors.filter(a => a.tier === 'silver' && getDaysSinceContact(a.lastContact) > 30);
-    [...platinumOverdue, ...goldOverdue, ...silverOverdue].forEach(a => {
+    const anchorOverdue = advisors.filter(a => a.tier === 'anchor' && getDaysSinceContact(a.lastContact) > 7);
+    const scalingOverdue = advisors.filter(a => a.tier === 'scaling' && getDaysSinceContact(a.lastContact) > 14);
+    const buildingOverdue = advisors.filter(a => a.tier === 'building' && getDaysSinceContact(a.lastContact) > 21);
+    const launchingOverdue = advisors.filter(a => a.tier === 'launching' && getDaysSinceContact(a.lastContact) > 10);
+    [...anchorOverdue, ...scalingOverdue, ...buildingOverdue, ...launchingOverdue].forEach(a => {
       if (todayActions.some(act => act.advisorId === a.id)) return; // don't duplicate
-      todayActions.push({ id: `cadence-${a.id}`, title: `Check in with ${a.name}`, context: `${a.tier === 'platinum' ? 'Platinum' : a.tier === 'gold' ? 'Gold' : 'Silver'} · Last contact ${getDaysSinceContact(a.lastContact)} days ago · ${a.tier === 'platinum' ? 'Weekly' : a.tier === 'gold' ? 'Bi-weekly' : 'Monthly'} cadence overdue`, tag: 'Cadence', type: 'cadence', advisorId: a.id, mrrImpact: a.mrr, impactType: 'growth' });
+      todayActions.push({ id: `cadence-${a.id}`, title: `Check in with ${a.name}`, context: `${a.tier === 'anchor' ? 'Anchor' : a.tier === 'scaling' ? 'Scaling' : a.tier === 'building' ? 'Building' : 'Launching'} · Last contact ${getDaysSinceContact(a.lastContact)} days ago · ${a.tier === 'anchor' ? 'Weekly' : a.tier === 'scaling' ? 'Bi-weekly' : a.tier === 'building' ? 'Every 3 weeks' : '10-day'} cadence overdue`, tag: 'Cadence', type: 'cadence', advisorId: a.id, mrrImpact: a.mrr, impactType: 'growth' });
     });
 
     // Group rule cadence actions
@@ -942,21 +952,25 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     const doneActions = filteredActions.filter(a => completedActions.includes(a.id));
     const criticalCount = todayActions.filter(a => a.type === 'critical').length;
 
+    // Priority vs Deadline split
+    const priorityActions = todayActions.filter(a => a.type === 'critical' || a.type === 'playbook');
+    const deadlineActions = todayActions.filter(a => a.type === 'cadence' || a.type === 'deals');
+
     // ── Portfolio snapshot data ──
     const frictionCritical = advisors.filter(a => a.friction === 'Critical').length;
     const frictionHigh = advisors.filter(a => a.friction === 'High').length;
     const healthy = advisors.filter(a => a.friction === 'Low' && (a.pulse === 'Strong' || a.pulse === 'Steady')).length;
     const tierCounts = {
-      platinum: advisors.filter(a => a.tier === 'platinum').length,
-      gold: advisors.filter(a => a.tier === 'gold').length,
-      silver: advisors.filter(a => a.tier === 'silver').length,
-      onboarding: advisors.filter(a => a.tier === 'onboarding').length,
+      anchor: advisors.filter(a => a.tier === 'anchor').length,
+      scaling: advisors.filter(a => a.tier === 'scaling').length,
+      building: advisors.filter(a => a.tier === 'building').length,
+      launching: advisors.filter(a => a.tier === 'launching').length,
     };
 
     // Cadence compliance
-    const cadenceData = (['platinum', 'gold', 'silver'] as const).map(tier => {
+    const cadenceData = (['anchor', 'scaling', 'building', 'launching'] as const).map(tier => {
       const tierAdvs = advisors.filter(a => a.tier === tier);
-      const threshold = tier === 'platinum' ? 7 : tier === 'gold' ? 14 : 30;
+      const threshold = tier === 'anchor' ? 7 : tier === 'scaling' ? 14 : tier === 'building' ? 21 : 10;
       const onPace = tierAdvs.filter(a => getDaysSinceContact(a.lastContact) <= threshold).length;
       return { tier, total: tierAdvs.length, onPace, pct: tierAdvs.length > 0 ? Math.round((onPace / tierAdvs.length) * 100) : 100 };
     });
@@ -1018,7 +1032,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
               <div className="space-y-1.5">
                 {[...advisors].sort((a, b) => b.mrr - a.mrr).slice(0, 6).map(a => (
                   <div key={a.id} className="flex items-center gap-2.5 py-1.5 px-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
-                    <div className={`w-2 h-2 rounded-sm shrink-0 ${a.tier === 'platinum' ? 'bg-[#157A6E]' : a.tier === 'gold' ? 'bg-amber-400' : a.tier === 'silver' ? 'bg-gray-400' : 'bg-blue-400'}`} />
+                    <div className={`w-2 h-2 rounded-sm shrink-0 ${a.tier === 'anchor' ? 'bg-[#157A6E]' : a.tier === 'scaling' ? 'bg-amber-400' : a.tier === 'building' ? 'bg-gray-400' : 'bg-blue-400'}`} />
                     <span className="text-[12px] font-medium text-gray-800 flex-1 truncate">{a.name}</span>
                     <PulseBadge pulse={a.pulse} />
                     <span className="text-[11px] font-bold text-gray-700 tabular-nums">{formatCurrency(a.mrr)}</span>
@@ -1048,16 +1062,16 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
 
           {/* Tier distribution + cadence compliance inline */}
           <div className="grid grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100">
-            {(['platinum', 'gold', 'silver', 'onboarding'] as const).map(tier => {
+            {(['anchor', 'scaling', 'building', 'launching'] as const).map(tier => {
               const cd = cadenceData.find(c => c.tier === tier);
               return (
                 <div key={tier} className="flex items-center gap-3 bg-gray-50 rounded-lg p-2.5">
-                  <div className={`w-3 h-3 rounded-sm ${tier === 'platinum' ? 'bg-[#157A6E]' : tier === 'gold' ? 'bg-amber-400' : tier === 'silver' ? 'bg-gray-400' : 'bg-blue-400'}`} />
+                  <div className={`w-3 h-3 rounded-sm ${tier === 'anchor' ? 'bg-[#157A6E]' : tier === 'scaling' ? 'bg-amber-400' : tier === 'building' ? 'bg-gray-400' : 'bg-blue-400'}`} />
                   <div className="flex-1">
                     <div className="text-[11px] font-semibold text-gray-700 capitalize">{tier}</div>
                     <div className="text-[10px] text-gray-500">{tierCounts[tier]} partners</div>
                   </div>
-                  {cd && tier !== 'onboarding' && (
+                  {cd && tier !== 'launching' && (
                     <div className={`text-[11px] font-bold ${cd.pct >= 80 ? 'text-[#157A6E]' : cd.pct >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
                       {cd.pct}%
                     </div>
@@ -1069,14 +1083,14 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
         </div>
 
         {/* ── FLATLINED ADVISORS ── */}
-        {flatlinedAdvisorIds.length > 0 && (
+        {stalledAdvisorIds.length > 0 && (
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[11px] font-bold uppercase tracking-[1.5px] text-gray-500">Flatlined Advisors</h3>
-              <span className="text-[10px] text-gray-400">{flatlinedAdvisorIds.length} paused · Quarterly reignition cadence</span>
+              <span className="text-[10px] text-gray-400">{stalledAdvisorIds.length} paused · Quarterly reignition cadence</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {advisors.filter(a => flatlinedAdvisorIds.includes(a.id)).map(a => (
+              {advisors.filter(a => stalledAdvisorIds.includes(a.id)).map(a => (
                 <div key={a.id} className="bg-gray-50 rounded-lg p-3 border border-gray-200 flex items-center justify-between">
                   <div>
                     <div className="text-[12px] font-semibold text-gray-800">{a.name}</div>
@@ -1095,68 +1109,100 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
         )}
 
         {/* ── TODAY'S ACTIONS ── */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-4">
           <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Today&apos;s Actions</span>
           <div className="flex-1 h-px bg-[#e8e5e1]" />
-          <span className="text-[12px] font-semibold text-gray-500">{activeActions.length} remaining{criticalCount > 0 ? ` · ${criticalCount} critical` : ''}</span>
+          <span className="text-[12px] font-semibold text-gray-500">{activeActions.length} remaining</span>
         </div>
 
-        {/* Filter pills */}
-        <div className="flex gap-1.5">
-          {([
-            { key: 'all' as const, label: 'All', count: todayActions.length },
-            { key: 'critical' as const, label: 'Critical', count: todayActions.filter(a => a.type === 'critical').length },
-            { key: 'playbook' as const, label: 'Playbook', count: todayActions.filter(a => a.type === 'playbook').length },
-            { key: 'cadence' as const, label: 'Cadence', count: todayActions.filter(a => a.type === 'cadence').length },
-            { key: 'deals' as const, label: 'Deals', count: todayActions.filter(a => a.type === 'deals').length },
-          ]).filter(f => f.count > 0 || f.key === 'all').map(f => (
-            <button key={f.key} onClick={() => setActionFilter(f.key)}
-              className={`px-3 py-1.5 rounded-full text-[11px] font-medium border transition-colors ${actionFilter === f.key ? 'bg-[#157A6E] text-white border-[#157A6E]' : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'}`}>
-              {f.label}<span className="ml-1 text-[10px] font-bold">{f.count}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Action cards */}
-        <div className="space-y-2">
-          {activeActions.map(action => {
-            const advisor = action.advisorId ? advisors.find(a => a.id === action.advisorId) : null;
-            return (
-              <div key={action.id} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-4 flex items-start gap-3 transition-all hover:shadow-sm ${action.type === 'critical' ? 'border-l-4 border-l-red-400' : ''}`}>
-                {/* Checkbox */}
-                <button onClick={() => setCompletedActions(prev => [...prev, action.id])}
-                  className="w-5 h-5 rounded border-2 border-gray-300 hover:border-[#157A6E] flex items-center justify-center shrink-0 mt-0.5 transition-colors" />
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${tagColor(action.type)}`}>{action.tag}</span>
-                    {advisor && (
-                      <span className="text-[10px] text-gray-500 flex items-center gap-1">
-                        <span className={`w-1.5 h-1.5 rounded-sm ${advisor.tier === 'platinum' ? 'bg-[#157A6E]' : advisor.tier === 'gold' ? 'bg-amber-400' : advisor.tier === 'silver' ? 'bg-gray-400' : 'bg-blue-400'}`} />
-                        {advisor.name} · {advisor.company}
-                      </span>
-                    )}
-                  </div>
-                  <h4 className="text-[13px] font-semibold text-gray-800">{action.title}</h4>
-                  <p className="text-[11px] text-gray-500 mt-0.5">{action.context}</p>
-                </div>
-                {/* MRR impact */}
-                <div className="text-right shrink-0">
-                  <div className={`text-[14px] font-bold ${action.impactType === 'risk' ? 'text-red-500' : action.impactType === 'pipeline' ? 'text-amber-600' : 'text-[#157A6E]'}`}>
-                    {formatCurrency(action.mrrImpact)}
-                  </div>
-                  <div className="text-[9px] text-gray-400">{action.impactType === 'risk' ? 'at risk' : action.impactType === 'pipeline' ? 'pipeline' : 'MRR'}</div>
-                </div>
-              </div>
-            );
-          })}
-          {activeActions.length === 0 && (
-            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
-              <CheckCircle className="w-8 h-8 text-[#157A6E] mx-auto mb-2" />
-              <p className="text-[13px] font-semibold text-gray-700">All caught up</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">{actionFilter !== 'all' ? 'No actions in this category' : 'No actions for today'}</p>
+        <div className="grid grid-cols-2 gap-5">
+          {/* Priority Actions */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-2 h-2 rounded-full bg-red-400" />
+              <h3 className="text-[12px] font-bold text-gray-700">Priority Actions</h3>
+              <span className="text-[10px] text-gray-400 ml-auto">{priorityActions.length} items</span>
             </div>
-          )}
+            <div className="space-y-2">
+              {(showAllPriority ? priorityActions : priorityActions.slice(0, 5)).filter(a => !completedActions.includes(a.id)).map(action => {
+                const advisor = action.advisorId ? advisors.find(a => a.id === action.advisorId) : null;
+                return (
+                  <div key={action.id} className={`bg-white rounded-[10px] border border-[#e8e5e1] p-3.5 transition-all hover:shadow-sm ${action.type === 'critical' ? 'border-l-4 border-l-red-400' : 'border-l-4 border-l-[#157A6E]'}`}>
+                    <div className="flex items-start gap-2.5">
+                      <button onClick={() => setCompletedActions(prev => [...prev, action.id])}
+                        className="w-4.5 h-4.5 rounded border-2 border-gray-300 hover:border-[#157A6E] flex items-center justify-center shrink-0 mt-0.5 transition-colors" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className={`text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${action.type === 'critical' ? 'bg-red-100 text-red-800' : 'bg-[#D1FAE5] text-[#065F46]'}`}>{action.tag}</span>
+                        </div>
+                        <p className="text-[12px] font-semibold text-gray-800 leading-snug">{action.title}</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-1">{action.context}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className={`text-[13px] font-bold ${action.impactType === 'risk' ? 'text-red-500' : 'text-[#157A6E]'}`}>
+                          {formatCurrency(action.mrrImpact)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {priorityActions.filter(a => !completedActions.includes(a.id)).length > 5 && !showAllPriority && (
+                <button onClick={() => setShowAllPriority(true)} className="w-full py-2 text-[11px] font-semibold text-[#157A6E] hover:bg-teal-50 rounded-lg transition-colors">
+                  Show {priorityActions.filter(a => !completedActions.includes(a.id)).length - 5} more →
+                </button>
+              )}
+              {priorityActions.filter(a => !completedActions.includes(a.id)).length === 0 && (
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6 text-center">
+                  <CheckCircle className="w-6 h-6 text-[#157A6E] mx-auto mb-1" />
+                  <p className="text-[11px] text-gray-500">All clear</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Upcoming Deadlines */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-2 h-2 rounded-full bg-amber-400" />
+              <h3 className="text-[12px] font-bold text-gray-700">Upcoming Deadlines</h3>
+              <span className="text-[10px] text-gray-400 ml-auto">{deadlineActions.length} items</span>
+            </div>
+            <div className="space-y-2">
+              {(showAllDeadlines ? deadlineActions : deadlineActions.slice(0, 5)).filter(a => !completedActions.includes(a.id)).map(action => {
+                const advisor = action.advisorId ? advisors.find(a => a.id === action.advisorId) : null;
+                return (
+                  <div key={action.id} className="bg-white rounded-[10px] border border-[#e8e5e1] p-3.5 transition-all hover:shadow-sm border-l-4 border-l-amber-300">
+                    <div className="flex items-start gap-2.5">
+                      <button onClick={() => setCompletedActions(prev => [...prev, action.id])}
+                        className="w-4.5 h-4.5 rounded border-2 border-gray-300 hover:border-[#157A6E] flex items-center justify-center shrink-0 mt-0.5 transition-colors" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className={`text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${action.type === 'cadence' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>{action.tag}</span>
+                        </div>
+                        <p className="text-[12px] font-semibold text-gray-800 leading-snug">{action.title}</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-1">{action.context}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[13px] font-bold text-amber-600">{formatCurrency(action.mrrImpact)}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {deadlineActions.filter(a => !completedActions.includes(a.id)).length > 5 && !showAllDeadlines && (
+                <button onClick={() => setShowAllDeadlines(true)} className="w-full py-2 text-[11px] font-semibold text-[#157A6E] hover:bg-teal-50 rounded-lg transition-colors">
+                  Show {deadlineActions.filter(a => !completedActions.includes(a.id)).length - 5} more →
+                </button>
+              )}
+              {deadlineActions.filter(a => !completedActions.includes(a.id)).length === 0 && (
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6 text-center">
+                  <CheckCircle className="w-6 h-6 text-[#157A6E] mx-auto mb-1" />
+                  <p className="text-[11px] text-gray-500">All clear</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Completed actions */}
@@ -1275,9 +1321,9 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
         count: advisorsWithDeals.filter(a => a.pulse === 'Strong' || a.pulse === 'Steady').length,
       },
       {
-        label: 'Platinum & Gold',
-        key: 'Platinum & Gold',
-        count: advisorsWithDeals.filter(a => a.tier === 'platinum' || a.tier === 'gold').length,
+        label: 'Anchor & Scaling',
+        key: 'Anchor & Scaling',
+        count: advisorsWithDeals.filter(a => a.tier === 'anchor' || a.tier === 'scaling').length,
       },
       {
         label: 'Needs Attention',
@@ -1291,6 +1337,10 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
         key: 'New / Onboarding',
         count: advisorsWithDeals.filter(a => getRelationshipStage(a) === 'Onboarding').length,
       },
+      { label: 'Anchor', key: 'Anchor', count: advisorsWithDeals.filter(a => a.tier === 'anchor').length },
+      { label: 'Scaling', key: 'Scaling', count: advisorsWithDeals.filter(a => a.tier === 'scaling').length },
+      { label: 'Building', key: 'Building', count: advisorsWithDeals.filter(a => a.tier === 'building').length },
+      { label: 'Launching', key: 'Launching', count: advisorsWithDeals.filter(a => a.tier === 'launching').length },
     ];
 
     // Filtering logic for partners
@@ -1299,14 +1349,22 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
       filteredAdvisors = advisorsWithDeals.filter(a => deals.some(d => d.advisorId === a.id));
     } else if (relationshipFilter === 'High Engagement') {
       filteredAdvisors = advisorsWithDeals.filter(a => a.pulse === 'Strong' || a.pulse === 'Steady');
-    } else if (relationshipFilter === 'Platinum & Gold') {
-      filteredAdvisors = advisorsWithDeals.filter(a => a.tier === 'platinum' || a.tier === 'gold');
+    } else if (relationshipFilter === 'Anchor & Scaling') {
+      filteredAdvisors = advisorsWithDeals.filter(a => a.tier === 'anchor' || a.tier === 'scaling');
     } else if (relationshipFilter === 'Needs Attention') {
       filteredAdvisors = advisorsWithDeals.filter(a =>
         a.friction === 'High' || a.friction === 'Critical' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall'
       );
     } else if (relationshipFilter === 'New / Onboarding') {
       filteredAdvisors = advisorsWithDeals.filter(a => getRelationshipStage(a) === 'Onboarding');
+    } else if (relationshipFilter === 'Anchor') {
+      filteredAdvisors = advisorsWithDeals.filter(a => a.tier === 'anchor');
+    } else if (relationshipFilter === 'Scaling') {
+      filteredAdvisors = advisorsWithDeals.filter(a => a.tier === 'scaling');
+    } else if (relationshipFilter === 'Building') {
+      filteredAdvisors = advisorsWithDeals.filter(a => a.tier === 'building');
+    } else if (relationshipFilter === 'Launching') {
+      filteredAdvisors = advisorsWithDeals.filter(a => a.tier === 'launching');
     }
 
     // Apply city filter from map
@@ -2862,39 +2920,62 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
         {relationshipViewMode === 'all' && (
           <div className="space-y-4">
             <div className="bg-white rounded-[10px] border border-[#e8e5e1]">
-              <div className="p-4 border-b border-[#e8e5e1]">
-                <input placeholder="Search all contacts..." value={partnerSearch} onChange={e => setPartnerSearch(e.target.value)} className="w-full text-13px border border-[#e8e5e1] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
+              <div className="p-4 border-b border-[#e8e5e1] flex items-center gap-3">
+                <input placeholder="Search all contacts..." value={partnerSearch} onChange={e => setPartnerSearch(e.target.value)} className="flex-1 text-13px border border-[#e8e5e1] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
+                <span className="text-11px text-gray-400">{advisorsWithDeals.filter(a => !partnerSearch || a.name.toLowerCase().includes(partnerSearch.toLowerCase()) || a.company.toLowerCase().includes(partnerSearch.toLowerCase())).length + TSD_COMPANIES.reduce((s, c) => s + c.contacts.filter(ct => !partnerSearch || ct.name.toLowerCase().includes(partnerSearch.toLowerCase()) || c.name.toLowerCase().includes(partnerSearch.toLowerCase())).length, 0)} total contacts</span>
               </div>
               <div className="divide-y divide-[#e8e5e1]">
                 {/* Partners */}
-                {advisorsWithDeals.filter(a => !partnerSearch || a.name.toLowerCase().includes(partnerSearch.toLowerCase()) || a.company.toLowerCase().includes(partnerSearch.toLowerCase())).map(a => (
-                  <div key={a.id} onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors">
-                    <div className="w-8 h-8 bg-[#157A6E] rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-[11px] font-semibold">{a.name.split(' ').map(n => n[0]).join('')}</span>
+                {advisorsWithDeals.filter(a => !partnerSearch || a.name.toLowerCase().includes(partnerSearch.toLowerCase()) || a.company.toLowerCase().includes(partnerSearch.toLowerCase())).map(a => {
+                  const lastDays = Math.floor((new Date().getTime() - new Date(a.lastContact).getTime()) / (1000*60*60*24));
+                  const advisorDeals = deals.filter(d => d.advisorId === a.id);
+                  return (
+                    <div key={a.id} onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 cursor-pointer transition-colors">
+                      <div className="w-9 h-9 bg-[#157A6E] rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-[11px] font-semibold">{a.name.split(' ').map(n => n[0]).join('')}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-13px font-medium text-gray-900">{a.name}</p>
+                        <p className="text-11px text-gray-500">{a.company}</p>
+                      </div>
+                      <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[10px] font-medium rounded">Partner</span>
+                      <TierBadge tier={a.tier} />
+                      <PulseBadge pulse={a.pulse} />
+                      <div className="text-right w-20">
+                        <p className="text-12px font-bold text-gray-700 tabular-nums">{formatCurrency(a.mrr)}</p>
+                        <p className="text-[9px] text-gray-400">{advisorDeals.length} deal{advisorDeals.length !== 1 ? 's' : ''}</p>
+                      </div>
+                      <div className="text-right w-16">
+                        <p className={`text-11px font-medium ${lastDays <= 7 ? 'text-emerald-600' : lastDays <= 14 ? 'text-amber-600' : 'text-red-500'}`}>{lastDays}d ago</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-13px font-medium text-gray-900">{a.name}</p>
-                      <p className="text-11px text-gray-500">{a.company}</p>
-                    </div>
-                    <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[10px] font-medium rounded">Partner</span>
-                    <TierBadge tier={a.tier} />
-                    <span className="text-12px font-bold text-gray-700 tabular-nums w-20 text-right">{formatCurrency(a.mrr)}</span>
-                  </div>
-                ))}
+                  );
+                })}
                 {/* TSD contacts */}
-                {TSD_COMPANIES.flatMap(co => co.contacts.map(c => ({ ...c, company: co.name }))).filter(c => !partnerSearch || c.name.toLowerCase().includes(partnerSearch.toLowerCase()) || c.company.toLowerCase().includes(partnerSearch.toLowerCase())).map(c => (
-                  <div key={c.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors">
-                    <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-[11px] font-semibold">{c.name.split(' ').map(n => n[0]).join('')}</span>
+                {TSD_COMPANIES.flatMap(co => co.contacts.map(c => ({ ...c, company: co.name, companyLogo: co.logo }))).filter(c => !partnerSearch || c.name.toLowerCase().includes(partnerSearch.toLowerCase()) || c.company.toLowerCase().includes(partnerSearch.toLowerCase())).map(c => {
+                  const daysSince = Math.floor((new Date().getTime() - new Date(c.lastContact).getTime()) / (1000*60*60*24));
+                  return (
+                    <div key={c.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 cursor-pointer transition-colors">
+                      <div className="w-9 h-9 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-[11px] font-semibold">{c.name.split(' ').map(n => n[0]).join('')}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-13px font-medium text-gray-900">{c.name}</p>
+                        <p className="text-11px text-gray-500">{c.role} · {c.company}</p>
+                      </div>
+                      <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-medium rounded">TSD</span>
+                      <span className={`px-2 py-0.5 text-[10px] font-medium rounded ${c.engagement === 'High' ? 'bg-emerald-50 text-emerald-700' : c.engagement === 'Medium' ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>{c.engagement}</span>
+                      <span className={`text-11px font-medium ${c.sentiment === 'Warm' ? 'text-emerald-600' : c.sentiment === 'Cool' ? 'text-blue-600' : 'text-gray-600'}`}>{c.sentiment}</span>
+                      <div className="text-right w-20">
+                        <p className="text-12px font-bold text-gray-700 tabular-nums">{formatCurrency(c.revenueAttributed)}</p>
+                        <p className="text-[9px] text-gray-400">{c.introsQTD} intros QTD</p>
+                      </div>
+                      <div className="text-right w-16">
+                        <p className={`text-11px font-medium ${daysSince <= 7 ? 'text-emerald-600' : daysSince <= 14 ? 'text-amber-600' : 'text-red-500'}`}>{daysSince}d ago</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-13px font-medium text-gray-900">{c.name}</p>
-                      <p className="text-11px text-gray-500">{c.role} · {c.company}</p>
-                    </div>
-                    <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-medium rounded">TSD</span>
-                    <span className="text-11px text-gray-400 w-28 text-right truncate">{c.email}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -3080,7 +3161,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                     if (!a) return null;
                     return (
                       <div key={id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer" onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
-                        <div className={`w-2 h-2 rounded-sm ${a.tier === 'platinum' ? 'bg-[#157A6E]' : a.tier === 'gold' ? 'bg-amber-400' : a.tier === 'silver' ? 'bg-gray-400' : 'bg-blue-400'}`} />
+                        <div className={`w-2 h-2 rounded-sm ${a.tier === 'anchor' ? 'bg-[#157A6E]' : a.tier === 'scaling' ? 'bg-amber-400' : a.tier === 'building' ? 'bg-gray-400' : 'bg-blue-400'}`} />
                         <span className="text-12px font-medium text-gray-800 flex-1">{a.name}</span>
                         <span className="text-[10px] text-gray-400">{a.company}</span>
                         <PulseBadge pulse={a.pulse} />
@@ -3116,12 +3197,12 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
       const dealAdvisorDeals = deals.filter(d => d.advisorId === selectedDeal.advisorId);
       const stageColors: Record<string, string> = {
         'Discovery': '#3B82F6', 'Qualifying': '#06B6D4', 'Proposal': '#8B5CF6',
-        'Negotiating': '#F59E0B', 'Closed Won': '#10B981', 'Stalled': '#EF4444',
+        'Negotiating': '#F59E0B', 'Closed Won': '#10B981', 'Closed Lost': '#6B7280', 'Stalled': '#EF4444',
       };
       const stageBg: Record<string, string> = {
         'Discovery': 'bg-blue-50 text-blue-700', 'Qualifying': 'bg-cyan-50 text-cyan-700',
         'Proposal': 'bg-violet-50 text-violet-700', 'Negotiating': 'bg-amber-50 text-amber-700',
-        'Closed Won': 'bg-emerald-50 text-emerald-700', 'Stalled': 'bg-red-50 text-red-700',
+        'Closed Won': 'bg-emerald-50 text-emerald-700', 'Closed Lost': 'bg-gray-50 text-gray-600', 'Stalled': 'bg-red-50 text-red-700',
       };
       const healthDotColor: Record<string, string> = { 'Healthy': '#16A34A', 'Monitor': '#F59E0B', 'At Risk': '#F97316', 'Stalled': '#EF4444' };
 
@@ -3168,6 +3249,22 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                 >
                   Edit Deal
                 </button>
+                {selectedDeal.stage !== 'Closed Won' && selectedDeal.stage !== 'Closed Lost' && (
+                  <button
+                    onClick={() => {
+                      setDeals(prev => prev.map(d => d.id === selectedDeal.id ? { ...d, stage: 'Closed Lost' } : d));
+                      fetch('/api/live/deals', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: selectedDeal.id, stage: 'Closed Lost' }),
+                      }).catch(console.error);
+                      setSelectedDeal(null);
+                    }}
+                    className="px-4 py-2 text-12px font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Move to Closed Lost
+                  </button>
+                )}
                 <button
                   onClick={() => { if (confirm(`Delete "${selectedDeal.name}"? This cannot be undone.`)) handleDeleteDeal(selectedDeal.id); }}
                   className="px-4 py-2 text-12px font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
@@ -3382,6 +3479,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
       'Proposal': '#8B5CF6',
       'Negotiating': '#F59E0B',
       'Closed Won': '#10B981',
+      'Closed Lost': '#6B7280',
       'Stalled': '#EF4444',
     };
     const stageBgStyles: Record<string, string> = {
@@ -3390,6 +3488,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
       'Proposal': 'bg-violet-50 text-violet-700',
       'Negotiating': 'bg-amber-50 text-amber-700',
       'Closed Won': 'bg-emerald-50 text-emerald-700',
+      'Closed Lost': 'bg-gray-50 text-gray-600',
       'Stalled': 'bg-red-50 text-red-700',
     };
     const healthDot: Record<string, string> = { 'Healthy': '#16A34A', 'Monitor': '#F59E0B', 'At Risk': '#F97316', 'Stalled': '#EF4444', 'Slipping': '#F97316', 'Freefall': '#DC2626', 'Critical': '#991B1B' };
@@ -3560,6 +3659,36 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
             );
           })}
 
+          {/* Closed Lost */}
+          {deals.filter(d => d.stage === 'Closed Lost').length > 0 && (
+            <div className="mt-6">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-gray-400">Closed Lost</span>
+                <div className="flex-1 h-px bg-[#e8e5e1]" />
+                <span className="text-[10px] text-gray-400">{deals.filter(d => d.stage === 'Closed Lost').length} deals</span>
+              </div>
+              <div className="space-y-2">
+                {deals.filter(d => d.stage === 'Closed Lost').map(deal => {
+                  const advisor = advisors.find(a => a.id === deal.advisorId);
+                  return (
+                    <div key={deal.id} onClick={() => setSelectedDeal(deal)} className="bg-gray-50 rounded-[10px] border border-gray-200 p-4 cursor-pointer hover:bg-gray-100 transition-colors opacity-70">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-13px font-medium text-gray-600 line-through">{deal.name}</p>
+                          <p className="text-11px text-gray-400 mt-0.5">{advisor?.name || 'Unknown'} · {advisor?.company || ''}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[14px] font-bold text-gray-400">{formatCurrency(deal.mrr)}</p>
+                          <p className="text-[10px] text-red-400">Lost</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Summary bar */}
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] px-5 py-3 text-center text-12px text-gray-500">
             Showing <strong className="text-gray-800">{filtered.length}</strong> of {deals.length} deals · Total MRR: <strong className="text-gray-800">{formatCurrency(totalFilteredMRR)}</strong> · Weighted: <strong className="text-gray-800">{formatCurrency(filteredWeighted)}</strong> · Avg Probability: <strong className="text-gray-800">{avgProb}%</strong>
@@ -3577,7 +3706,27 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                 const stageMRR = stageDeals.reduce((s, d) => s + d.mrr, 0);
                 return (
                   <div key={stage} className="flex-shrink-0 w-[240px]">
-                    <div className={`rounded-lg overflow-hidden border border-[#e8e5e1] ${stage === 'Stalled' ? 'bg-red-50/50' : 'bg-[#F7F5F2]'}`}>
+                    <div
+                      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                      onDragEnter={() => setDragOverStage(stage)}
+                      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverStage(null); }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const dealId = e.dataTransfer.getData('dealId');
+                        if (dealId) {
+                          setDeals(prev => prev.map(d => d.id === dealId ? { ...d, stage: stage as any } : d));
+                          fetch('/api/live/deals', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: dealId, stage: stage }),
+                          }).catch(console.error);
+                        }
+                        setDragOverStage(null);
+                      }}
+                      className={`rounded-lg overflow-hidden border border-[#e8e5e1] transition-all ${
+                        dragOverStage === stage ? 'ring-2 ring-[#157A6E] ring-dashed bg-teal-50/30' : ''
+                      } ${stage === 'Stalled' || stage === 'Closed Lost' ? 'bg-red-50/50' : 'bg-[#F7F5F2]'}`}
+                    >
                       <div className="border-t-4 p-4" style={{ borderTopColor: stageColors[stage] }}>
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="text-13px font-semibold font-['Newsreader'] text-gray-800">{stage}</h4>
@@ -3588,10 +3737,13 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                           {stageDeals.map(d => {
                             const adv = advisors.find(a => a.id === d.advisorId);
                             return (
-                              <div key={d.id}
+                              <div
+                                key={d.id}
+                                draggable
+                                onDragStart={(e) => { e.dataTransfer.setData('dealId', d.id); e.dataTransfer.effectAllowed = 'move'; }}
                                 onClick={() => setSelectedDeal(d)}
-                                className="bg-white p-3 rounded-lg hover:shadow-md transition-shadow cursor-pointer border border-[#e8e5e1]">
-                                <p className="text-12px font-semibold text-gray-800 mb-1">{d.name}</p>
+                                className={`bg-white p-3 rounded-lg hover:shadow-md transition-all cursor-move border border-[#e8e5e1] ${stage === 'Closed Lost' ? 'opacity-70' : ''}`}>
+                                <p className={`text-12px font-semibold text-gray-800 mb-1 ${stage === 'Closed Lost' ? 'line-through' : ''}`}>{d.name}</p>
                                 <p className="text-10px text-gray-600 mb-2">{adv?.name || 'Unassigned'} · {adv?.company || ''}</p>
                                 <div className="flex items-center justify-between mb-2">
                                   <span className="text-11px font-medium text-[#157A6E]">{formatCurrency(d.mrr)}</span>
@@ -3787,8 +3939,8 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
   // ════════════════════════════════════════════════
   const renderIntelligence = () => {
     // ── Shared intelligence data ──
-    const frictionIssues = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.friction === 'High' || a.friction === 'Critical'));
-    const healthyPartners = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && a.friction === 'Low' && (a.pulse === 'Strong' || a.pulse === 'Steady'));
+    const frictionIssues = advisors.filter(a => !stalledAdvisorIds.includes(a.id) && (a.friction === 'High' || a.friction === 'Critical'));
+    const healthyPartners = advisors.filter(a => !stalledAdvisorIds.includes(a.id) && a.friction === 'Low' && (a.pulse === 'Strong' || a.pulse === 'Steady'));
 
     // Generate signals from real data
     const signals: Array<{type: 'churn' | 'growth' | 'stall' | 'intel'; title: string; desc: string; time: string; source: string; mrr?: number; partnerName?: string}> = [];
@@ -3814,42 +3966,42 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     const recommendedPlaybooks: Array<{template: typeof playbookTemplates[0]; advisors: Advisor[]; reason: string; urgency: 'critical' | 'high' | 'medium'}> = [];
 
     // Win-back recommendations
-    const winBackCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.pulse === 'Fading' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall') && !launchedPlaybooks.some(p => p.advisorId === a.id));
+    const winBackCandidates = advisors.filter(a => !stalledAdvisorIds.includes(a.id) && (a.pulse === 'Fading' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall') && !launchedPlaybooks.some(p => p.advisorId === a.id));
     if (winBackCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[0], advisors: winBackCandidates.slice(0, 3), reason: `${winBackCandidates.length} partner${winBackCandidates.length > 1 ? 's' : ''} showing declining engagement — ${formatCurrency(winBackCandidates.reduce((s,a)=>s+a.mrr,0))} MRR at risk`, urgency: 'critical' });
     }
 
     // Onboarding recommendations
-    const onboardingCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.tier === 'onboarding' || (a.tier === 'silver' && Math.floor((Date.now() - new Date(a.connectedSince).getTime()) / 86400000) < 90)));
+    const onboardingCandidates = advisors.filter(a => !stalledAdvisorIds.includes(a.id) && (a.tier === 'launching' || (a.tier === 'building' && Math.floor((Date.now() - new Date(a.connectedSince).getTime()) / 86400000) < 90)));
     if (onboardingCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[1], advisors: onboardingCandidates.slice(0, 3), reason: `${onboardingCandidates.length} partner${onboardingCandidates.length > 1 ? 's' : ''} in first 90 days — first deal velocity is critical`, urgency: 'high' });
     }
 
     // Tier upgrade recommendations
-    const tierUpgradeCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && a.tier === 'gold' && (a.pulse === 'Strong' || a.trajectory === 'Accelerating') && !launchedPlaybooks.some(p => p.advisorId === a.id));
+    const tierUpgradeCandidates = advisors.filter(a => !stalledAdvisorIds.includes(a.id) && a.tier === 'scaling' && (a.pulse === 'Strong' || a.trajectory === 'Accelerating') && !launchedPlaybooks.some(p => p.advisorId === a.id));
     if (tierUpgradeCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[2], advisors: tierUpgradeCandidates.slice(0, 3), reason: `${tierUpgradeCandidates.length} Gold partner${tierUpgradeCandidates.length > 1 ? 's' : ''} showing Platinum potential — invest now to capture growth`, urgency: 'high' });
     }
 
     // Activation recommendations
-    const activationCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && a.tier === 'silver' && (a.engagementBreakdown?.engagement === 'Fading' || a.pulse === 'Fading') && !launchedPlaybooks.some(p => p.advisorId === a.id));
+    const activationCandidates = advisors.filter(a => !stalledAdvisorIds.includes(a.id) && a.tier === 'building' && (a.engagementBreakdown?.engagement === 'Fading' || a.pulse === 'Fading') && !launchedPlaybooks.some(p => p.advisorId === a.id));
     if (activationCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[3], advisors: activationCandidates.slice(0, 3), reason: `${activationCandidates.length} Silver partner${activationCandidates.length > 1 ? 's' : ''} going dormant — activate before they defect`, urgency: 'medium' });
     }
 
     // QBR recommendations
-    const qbrCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.tier === 'platinum' || a.tier === 'gold'));
+    const qbrCandidates = advisors.filter(a => !stalledAdvisorIds.includes(a.id) && (a.tier === 'anchor' || a.tier === 'scaling'));
     if (qbrCandidates.length > 0) {
-      recommendedPlaybooks.push({ template: playbookTemplates[4], advisors: qbrCandidates.slice(0, 3), reason: `Q2 QBRs due for ${qbrCandidates.length} Platinum & Gold partners — come with data, not excuses`, urgency: 'medium' });
+      recommendedPlaybooks.push({ template: playbookTemplates[4], advisors: qbrCandidates.slice(0, 3), reason: `Q2 QBRs due for ${qbrCandidates.length} Anchor & Scaling partners — come with data, not excuses`, urgency: 'medium' });
     }
 
     // Cross-sell recommendations
-    const crossSellCandidates = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id) && (a.tier === 'platinum' || a.tier === 'gold') && a.trajectory === 'Accelerating' && !launchedPlaybooks.some(p => p.templateId === 'cross-sell' && p.advisorId === a.id));
+    const crossSellCandidates = advisors.filter(a => !stalledAdvisorIds.includes(a.id) && (a.tier === 'anchor' || a.tier === 'scaling') && a.trajectory === 'Accelerating' && !launchedPlaybooks.some(p => p.templateId === 'cross-sell' && p.advisorId === a.id));
     if (crossSellCandidates.length > 0) {
       recommendedPlaybooks.push({ template: playbookTemplates[5], advisors: crossSellCandidates.slice(0, 3), reason: `${crossSellCandidates.length} high-performers selling single product — whitespace expansion opportunity`, urgency: 'high' });
     }
 
-    const healthPartners = [...advisors].filter(a => !flatlinedAdvisorIds.includes(a.id)).sort((a, b) => b.mrr - a.mrr).slice(0, 8);
+    const healthPartners = [...advisors].filter(a => !stalledAdvisorIds.includes(a.id)).sort((a, b) => b.mrr - a.mrr).slice(0, 8);
 
     const roadmapItems = [
       ...launchedPlaybooks.slice(0, 2).map(p => ({ phase: 'active' as const, title: p.playbookName || p.templateId.replace('-', ' '), desc: `${p.advisorName} · ${(p.customSteps || []).length} steps` })),
@@ -3899,6 +4051,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
           { id: 'signals' as const, label: 'Signals', count: signals.length },
           { id: 'playbooks' as const, label: 'Playbooks', count: launchedPlaybooks.length },
           { id: 'diagnostics' as const, label: 'Diagnostics' },
+          { id: 'resources' as const, label: 'Resources' },
         ]).map(tab => (
           <button key={tab.id} onClick={() => setIntelligenceSubTab(tab.id)}
             className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-colors ${intelligenceSubTab === tab.id ? 'text-[#157A6E] border-[#157A6E] font-semibold' : 'text-gray-400 border-transparent hover:text-gray-600'}`}>
@@ -4413,7 +4566,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                       </div>
                       <div>
                         <div className="text-[13px] font-semibold text-gray-800">{editAdvisor.name}</div>
-                        <div className="text-[11px] text-gray-500">{editAdvisor.company} · {editAdvisor.tier === 'platinum' ? 'Platinum' : editAdvisor.tier === 'gold' ? 'Gold' : editAdvisor.tier === 'silver' ? 'Silver' : 'Onboarding'}</div>
+                        <div className="text-[11px] text-gray-500">{editAdvisor.company} · {editAdvisor.tier === 'anchor' ? 'Anchor' : editAdvisor.tier === 'scaling' ? 'Scaling' : editAdvisor.tier === 'building' ? 'Building' : 'Launching'}</div>
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
@@ -4610,7 +4763,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                               <div className="text-[10px] text-gray-500">{a.company} · {formatCurrency(a.mrr)} MRR</div>
                             </div>
                             <div className="text-right shrink-0">
-                              <div className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${a.tier === 'platinum' ? 'bg-teal-100 text-teal-700' : a.tier === 'gold' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>{a.tier}</div>
+                              <div className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${a.tier === 'anchor' ? 'bg-teal-100 text-teal-700' : a.tier === 'scaling' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>{a.tier}</div>
                               {isAlreadyRunning && <div className="text-[9px] text-gray-400 mt-0.5">Already running</div>}
                             </div>
                           </div>
@@ -5070,7 +5223,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                     <h3 className="text-[16px] font-bold text-gray-800 font-serif">{a.name}</h3>
                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${isCritical ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{a.friction}</span>
                   </div>
-                  <p className="text-[11px] text-gray-500 mt-0.5">{a.company} · {a.tier === 'platinum' ? 'Platinum' : a.tier === 'gold' ? 'Gold' : a.tier === 'silver' ? 'Silver' : a.tier === 'onboarding' ? 'Onboarding' : 'Partner'}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">{a.company} · {a.tier === 'anchor' ? 'Anchor' : a.tier === 'scaling' ? 'Scaling' : a.tier === 'building' ? 'Building' : a.tier === 'launching' ? 'Launching' : 'Partner'}</p>
                 </div>
                 <div className="text-right">
                   <div className={`text-[20px] font-bold ${isCritical ? 'text-red-500' : 'text-amber-600'}`}>{formatCurrency(a.mrr)}</div>
@@ -5168,6 +5321,96 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
         )}
       </div>
     );
+
+    // ════════════════════════════════════════
+    // SUB-TAB: RESOURCES
+    // ════════════════════════════════════════
+    if (intelligenceSubTab === 'resources') {
+      return (
+        <div className="space-y-5">
+          {subTabBar}
+          <div className="space-y-5">
+            <div className="bg-gradient-to-r from-[#157A6E]/5 to-teal-50/50 rounded-[10px] border border-[#157A6E]/20 p-5">
+              <h3 className="text-[14px] font-semibold font-['Newsreader'] text-gray-900 mb-1">Company Resources</h3>
+              <p className="text-12px text-gray-600">Sales enablement materials, product docs, and marketing assets for your partner conversations.</p>
+            </div>
+
+            {/* Resource categories */}
+            {[
+              {
+                category: 'Sales Enablement',
+                icon: '📊',
+                items: [
+                  { name: 'Product Pricing Guide Q2 2026', type: 'PDF', updated: '2 days ago', size: '2.4 MB' },
+                  { name: 'Competitive Battle Cards', type: 'PDF', updated: '1 week ago', size: '1.8 MB' },
+                  { name: 'Partner Pitch Deck', type: 'PPTX', updated: '3 days ago', size: '5.2 MB' },
+                  { name: 'ROI Calculator Template', type: 'XLSX', updated: '2 weeks ago', size: '890 KB' },
+                ]
+              },
+              {
+                category: 'Product Documentation',
+                icon: '📋',
+                items: [
+                  { name: 'UCaaS Solution Brief', type: 'PDF', updated: '1 week ago', size: '1.2 MB' },
+                  { name: 'SD-WAN Technical Specs', type: 'PDF', updated: '3 weeks ago', size: '3.1 MB' },
+                  { name: 'CCaaS Integration Guide', type: 'PDF', updated: '5 days ago', size: '2.8 MB' },
+                  { name: 'SASE/SSE Overview', type: 'PDF', updated: '1 month ago', size: '1.5 MB' },
+                ]
+              },
+              {
+                category: 'Marketing Assets',
+                icon: '🎨',
+                items: [
+                  { name: 'Co-Branded Email Templates', type: 'ZIP', updated: '4 days ago', size: '3.4 MB' },
+                  { name: 'Social Media Kit', type: 'ZIP', updated: '1 week ago', size: '8.7 MB' },
+                  { name: 'Case Study: Enterprise UCaaS Migration', type: 'PDF', updated: '2 weeks ago', size: '1.1 MB' },
+                  { name: 'Webinar Slide Templates', type: 'PPTX', updated: '3 days ago', size: '4.2 MB' },
+                ]
+              },
+              {
+                category: 'Training & Certification',
+                icon: '🎓',
+                items: [
+                  { name: 'Partner Certification Program Guide', type: 'PDF', updated: '1 month ago', size: '2.0 MB' },
+                  { name: 'Product Training Videos (Q2)', type: 'Link', updated: '1 week ago', size: '' },
+                  { name: 'Technical SE Enablement Deck', type: 'PPTX', updated: '2 weeks ago', size: '6.1 MB' },
+                ]
+              },
+            ].map(cat => (
+              <div key={cat.category} className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-[16px]">{cat.icon}</span>
+                  <h4 className="text-[14px] font-semibold font-['Newsreader'] text-gray-900">{cat.category}</h4>
+                  <span className="text-[10px] text-gray-400 ml-auto">{cat.items.length} items</span>
+                </div>
+                <div className="space-y-2">
+                  {cat.items.map(item => (
+                    <div key={item.name} className="flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors group">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold ${
+                        item.type === 'PDF' ? 'bg-red-50 text-red-600' :
+                        item.type === 'PPTX' ? 'bg-orange-50 text-orange-600' :
+                        item.type === 'XLSX' ? 'bg-emerald-50 text-emerald-600' :
+                        item.type === 'ZIP' ? 'bg-purple-50 text-purple-600' :
+                        'bg-blue-50 text-blue-600'
+                      }`}>{item.type}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-12px font-medium text-gray-900 group-hover:text-[#157A6E] transition-colors">{item.name}</p>
+                        <p className="text-[10px] text-gray-400">Updated {item.updated}{item.size ? ` · ${item.size}` : ''}</p>
+                      </div>
+                      <button className="px-3 py-1.5 text-[10px] font-semibold text-[#157A6E] border border-[#157A6E]/30 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-teal-50">
+                        Download
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    return null;
   };
 
   // Groups view is now integrated into renderRelationships
@@ -5235,7 +5478,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
                     </div>
                   </div>
                   <div className="flex gap-3 mt-3">
-                    <span className={`px-2 py-1 rounded text-[10px] font-semibold ${playbookModalAdvisor.tier === 'platinum' ? 'bg-purple-100 text-purple-800' : playbookModalAdvisor.tier === 'gold' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                    <span className={`px-2 py-1 rounded text-[10px] font-semibold ${playbookModalAdvisor.tier === 'anchor' ? 'bg-purple-100 text-purple-800' : playbookModalAdvisor.tier === 'scaling' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
                       {playbookModalAdvisor.tier.charAt(0).toUpperCase() + playbookModalAdvisor.tier.slice(1)}
                     </span>
                     <TrajectoryBadge trajectory={playbookModalAdvisor.trajectory} />

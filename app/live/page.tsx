@@ -164,7 +164,7 @@ function AdvisorsPanel() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold text-gray-900">{advisors.length} Advisors</h2>
-        <button onClick={() => setEditing({ id: '', name: '', title: '', company: '', mrr: 0, pulse: 'Steady', trajectory: 'Stable', tone: 'Neutral', intent: 'Moderate', friction: 'Low', dealHealth: 'Healthy', tier: 'silver' })} className="px-3 py-1.5 text-12px font-semibold bg-[#157A6E] text-white rounded-lg hover:bg-[#126a5f] flex items-center gap-1.5">
+        <button onClick={() => setEditing({ id: '', name: '', title: '', company: '', mrr: 0, pulse: 'Steady', trajectory: 'Stable', tone: 'Neutral', intent: 'Moderate', friction: 'Low', dealHealth: 'Healthy', tier: 'building' })} className="px-3 py-1.5 text-12px font-semibold bg-[#157A6E] text-white rounded-lg hover:bg-[#126a5f] flex items-center gap-1.5">
           <Plus className="w-3.5 h-3.5" /> Add Advisor
         </button>
       </div>
@@ -255,7 +255,7 @@ function AdvisorForm({ advisor, onSave, onCancel, saving }: { advisor: any; onSa
         <Select label="Tone" value={form.tone} options={['Warm', 'Neutral', 'Cool']} onChange={v => set('tone', v)} />
         <Select label="Intent" value={form.intent} options={['Strong', 'Moderate', 'Low']} onChange={v => set('intent', v)} />
         <Select label="Friction" value={form.friction} options={['Low', 'Moderate', 'High', 'Critical']} onChange={v => set('friction', v)} />
-        <Select label="Tier" value={form.tier} options={['platinum', 'gold', 'silver']} onChange={v => set('tier', v)} />
+        <Select label="Tier" value={form.tier} options={['anchor', 'scaling', 'building', 'launching']} onChange={v => set('tier', v)} />
         <Input label="Connected Since" value={form.connectedSince || ''} onChange={v => set('connectedSince', v)} placeholder="2024-01-15" />
         <Input label="Location" value={form.location || ''} onChange={v => set('location', v)} />
         <Input label="Comm Preference" value={form.commPreference || ''} onChange={v => set('commPreference', v)} placeholder="Email, Phone, Teams" />
@@ -380,7 +380,7 @@ function RepsPanel() {
     } catch (err: any) { setError(`Save failed: ${err.message}`); }
   };
 
-  const emptyRep = { id: '', name: '', title: '', managedMRR: 0, activeDeals: 0, quotaTarget: 0, closedWon: 0, commitTarget: 0, currentCommit: 0, partnerCount: 0, partnerCapacity: 30, platinum: 0, gold: 0, silver: 0, winRate: 0, avgCycle: 0, engagementScore: 'Steady', dealsWonQTD: 0 };
+  const emptyRep = { id: '', name: '', title: '', managedMRR: 0, activeDeals: 0, quotaTarget: 0, closedWon: 0, commitTarget: 0, currentCommit: 0, partnerCount: 0, partnerCapacity: 30, anchor: 0, scaling: 0, building: 0, winRate: 0, avgCycle: 0, engagementScore: 'Steady', dealsWonQTD: 0 };
 
   return (
     <div>

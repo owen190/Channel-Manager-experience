@@ -46,7 +46,7 @@ export function AdvisorTable({ advisors, onAdvisorClick }: AdvisorTableProps) {
     'High',
     'Critical',
   ];
-  const tiers: PartnerTier[] = ['platinum', 'gold', 'silver'];
+  const tiers: PartnerTier[] = ['anchor', 'scaling', 'building', 'launching'];
 
   const filteredAndSorted = useMemo(() => {
     let result = advisors.filter((advisor) => {
@@ -174,7 +174,7 @@ export function AdvisorTable({ advisors, onAdvisorClick }: AdvisorTableProps) {
             <option value="all">All Tiers</option>
             {tiers.map((tier) => (
               <option key={tier} value={tier}>
-                {tier === 'platinum' ? 'PLATINUM' : tier === 'gold' ? 'GOLD' : 'SILVER'}
+                {tier === 'anchor' ? 'ANCHOR' : tier === 'scaling' ? 'SCALING' : tier === 'building' ? 'BUILDING' : 'LAUNCHING'}
               </option>
             ))}
           </select>

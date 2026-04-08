@@ -4,8 +4,8 @@ export type Tone = 'Warm' | 'Neutral' | 'Cool';
 export type Intent = 'Strong' | 'Moderate' | 'Low';
 export type FrictionLevel = 'Low' | 'Moderate' | 'High' | 'Critical';
 export type DealHealth = 'Healthy' | 'Monitor' | 'At Risk' | 'Stalled' | 'Slipping' | 'Freefall' | 'Critical';
-export type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Stalled';
-export type PartnerTier = 'platinum' | 'gold' | 'silver' | 'onboarding';
+export type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Closed Lost' | 'Stalled';
+export type PartnerTier = 'anchor' | 'scaling' | 'building' | 'launching';
 export type EngagementScore = 'Strong' | 'Steady' | 'Fading';
 
 export interface ActivityItem {
@@ -98,9 +98,9 @@ export interface Rep {
   currentCommit: number;
   partnerCount: number;
   partnerCapacity: number;
-  platinum: number;
-  gold: number;
-  silver: number;
+  anchor: number;
+  scaling: number;
+  building: number;
   topConcern: string;
   advisorIds: string[];
   winRate: number;

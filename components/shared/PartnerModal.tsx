@@ -28,7 +28,7 @@ export function PartnerModal({
     company: '',
     location: '',
     mrr: 0,
-    tier: 'silver' as PartnerTier,
+    tier: 'building' as PartnerTier,
     connectedSince: new Date().toISOString().split('T')[0],
     commPreference: '',
     bestDayToReach: '',
@@ -63,7 +63,7 @@ export function PartnerModal({
         company: '',
         location: '',
         mrr: 0,
-        tier: 'silver' as PartnerTier,
+        tier: 'building' as PartnerTier,
         connectedSince: new Date().toISOString().split('T')[0],
         commPreference: '',
         bestDayToReach: '',
@@ -222,13 +222,14 @@ export function PartnerModal({
             <div>
               <label className="block text-12px font-medium text-gray-700 mb-2">Tier</label>
               <select
-                value={formData.tier || 'silver'}
+                value={formData.tier || 'building'}
                 onChange={(e) => handleChange('tier', e.target.value as PartnerTier)}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-13px focus:outline-none focus:ring-2 focus:ring-[#157A6E] focus:border-transparent bg-white"
               >
-                <option value="platinum">Platinum</option>
-                <option value="gold">Gold</option>
-                <option value="silver">Silver</option>
+                <option value="anchor">Anchor</option>
+                <option value="scaling">Scaling</option>
+                <option value="building">Building</option>
+                <option value="launching">Launching</option>
               </select>
             </div>
           </div>

@@ -56,9 +56,9 @@ export interface LiveRep {
   currentCommit: number;
   partnerCount: number;
   partnerCapacity: number;
-  platinum: number;
-  gold: number;
-  silver: number;
+  anchor: number;
+  scaling: number;
+  building: number;
   topConcern?: string;
   winRate: number;
   avgCycle: number;
@@ -255,9 +255,9 @@ function rowToRep(r: any): LiveRep {
     currentCommit: Number(r.current_commit),
     partnerCount: Number(r.partner_count),
     partnerCapacity: Number(r.partner_capacity),
-    platinum: Number(r.platinum),
-    gold: Number(r.gold),
-    silver: Number(r.silver),
+    anchor: Number(r.anchor),
+    scaling: Number(r.scaling),
+    building: Number(r.building),
     topConcern: r.top_concern || undefined,
     winRate: Number(r.win_rate),
     avgCycle: Number(r.avg_cycle),
@@ -393,7 +393,7 @@ export const db = {
         ${advisor.intent || 'Moderate'},
         ${advisor.friction || 'Low'},
         ${advisor.dealHealth || 'Healthy'},
-        ${advisor.tier || 'silver'},
+        ${advisor.tier || 'building'},
         ${advisor.connectedSince || null},
         ${advisor.commPreference || null},
         ${advisor.bestDayToReach || null},
@@ -473,7 +473,7 @@ export const db = {
       INSERT INTO reps (
         id, name, title, managed_mrr, active_deals, quota_target, closed_won,
         commit_target, current_commit, partner_count, partner_capacity,
-        platinum, gold, silver, top_concern, win_rate, avg_cycle,
+        anchor, scaling, building, top_concern, win_rate, avg_cycle,
         engagement_score, deals_won_qtd, created_at, updated_at
       ) VALUES (
         ${id},
@@ -487,9 +487,9 @@ export const db = {
         ${rep.currentCommit || 0},
         ${rep.partnerCount || 0},
         ${rep.partnerCapacity || 30},
-        ${rep.platinum || 0},
-        ${rep.gold || 0},
-        ${rep.silver || 0},
+        ${rep.anchor || 0},
+        ${rep.scaling || 0},
+        ${rep.building || 0},
         ${rep.topConcern || null},
         ${rep.winRate || 0},
         ${rep.avgCycle || 0},
@@ -509,9 +509,9 @@ export const db = {
         current_commit = EXCLUDED.current_commit,
         partner_count = EXCLUDED.partner_count,
         partner_capacity = EXCLUDED.partner_capacity,
-        platinum = EXCLUDED.platinum,
-        gold = EXCLUDED.gold,
-        silver = EXCLUDED.silver,
+        anchor = EXCLUDED.anchor,
+        scaling = EXCLUDED.scaling,
+        building = EXCLUDED.building,
         top_concern = EXCLUDED.top_concern,
         win_rate = EXCLUDED.win_rate,
         avg_cycle = EXCLUDED.avg_cycle,

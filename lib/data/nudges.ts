@@ -88,7 +88,7 @@ export const leaderNudges: Nudge[] = [
   {
     id: 'nudge-l-5',
     title: 'Partner Opportunity: Sarah Chen + Mike Rivera Momentum',
-    description: 'Your two platinum partners (Sarah Chen and Mike Rivera) combined for $14.1M MRR and 52 active deals. Both showing acceleration trajectory. Recommend strategic account planning for expansion.',
+    description: 'Your two anchor partners (Sarah Chen and Mike Rivera) combined for $14.1M MRR and 52 active deals. Both showing acceleration trajectory. Recommend strategic account planning for expansion.',
     time: '2026-03-26 12:30',
     type: 'competitive',
     priority: 'medium',

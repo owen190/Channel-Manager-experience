@@ -206,8 +206,8 @@ export default function LeaderDashboard() {
   const filteredAdvisors = useMemo(() => {
     if (relationshipFilter === 'All') return advisors;
     if (relationshipFilter === 'At Risk') return advisors.filter(a => a.pulse === 'Fading' || a.pulse === 'Flatline');
-    if (relationshipFilter === 'Platinum') return advisors.filter(a => a.tier === 'platinum');
-    if (relationshipFilter === 'Rising Stars') return advisors.filter(a => a.tier === 'gold' && ['Climbing', 'Accelerating'].includes(a.trajectory) && ['Strong', 'Rising'].includes(a.pulse));
+    if (relationshipFilter === 'Anchor') return advisors.filter(a => a.tier === 'anchor');
+    if (relationshipFilter === 'Rising Stars') return advisors.filter(a => a.tier === 'scaling' && ['Climbing', 'Accelerating'].includes(a.trajectory) && ['Strong', 'Rising'].includes(a.pulse));
     if (relationshipFilter === 'New') return advisors.filter(a => a.connectedSince > '2025-09-01');
     return advisors;
   }, [relationshipFilter]);
@@ -232,6 +232,7 @@ export default function LeaderDashboard() {
       'Proposal': 0,
       'Negotiating': 0,
       'Closed Won': 0,
+      'Closed Lost': 0,
       'Stalled': 0
     };
     allDeals.forEach(deal => {
@@ -250,6 +251,7 @@ export default function LeaderDashboard() {
         'Proposal': 0,
         'Negotiating': 0,
         'Closed Won': 0,
+        'Closed Lost': 0,
         'Stalled': 0
       };
       repDeals.forEach(deal => {

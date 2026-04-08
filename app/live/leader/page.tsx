@@ -468,7 +468,7 @@ export default function LiveLeaderDashboard() {
 
   const renderRelationships = () => {
     const filteredAdvisors = relationshipFilter === 'All' ? advisors
-      : advisors.filter(a => a.tier === (relationshipFilter === 'Platinum' ? 'platinum' : relationshipFilter === 'Gold' ? 'gold' : 'silver'));
+      : advisors.filter(a => a.tier === (relationshipFilter === 'Anchor' ? 'anchor' : relationshipFilter === 'Scaling' ? 'scaling' : relationshipFilter === 'Building' ? 'building' : 'launching'));
 
     if (relationshipsView === 'detail' && selectedAdvisor) {
       return (

@@ -7,6 +7,7 @@ export const STAGE_WEIGHTS: StageWeight[] = [
   { stage: 'Discovery', weight: 0.05 },
   { stage: 'Stalled', weight: 0.00 },
   { stage: 'Closed Won', weight: 1.00 },
+  { stage: 'Closed Lost', weight: 0.00 },
 ];
 
 export const PARTNER_CAPACITY = 30;
