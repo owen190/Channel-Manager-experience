@@ -28,7 +28,6 @@ export const NAV_ITEMS_MANAGER = [
   { id: 'intelligence', label: 'Intelligence', icon: 'Brain' },
   { id: 'relationships', label: 'Relationships', icon: 'Handshake' },
   { id: 'pipeline', label: 'Pipeline', icon: 'DollarSign' },
-  { id: 'contacts', label: 'Contacts', icon: 'Users' },
 ];
 
 export const NAV_ITEMS_LEADER = [

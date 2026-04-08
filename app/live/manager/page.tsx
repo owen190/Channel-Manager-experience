@@ -75,7 +75,7 @@ export default function LiveManagerPage() {
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [showPartnerModal, setShowPartnerModal] = useState(false);
   const [editingPartner, setEditingPartner] = useState<Advisor | null>(null);
-  const [relationshipViewMode, setRelationshipViewMode] = useState<'partners' | 'tsds'>('partners');
+  const [relationshipViewMode, setRelationshipViewMode] = useState<'partners' | 'tsds' | 'groups'>('partners');
   const [contactTypeFilter, setContactTypeFilter] = useState<string>('All');
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [companyFilter, setCompanyFilter] = useState<string | null>(null);
@@ -2008,6 +2008,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
           {[
             { key: 'partners', label: 'Partners', icon: Users },
             { key: 'tsds', label: `TSDs (${TSD_COMPANIES.length})`, icon: Building2 },
+            { key: 'groups', label: `Groups (${contactGroups.length})`, icon: Shield },
           ].map(tab => (
             <button
               key={tab.key}
@@ -2022,6 +2023,10 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
               {tab.label}
             </button>
           ))}
+          <div className="flex-1" />
+          <button onClick={() => { setRelationshipViewMode('groups'); setShowCreateGroup(true); }} className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold text-[#157A6E] border border-[#157A6E] rounded-[8px] hover:bg-teal-50 transition-colors">
+            <Plus className="w-3 h-3" /> Create Group
+          </button>
         </div>
 
         {/* ── PARTNERS SUB-TAB ── */}
@@ -2851,6 +2856,100 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
           );
         })()}
 
+
+        {/* ── GROUPS SUB-TAB ── */}
+        {relationshipViewMode === 'groups' && (
+          <div className="space-y-4">
+            {/* Create Group Form */}
+            {showCreateGroup && (
+              <div className="bg-white rounded-[10px] border-2 border-[#157A6E]/30 p-5">
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-3">Create Contact Group</h3>
+                <input value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="Group name..." className="w-full text-13px border border-[#e8e5e1] rounded-lg px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
+                <p className="text-11px text-gray-500 mb-2">Select contacts to add:</p>
+                <div className="max-h-48 overflow-y-auto space-y-1 mb-3 border border-[#e8e5e1] rounded-lg p-2">
+                  {advisorsWithDeals.map(a => (
+                    <label key={a.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer">
+                      <input type="checkbox" checked={newGroupAdvisors.includes(a.id)} onChange={e => setNewGroupAdvisors(prev => e.target.checked ? [...prev, a.id] : prev.filter(id => id !== a.id))} className="rounded border-gray-300 text-[#157A6E] focus:ring-[#157A6E]" />
+                      <span className="text-12px text-gray-800">{a.name}</span>
+                      <span className="text-[10px] text-gray-400 ml-auto">{a.company}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => {
+                    if (!newGroupName.trim()) return;
+                    setContactGroups(prev => [...prev, { id: `grp-${Date.now()}`, name: newGroupName, advisorIds: newGroupAdvisors }]);
+                    setNewGroupName(''); setNewGroupAdvisors([]); setShowCreateGroup(false);
+                  }} className="px-4 py-2 text-12px font-semibold bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550]">Create Group</button>
+                  <button onClick={() => { setShowCreateGroup(false); setNewGroupName(''); setNewGroupAdvisors([]); }} className="px-4 py-2 text-12px font-medium text-gray-500 hover:text-gray-700">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {contactGroups.length === 0 && !showCreateGroup ? (
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
+                <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                <p className="text-13px font-semibold text-gray-700">No groups yet</p>
+                <p className="text-11px text-gray-400 mt-1">Create a group to organize contacts and set outreach rules</p>
+                <button onClick={() => setShowCreateGroup(true)} className="mt-3 px-4 py-2 text-12px font-semibold text-[#157A6E] border border-[#157A6E] rounded-lg hover:bg-teal-50">Create Group</button>
+              </div>
+            ) : contactGroups.map(group => (
+              <div key={group.id} className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h4 className="text-[14px] font-semibold text-gray-900">{group.name}</h4>
+                    <p className="text-11px text-gray-500">{group.advisorIds.length} contacts{group.rules?.cadenceDays ? ` · ${group.rules.cadenceDays}d cadence` : ''}{group.rules?.autoActions ? ' · Auto-actions on' : ''}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowGroupRules(showGroupRules === group.id ? null : group.id)} className="px-3 py-1.5 text-[10px] font-semibold text-[#157A6E] border border-[#157A6E]/30 rounded-lg hover:bg-teal-50">
+                      {group.rules ? 'Edit Rules' : 'Set Rules'}
+                    </button>
+                    <button onClick={() => setContactGroups(prev => prev.filter(g => g.id !== group.id))} className="px-2 py-1.5 text-[10px] text-red-500 hover:text-red-700"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+                {/* Rules editor */}
+                {showGroupRules === group.id && (
+                  <div className="mb-4 p-3 bg-teal-50/50 rounded-lg border border-[#157A6E]/20">
+                    <h5 className="text-11px font-semibold text-gray-800 mb-2">Outreach Rules</h5>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3">
+                        <label className="text-11px text-gray-600 w-24">Cadence (days)</label>
+                        <input type="number" value={group.rules?.cadenceDays || groupRuleCadence} onChange={e => setGroupRuleCadence(e.target.value)} className="w-20 text-11px border border-[#e8e5e1] rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="text-11px text-gray-600 w-24">Auto-actions</label>
+                        <button onClick={() => setGroupRuleAutoActions(!groupRuleAutoActions)} className={`w-8 h-5 rounded-full transition-colors ${groupRuleAutoActions ? 'bg-[#157A6E]' : 'bg-gray-300'} relative`}>
+                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${groupRuleAutoActions ? 'left-3.5' : 'left-0.5'}`} />
+                        </button>
+                        <span className="text-[10px] text-gray-500">Generate action items when cadence is overdue</span>
+                      </div>
+                    </div>
+                    <button onClick={() => {
+                      setContactGroups(prev => prev.map(g => g.id === group.id ? { ...g, rules: { cadenceDays: parseInt(groupRuleCadence), autoActions: groupRuleAutoActions } } : g));
+                      setShowGroupRules(null);
+                    }} className="mt-2 px-3 py-1.5 text-[10px] font-semibold bg-[#157A6E] text-white rounded hover:bg-[#0f5550]">Save Rules</button>
+                  </div>
+                )}
+                {/* Group members */}
+                <div className="space-y-1">
+                  {group.advisorIds.map(id => {
+                    const a = advisors.find(adv => adv.id === id);
+                    if (!a) return null;
+                    return (
+                      <div key={id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer" onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
+                        <div className={`w-2 h-2 rounded-sm ${a.tier === 'platinum' ? 'bg-[#157A6E]' : a.tier === 'gold' ? 'bg-amber-400' : a.tier === 'silver' ? 'bg-gray-400' : 'bg-blue-400'}`} />
+                        <span className="text-12px font-medium text-gray-800 flex-1">{a.name}</span>
+                        <span className="text-[10px] text-gray-400">{a.company}</span>
+                        <PulseBadge pulse={a.pulse} />
+                        <span className="text-11px font-bold text-gray-700">{formatCurrency(a.mrr)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* PartnerModal */}
         <PartnerModal
@@ -4928,211 +5027,7 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     );
   };
 
-  const renderContacts = () => {
-    const allPartners = advisors.filter(a => !flatlinedAdvisorIds.includes(a.id));
-    const tsdContacts = [
-      { id: 'tsd-1', name: 'Sarah Mitchell', role: 'Account Executive', company: 'Telarus', email: 'sarah.mitchell@telarus.com', phone: '(801) 555-0142' },
-      { id: 'tsd-2', name: 'James Rodriguez', role: 'Solutions Engineer', company: 'Avant', email: 'james.rodriguez@avant.com', phone: '(312) 555-0198' },
-      { id: 'tsd-3', name: 'Emily Chen', role: 'Channel Manager', company: 'Intelisys', email: 'emily.chen@intelisys.com', phone: '(416) 555-0234' },
-      { id: 'tsd-4', name: 'Michael Torres', role: 'VP of Partnerships', company: 'Sandler Partners', email: 'michael.torres@sandlerpartners.com', phone: '(323) 555-0177' },
-      { id: 'tsd-5', name: 'Rachel Kim', role: 'Partner Success', company: 'AppDirect', email: 'rachel.kim@appdirect.com', phone: '(415) 555-0156' },
-    ];
-
-    return (
-      <div className="space-y-5">
-        {/* View Tabs */}
-        <div className="flex items-center gap-4 border-b border-[#e8e5e1] pb-3">
-          {[
-            { key: 'partners' as const, label: 'Partners', count: allPartners.length },
-            { key: 'tsds' as const, label: 'TSDs', count: tsdContacts.length },
-            { key: 'all' as const, label: 'All Contacts', count: allPartners.length + tsdContacts.length },
-            { key: 'groups' as const, label: 'Groups', count: contactGroups.length },
-          ].map(tab => (
-            <button key={tab.key} onClick={() => setContactsView(tab.key)}
-              className={`px-4 py-2 text-[13px] font-semibold border-b-2 -mb-[13px] transition-colors ${contactsView === tab.key ? 'text-[#157A6E] border-[#157A6E]' : 'text-gray-500 border-transparent hover:text-gray-700'}`}>
-              {tab.label} <span className="ml-1 text-[11px] opacity-60">{tab.count}</span>
-            </button>
-          ))}
-          <div className="flex-1" />
-          <button onClick={() => setShowCreateGroup(true)} className="px-3 py-1.5 text-[11px] font-semibold text-[#157A6E] border border-[#157A6E] rounded-lg hover:bg-teal-50 flex items-center gap-1">
-            <Plus className="w-3 h-3" /> Create Group
-          </button>
-        </div>
-
-        {/* Create Group Modal */}
-        {showCreateGroup && (
-          <div className="bg-white rounded-[10px] border-2 border-[#157A6E]/30 p-5">
-            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-3">Create Contact Group</h3>
-            <input value={newGroupName} onChange={e => setNewGroupName(e.target.value)} placeholder="Group name..." className="w-full text-13px border border-[#e8e5e1] rounded-lg px-3 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
-            <p className="text-11px text-gray-500 mb-2">Select contacts to add:</p>
-            <div className="max-h-48 overflow-y-auto space-y-1 mb-3 border border-[#e8e5e1] rounded-lg p-2">
-              {allPartners.map(a => (
-                <label key={a.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer">
-                  <input type="checkbox" checked={newGroupAdvisors.includes(a.id)} onChange={e => setNewGroupAdvisors(prev => e.target.checked ? [...prev, a.id] : prev.filter(id => id !== a.id))} className="rounded border-gray-300 text-[#157A6E] focus:ring-[#157A6E]" />
-                  <span className="text-12px text-gray-800">{a.name}</span>
-                  <span className="text-[10px] text-gray-400 ml-auto">{a.company}</span>
-                </label>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => {
-                if (!newGroupName.trim()) return;
-                setContactGroups(prev => [...prev, { id: `grp-${Date.now()}`, name: newGroupName, advisorIds: newGroupAdvisors }]);
-                setNewGroupName(''); setNewGroupAdvisors([]); setShowCreateGroup(false);
-              }} className="px-4 py-2 text-12px font-semibold bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550]">Create Group</button>
-              <button onClick={() => { setShowCreateGroup(false); setNewGroupName(''); setNewGroupAdvisors([]); }} className="px-4 py-2 text-12px font-medium text-gray-500 hover:text-gray-700">Cancel</button>
-            </div>
-          </div>
-        )}
-
-        {/* Groups View */}
-        {contactsView === 'groups' && (
-          <div className="space-y-4">
-            {contactGroups.length === 0 ? (
-              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
-                <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-13px font-semibold text-gray-700">No groups yet</p>
-                <p className="text-11px text-gray-400 mt-1">Create a group to organize contacts and set outreach rules</p>
-              </div>
-            ) : contactGroups.map(group => (
-              <div key={group.id} className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h4 className="text-[14px] font-semibold text-gray-900">{group.name}</h4>
-                    <p className="text-11px text-gray-500">{group.advisorIds.length} contacts</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setShowGroupRules(showGroupRules === group.id ? null : group.id)} className="px-3 py-1.5 text-[10px] font-semibold text-[#157A6E] border border-[#157A6E]/30 rounded-lg hover:bg-teal-50">
-                      {group.rules ? 'Edit Rules' : 'Set Rules'}
-                    </button>
-                    <button onClick={() => setContactGroups(prev => prev.filter(g => g.id !== group.id))} className="px-2 py-1.5 text-[10px] text-red-500 hover:text-red-700"><X className="w-3.5 h-3.5" /></button>
-                  </div>
-                </div>
-                {/* Rules editor */}
-                {showGroupRules === group.id && (
-                  <div className="mb-4 p-3 bg-teal-50/50 rounded-lg border border-[#157A6E]/20">
-                    <h5 className="text-11px font-semibold text-gray-800 mb-2">Outreach Rules</h5>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-3">
-                        <label className="text-11px text-gray-600 w-24">Cadence (days)</label>
-                        <input type="number" value={group.rules?.cadenceDays || groupRuleCadence} onChange={e => setGroupRuleCadence(e.target.value)} className="w-20 text-11px border border-[#e8e5e1] rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" />
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <label className="text-11px text-gray-600 w-24">Auto-actions</label>
-                        <button onClick={() => setGroupRuleAutoActions(!groupRuleAutoActions)} className={`w-8 h-4.5 rounded-full transition-colors ${groupRuleAutoActions ? 'bg-[#157A6E]' : 'bg-gray-300'} relative`}>
-                          <span className={`absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform ${groupRuleAutoActions ? 'left-4' : 'left-0.5'}`} />
-                        </button>
-                        <span className="text-[10px] text-gray-500">Generate action items when cadence is overdue</span>
-                      </div>
-                    </div>
-                    <button onClick={() => {
-                      setContactGroups(prev => prev.map(g => g.id === group.id ? { ...g, rules: { cadenceDays: parseInt(groupRuleCadence), autoActions: groupRuleAutoActions } } : g));
-                      setShowGroupRules(null);
-                    }} className="mt-2 px-3 py-1.5 text-[10px] font-semibold bg-[#157A6E] text-white rounded hover:bg-[#0f5550]">Save Rules</button>
-                  </div>
-                )}
-                {/* Group members */}
-                <div className="space-y-1">
-                  {group.advisorIds.map(id => {
-                    const a = advisors.find(adv => adv.id === id);
-                    if (!a) return null;
-                    return (
-                      <div key={id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer" onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }}>
-                        <div className={`w-2 h-2 rounded-sm ${a.tier === 'platinum' ? 'bg-[#157A6E]' : a.tier === 'gold' ? 'bg-amber-400' : a.tier === 'silver' ? 'bg-gray-400' : 'bg-blue-400'}`} />
-                        <span className="text-12px font-medium text-gray-800 flex-1">{a.name}</span>
-                        <span className="text-[10px] text-gray-400">{a.company}</span>
-                        <span className="text-11px font-bold text-gray-700">{formatCurrency(a.mrr)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Partners View */}
-        {contactsView === 'partners' && (
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1]">
-            <div className="p-4 border-b border-[#e8e5e1]">
-              <input placeholder="Search partners..." value={partnerSearch} onChange={e => setPartnerSearch(e.target.value)} className="w-full text-13px border border-[#e8e5e1] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
-            </div>
-            <div className="divide-y divide-[#e8e5e1]">
-              {allPartners.filter(a => !partnerSearch || a.name.toLowerCase().includes(partnerSearch.toLowerCase()) || a.company.toLowerCase().includes(partnerSearch.toLowerCase())).map(a => (
-                <div key={a.id} onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors">
-                  <div className="w-8 h-8 bg-[#157A6E] rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-white text-[11px] font-semibold">{a.name.split(' ').map(n => n[0]).join('')}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-13px font-medium text-gray-900">{a.name}</p>
-                    <p className="text-11px text-gray-500">{a.company}</p>
-                  </div>
-                  <TierBadge tier={a.tier} />
-                  <PulseBadge pulse={a.pulse} />
-                  <span className="text-12px font-bold text-gray-700 tabular-nums w-20 text-right">{formatCurrency(a.mrr)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* TSDs View */}
-        {contactsView === 'tsds' && (
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1]">
-            <div className="divide-y divide-[#e8e5e1]">
-              {tsdContacts.map(c => (
-                <div key={c.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors">
-                  <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-white text-[11px] font-semibold">{c.name.split(' ').map(n => n[0]).join('')}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-13px font-medium text-gray-900">{c.name}</p>
-                    <p className="text-11px text-gray-500">{c.role} · {c.company}</p>
-                  </div>
-                  <span className="text-11px text-gray-400">{c.email}</span>
-                  <span className="text-11px text-gray-400">{c.phone}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* All Contacts View */}
-        {contactsView === 'all' && (
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1]">
-            <div className="divide-y divide-[#e8e5e1]">
-              {allPartners.map(a => (
-                <div key={a.id} onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); }} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors">
-                  <div className="w-8 h-8 bg-[#157A6E] rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-white text-[11px] font-semibold">{a.name.split(' ').map(n => n[0]).join('')}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-13px font-medium text-gray-900">{a.name}</p>
-                    <p className="text-11px text-gray-500">{a.company}</p>
-                  </div>
-                  <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[10px] font-medium rounded">Partner</span>
-                  <span className="text-12px font-bold text-gray-700 tabular-nums w-20 text-right">{formatCurrency(a.mrr)}</span>
-                </div>
-              ))}
-              {tsdContacts.map(c => (
-                <div key={c.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 cursor-pointer transition-colors">
-                  <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-white text-[11px] font-semibold">{c.name.split(' ').map(n => n[0]).join('')}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-13px font-medium text-gray-900">{c.name}</p>
-                    <p className="text-11px text-gray-500">{c.role} · {c.company}</p>
-                  </div>
-                  <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-medium rounded">TSD</span>
-                  <span className="text-11px text-gray-400 w-20 text-right">{c.phone}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+  // Groups view is now integrated into renderRelationships
 
   // ════════════════════════════════════════════════
   // VIEW ROUTING
@@ -5142,7 +5037,6 @@ If the user's request is vague, ask ONE clarifying question — don't generate a
     'intelligence': renderIntelligence,
     'relationships': renderRelationships,
     'pipeline': renderPipeline,
-    'contacts': renderContacts,
   };
 
   return (
