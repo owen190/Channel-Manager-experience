@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Sparkles, Send, ChevronLeft } from 'lucide-react';
+import { Sparkles, Send, X, Minus, Maximize2 } from 'lucide-react';
 import { advisors as staticAdvisors } from '@/lib/data/advisors';
 import { deals as staticDeals } from '@/lib/data/deals';
 import { Advisor } from '@/lib/types';
@@ -16,7 +16,7 @@ interface AIChatProps {
   role: 'manager' | 'leader';
   context?: string;
   selectedAdvisor?: Advisor | null;
-  live?: boolean; // When true, calls Claude API via /api/live/ai
+  live?: boolean;
 }
 
 // ============ STATIC RESPONSE GENERATORS (demo mode) ============
@@ -152,35 +152,45 @@ async function callLiveAI(
 // ============ COMPONENT ============
 
 export function AIChat({ role, context, selectedAdvisor, live = false }: AIChatProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Reset messages when advisor changes
   useEffect(() => {
     if (live) {
-      // In live mode, show a simpler initial message
       const name = role === 'manager' ? 'Jordan' : 'Priya';
       const greeting = selectedAdvisor
         ? `I have context on ${selectedAdvisor.name}. What would you like to know?`
         : `Hi ${name}. I have access to your live portfolio data. Ask me anything about your partners, pipeline, or team.`;
       setMessages([{ id: '1', type: 'assistant', text: greeting }]);
     } else {
-      // Demo mode: use proactive messages
       if (selectedAdvisor) {
         setMessages([{ id: '1', type: 'assistant', text: getAdvisorInsight(selectedAdvisor) }]);
       } else {
         setMessages([{ id: '1', type: 'assistant', text: getProactiveMessage(role) }]);
       }
     }
+    if (!isOpen && selectedAdvisor) {
+      setHasUnread(true);
+    }
   }, [selectedAdvisor, role, live]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setHasUnread(false);
+      setTimeout(() => inputRef.current?.focus(), 150);
+    }
+  }, [isOpen]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim()) return;
@@ -194,7 +204,6 @@ export function AIChat({ role, context, selectedAdvisor, live = false }: AIChatP
     let responseText: string;
 
     if (live) {
-      // Call the Claude API
       responseText = await callLiveAI(
         text,
         role,
@@ -202,7 +211,6 @@ export function AIChat({ role, context, selectedAdvisor, live = false }: AIChatP
         updatedMessages
       );
     } else {
-      // Static demo responses with slight delay
       await new Promise(resolve => setTimeout(resolve, 600));
       responseText = selectedAdvisor
         ? generateAdvisorResponse(selectedAdvisor, text)
@@ -223,119 +231,143 @@ export function AIChat({ role, context, selectedAdvisor, live = false }: AIChatP
     ? ['How should I prep for a call?', 'What are the risks?', 'Tell me about their deals', 'Personal interests?']
     : ['Who needs attention?', 'Pipeline overview', 'Top performers', 'At-risk advisors'];
 
+  // Floating icon (closed state)
+  if (!isOpen) {
+    return (
+      <button
+        onClick={() => setIsOpen(true)}
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#157A6E] text-white rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center group"
+      >
+        <Sparkles className="w-6 h-6 group-hover:scale-110 transition-transform" />
+        {hasUnread && (
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
+            <span className="w-2 h-2 bg-white rounded-full" />
+          </span>
+        )}
+      </button>
+    );
+  }
+
+  // Chat panel (open state)
+  const panelWidth = isExpanded ? 'w-[480px]' : 'w-[380px]';
+  const panelHeight = isExpanded ? 'h-[600px]' : 'h-[500px]';
+
   return (
-    <>
-      {!isOpen && (
-        <button
-          onClick={() => { setIsOpen(true); setTimeout(() => inputRef.current?.focus(), 100); }}
-          className="fixed right-0 top-1/2 -translate-y-1/2 bg-[#157A6E] text-white px-1.5 py-6 rounded-l-lg shadow-lg hover:shadow-xl transition-all z-40 flex flex-col items-center gap-1"
-        >
-          <Sparkles className="w-4 h-4" />
-          <span className="text-xs font-medium [writing-mode:vertical-lr] rotate-180">Chat</span>
-        </button>
-      )}
-
-      {isOpen && (
-        <div className="w-[300px] h-full bg-white border-l border-solid border-[#e8e5e1] flex flex-col flex-shrink-0">
-          {/* Header */}
-          <div className="px-4 py-3.5 border-b border-[#e8e5e1] flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${live ? 'bg-[#157A6E]' : 'bg-[#157A6E]'}`}>
-                <Sparkles className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-900 truncate">
-                  {selectedAdvisor ? selectedAdvisor.name : 'AI Assistant'}
-                </h3>
-                {live && <span className="text-[9px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">LIVE</span>}
-              </div>
-            </div>
-            <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-600 p-1 flex-shrink-0">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
+    <div className={`fixed bottom-6 right-6 z-50 ${panelWidth} ${panelHeight} bg-white rounded-2xl shadow-2xl border border-[#e8e5e1] flex flex-col overflow-hidden transition-all duration-200`}>
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-[#e8e5e1] bg-gradient-to-r from-[#157A6E] to-[#1a9282] flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+            <Sparkles className="w-4.5 h-4.5 text-white" />
           </div>
-
-          {/* Advisor context bar */}
-          {selectedAdvisor && (
-            <div className="px-4 py-2 bg-[#f0faf8] border-b border-[#e8e5e1] flex items-center gap-2.5 text-xs">
-              <span className={`px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1 ${
-                selectedAdvisor.pulse === 'Strong' ? 'bg-green-100 text-green-700' :
-                selectedAdvisor.pulse === 'Rising' ? 'bg-emerald-100 text-emerald-700' :
-                selectedAdvisor.pulse === 'Steady' ? 'bg-blue-100 text-blue-700' :
-                selectedAdvisor.pulse === 'Fading' ? 'bg-amber-100 text-amber-700' :
-                'bg-red-100 text-red-700'
-              }`}>
-                <span className="w-1.5 h-1.5 bg-current rounded-full animate-pulse" />
-                {selectedAdvisor.pulse}
-              </span>
-              <span className="text-gray-600">${(selectedAdvisor.mrr/1000).toFixed(1)}K</span>
-              <span className="text-gray-600">{selectedAdvisor.trajectory}</span>
-            </div>
-          )}
-
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-3 flex flex-col gap-3">
-            {messages.map(message => (
-              <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] whitespace-pre-wrap text-13px leading-1.6 ${
-                  message.type === 'user'
-                    ? 'bg-[#157A6E] text-white px-3.5 py-2 rounded-3xl rounded-br-sm'
-                    : 'text-[#555555] text-left'
-                }`}>
-                  {message.text}
-                </div>
-              </div>
-            ))}
-            {isLoading && (
-              <div className="flex items-center gap-1.5 text-gray-400 text-sm">
-                <div className="flex gap-1">
-                  <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Suggestion chips */}
-          {messages.length <= 2 && (
-            <div className="px-4 pb-3 flex flex-wrap gap-1.5">
-              {suggestions.map((s, i) => (
-                <button
-                  key={i}
-                  onClick={() => sendMessage(s)}
-                  className="px-2.5 py-1 bg-[#faf9f7] border border-[#e0ddd9] rounded-full text-10px text-gray-700 hover:border-[#157A6E] hover:text-[#157A6E] transition-colors"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Input */}
-          <div className="px-4 py-3 border-t border-[#e8e5e1]">
-            <div className="flex items-center gap-2 bg-[#faf9f7] border border-[#e0ddd9] rounded-lg px-3 py-2.5 focus-within:border-[#157A6E] focus-within:bg-white transition-colors">
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputValue}
-                onChange={e => setInputValue(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSend()}
-                placeholder={selectedAdvisor ? `Ask about ${selectedAdvisor.name.split(' ')[0]}...` : 'Ask a question...'}
-                className="flex-1 bg-transparent text-12px text-gray-900 placeholder-gray-500 focus:outline-none"
-              />
-              <button
-                onClick={handleSend}
-                disabled={isLoading || !inputValue.trim()}
-                className="p-1.5 text-[#157A6E] hover:bg-[#157A6E]/10 rounded transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
+          <div>
+            <h3 className="text-[13px] font-semibold text-white leading-tight">
+              {selectedAdvisor ? selectedAdvisor.name : 'AI Assistant'}
+            </h3>
+            <div className="flex items-center gap-1.5">
+              {live && <span className="text-[9px] font-bold text-emerald-200 bg-white/15 px-1.5 py-0.5 rounded">LIVE</span>}
+              {selectedAdvisor && <span className="text-[9px] text-white/70">{selectedAdvisor.company}</span>}
             </div>
           </div>
         </div>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setIsExpanded(!isExpanded)} className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title={isExpanded ? 'Shrink' : 'Expand'}>
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => setIsOpen(false)} className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Minimize">
+            <Minus className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => { setIsOpen(false); setMessages([]); }} className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Close">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Advisor context bar */}
+      {selectedAdvisor && (
+        <div className="px-4 py-2 bg-[#f0faf8] border-b border-[#e8e5e1] flex items-center gap-2.5 text-xs flex-shrink-0">
+          <span className={`px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1 ${
+            selectedAdvisor.pulse === 'Strong' ? 'bg-green-100 text-green-700' :
+            selectedAdvisor.pulse === 'Rising' ? 'bg-emerald-100 text-emerald-700' :
+            selectedAdvisor.pulse === 'Steady' ? 'bg-blue-100 text-blue-700' :
+            selectedAdvisor.pulse === 'Fading' ? 'bg-amber-100 text-amber-700' :
+            'bg-red-100 text-red-700'
+          }`}>
+            <span className="w-1.5 h-1.5 bg-current rounded-full animate-pulse" />
+            {selectedAdvisor.pulse}
+          </span>
+          <span className="text-gray-600 font-medium">${(selectedAdvisor.mrr/1000).toFixed(1)}K MRR</span>
+          <span className={`text-[10px] font-medium ${
+            selectedAdvisor.trajectory === 'Accelerating' || selectedAdvisor.trajectory === 'Climbing' ? 'text-green-600' :
+            selectedAdvisor.trajectory === 'Slipping' || selectedAdvisor.trajectory === 'Freefall' ? 'text-red-600' :
+            'text-gray-500'
+          }`}>{selectedAdvisor.trajectory}</span>
+        </div>
       )}
-    </>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-3 flex flex-col gap-3">
+        {messages.map(message => (
+          <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[85%] whitespace-pre-wrap text-[12px] leading-[1.6] ${
+              message.type === 'user'
+                ? 'bg-[#157A6E] text-white px-3.5 py-2 rounded-2xl rounded-br-sm'
+                : 'bg-[#F7F5F2] text-gray-700 px-3.5 py-2.5 rounded-2xl rounded-bl-sm border border-[#e8e5e1]'
+            }`}>
+              {message.text}
+            </div>
+          </div>
+        ))}
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-[#F7F5F2] border border-[#e8e5e1] rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1.5">
+              <div className="flex gap-1">
+                <div className="w-1.5 h-1.5 bg-[#157A6E] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-1.5 h-1.5 bg-[#157A6E] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-1.5 h-1.5 bg-[#157A6E] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Suggestion chips */}
+      {messages.length <= 2 && (
+        <div className="px-4 pb-2 flex flex-wrap gap-1.5 flex-shrink-0">
+          {suggestions.map((s, i) => (
+            <button
+              key={i}
+              onClick={() => sendMessage(s)}
+              className="px-2.5 py-1 bg-[#faf9f7] border border-[#e0ddd9] rounded-full text-[10px] text-gray-700 hover:border-[#157A6E] hover:text-[#157A6E] hover:bg-teal-50 transition-colors"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="px-4 py-3 border-t border-[#e8e5e1] flex-shrink-0 bg-white">
+        <div className="flex items-center gap-2 bg-[#faf9f7] border border-[#e0ddd9] rounded-xl px-3 py-2.5 focus-within:border-[#157A6E] focus-within:bg-white focus-within:shadow-sm transition-all">
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={e => setInputValue(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSend()}
+            placeholder={selectedAdvisor ? `Ask about ${selectedAdvisor.name.split(' ')[0]}...` : 'Ask anything about your portfolio...'}
+            className="flex-1 bg-transparent text-[12px] text-gray-900 placeholder-gray-400 focus:outline-none"
+          />
+          <button
+            onClick={handleSend}
+            disabled={isLoading || !inputValue.trim()}
+            className="p-1.5 bg-[#157A6E] text-white rounded-lg hover:bg-[#126a5f] transition-colors disabled:opacity-30 disabled:hover:bg-[#157A6E]"
+          >
+            <Send className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
