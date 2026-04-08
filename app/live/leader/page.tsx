@@ -139,6 +139,28 @@ export default function LiveLeaderDashboard() {
     }
   };
 
+  const updateAdvisorField = async (field: string, value: any) => {
+    if (!selectedAdvisor) return;
+    const updated = { ...selectedAdvisor, [field]: value };
+    setAdvisors(prev => prev.map(a => a.id === selectedAdvisor.id ? { ...a, [field]: value } : a));
+    setSelectedAdvisor(updated);
+    try {
+      await fetch('/api/live/advisors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...selectedAdvisor, [field]: value }),
+      });
+    } catch (err) {
+      console.error('Failed to update advisor:', err);
+    }
+  };
+
+  // Helper for multi-partner deal lookups
+  const getDealAdvisorIds = (deal: Deal): string[] => {
+    if (deal.advisorIds && deal.advisorIds.length > 0) return deal.advisorIds;
+    return deal.advisorId ? [deal.advisorId] : [];
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#F7F5F2]">
@@ -253,13 +275,14 @@ export default function LiveLeaderDashboard() {
             ) : (
               <div className="space-y-2">
                 {atRiskDeals.map(d => {
-                  const adv = advisors.find(a => a.id === d.advisorId);
+                  const dealAdvIds = getDealAdvisorIds(d);
+                  const dealAdvNames = dealAdvIds.map(id => advisors.find(a => a.id === id)?.name || '?').join(', ');
                   const rep = reps.find(r => r.id === d.repId);
                   return (
                     <div key={d.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
                       <div>
                         <p className="text-13px font-medium text-gray-800">{d.name}</p>
-                        <p className="text-11px text-gray-500">{adv?.name || '?'} · {rep?.name || '?'} · {d.stage} · {d.daysInStage}d</p>
+                        <p className="text-11px text-gray-500">{dealAdvNames} · {rep?.name || '?'} · {d.stage} · {d.daysInStage}d</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <DealHealthBadge health={d.health} />
@@ -372,10 +395,10 @@ export default function LiveLeaderDashboard() {
                 {expanded && repDeals.length > 0 && (
                   <div className="ml-5 mt-2 space-y-1">
                     {repDeals.map(d => {
-                      const adv = advisors.find(a => a.id === d.advisorId);
+                      const advNames = getDealAdvisorIds(d).map(id => advisors.find(a => a.id === id)?.name || '?').join(', ');
                       return (
                         <div key={d.id} className="flex items-center justify-between py-1.5 px-3 text-11px">
-                          <span className="text-gray-700">{d.name} ({adv?.name || '?'})</span>
+                          <span className="text-gray-700">{d.name} ({advNames})</span>
                           <div className="flex items-center gap-3">
                             <span className="text-gray-500">{d.stage}</span>
                             <DealHealthBadge health={d.health} />
@@ -477,7 +500,7 @@ export default function LiveLeaderDashboard() {
                   className="flex items-center gap-1 text-12px text-[#157A6E] hover:underline">
             <ArrowLeft className="w-3 h-3" /> Back to list
           </button>
-          <AdvisorPanel advisor={selectedAdvisor} deals={deals.filter(d => d.advisorId === selectedAdvisor.id)} isOpen={true} onClose={() => { setRelationshipsView('list'); setSelectedAdvisor(null); }} />
+          <AdvisorPanel advisor={selectedAdvisor} deals={deals.filter(d => getDealAdvisorIds(d).includes(selectedAdvisor.id))} isOpen={true} onClose={() => { setRelationshipsView('list'); setSelectedAdvisor(null); }} onUpdateAdvisor={updateAdvisorField} />
         </div>
       );
     }
@@ -485,7 +508,7 @@ export default function LiveLeaderDashboard() {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          {['All', 'Platinum', 'Gold', 'Silver'].map(f => (
+          {['All', 'Anchor', 'Scaling', 'Building', 'Launching'].map(f => (
             <button key={f} onClick={() => setRelationshipFilter(f)}
                     className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${relationshipFilter === f ? 'bg-[#157A6E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
               {f}
@@ -534,10 +557,10 @@ export default function LiveLeaderDashboard() {
                   {expanded && (
                     <div className="ml-2 mt-2 space-y-1">
                       {repDeals.map(d => {
-                        const adv = advisors.find(a => a.id === d.advisorId);
+                        const advNames = getDealAdvisorIds(d).map(id => advisors.find(a => a.id === id)?.name || '?').join(', ');
                         return (
                           <div key={d.id} className="flex items-center justify-between py-1 text-11px">
-                            <span className="text-gray-700">{d.name} ({adv?.name || '?'})</span>
+                            <span className="text-gray-700">{d.name} ({advNames})</span>
                             <div className="flex items-center gap-2">
                               <span className="text-gray-500">{d.stage}</span>
                               <DealHealthBadge health={d.health} />
@@ -633,7 +656,7 @@ export default function LiveLeaderDashboard() {
     const repFriction = reps.map(rep => {
       const repAdvisors = advisors.filter(a => {
         const repDeals = deals.filter(d => d.repId === rep.id);
-        return repDeals.some(d => d.advisorId === a.id);
+        return repDeals.some(d => getDealAdvisorIds(d).includes(a.id));
       });
       const highFriction = repAdvisors.filter(a => a.friction === 'High' || a.friction === 'Critical');
       return {
@@ -822,6 +845,15 @@ export default function LiveLeaderDashboard() {
           </div>
         </main>
       </div>
+      {panelOpen && selectedAdvisor && activeView !== 'relationships' && (
+        <AdvisorPanel
+          advisor={selectedAdvisor}
+          deals={deals.filter(d => getDealAdvisorIds(d).includes(selectedAdvisor.id))}
+          isOpen={panelOpen}
+          onClose={() => { setPanelOpen(false); setSelectedAdvisor(null); }}
+          onUpdateAdvisor={updateAdvisorField}
+        />
+      )}
       <AIChat role="leader" selectedAdvisor={selectedAdvisor} live={true} />
     </div>
   );

@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays, Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle } from 'lucide-react';
-import { Advisor, Deal, EngagementScore } from '@/lib/types';
+import { MapPin, Cake, GraduationCap, Briefcase, Phone, Mail, CalendarDays, Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle, Pencil, Check, X as XIcon } from 'lucide-react';
+import { Advisor, Deal, EngagementScore, PartnerTier, RelationshipStage } from '@/lib/types';
 import { deals } from '@/lib/data/deals';
 import { SERVICE_CATALOG } from '@/lib/constants';
 import { PulseBadge } from './PulseBadge';
@@ -19,6 +19,7 @@ interface AdvisorPanelProps {
   deals: Deal[];
   isOpen: boolean;
   onClose: () => void;
+  onUpdateAdvisor?: (field: string, value: any) => void;
 }
 
 type TabType = 'overview' | 'personal' | 'deals' | 'notes' | 'activity' | 'collaboration';
@@ -42,6 +43,7 @@ export function AdvisorPanel({
   deals,
   isOpen,
   onClose,
+  onUpdateAdvisor,
 }: AdvisorPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [notes, setNotes] = useState<string[]>(advisor?.notes || []);
@@ -51,14 +53,19 @@ export function AdvisorPanel({
   const [expandedDeal, setExpandedDeal] = useState<string | null>(null);
   const [ratings, setRatings] = useState<any>(null);
   const [logCallOpen, setLogCallOpen] = useState(false);
+  const [logContactType, setLogContactType] = useState<'call' | 'email'>('call');
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [callDate, setCallDate] = useState('');
   const [callDuration, setCallDuration] = useState('');
   const [callSummary, setCallSummary] = useState('');
+  const [callSentiment, setCallSentiment] = useState('');
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [scheduleDescription, setScheduleDescription] = useState('');
   const [scheduleConfirmation, setScheduleConfirmation] = useState(false);
+  // Inline editing state
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState<string>('');
 
   // Fetch ratings data
   useEffect(() => {
@@ -79,7 +86,7 @@ export function AdvisorPanel({
 
   if (!advisor) return null;
 
-  const advisorDeals = deals.filter((d) => d.advisorId === advisor.id);
+  const advisorDeals = deals.filter((d) => d.advisorIds?.includes(advisor.id) || d.advisorId === advisor.id);
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -96,13 +103,83 @@ export function AdvisorPanel({
     }
   };
 
+  // Inline editing helpers
+  const startEditing = (field: string, currentValue: any) => {
+    setEditingField(field);
+    setEditingValue(String(currentValue ?? ''));
+  };
+
+  const cancelEditing = () => {
+    setEditingField(null);
+    setEditingValue('');
+  };
+
+  const saveEditing = (field: string) => {
+    if (onUpdateAdvisor) {
+      const value = field === 'mrr' ? parseInt(editingValue) || 0 : editingValue;
+      onUpdateAdvisor(field, value);
+    }
+    setEditingField(null);
+    setEditingValue('');
+  };
+
+  const renderEditableField = (field: string, currentValue: any, options?: { type?: string; selectOptions?: { value: string; label: string }[] }) => {
+    if (editingField === field) {
+      if (options?.selectOptions) {
+        return (
+          <div className="flex items-center gap-1">
+            <select
+              value={editingValue}
+              onChange={(e) => setEditingValue(e.target.value)}
+              className="px-2 py-0.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-tcs-teal bg-white"
+              autoFocus
+            >
+              {options.selectOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <button onClick={() => saveEditing(field)} className="text-green-600 hover:text-green-700"><Check className="w-3 h-3" /></button>
+            <button onClick={cancelEditing} className="text-gray-400 hover:text-gray-600"><XIcon className="w-3 h-3" /></button>
+          </div>
+        );
+      }
+      return (
+        <div className="flex items-center gap-1">
+          <input
+            type={options?.type || 'text'}
+            value={editingValue}
+            onChange={(e) => setEditingValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveEditing(field); if (e.key === 'Escape') cancelEditing(); }}
+            className="px-2 py-0.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-tcs-teal w-full max-w-[180px]"
+            autoFocus
+          />
+          <button onClick={() => saveEditing(field)} className="text-green-600 hover:text-green-700"><Check className="w-3 h-3" /></button>
+          <button onClick={cancelEditing} className="text-gray-400 hover:text-gray-600"><XIcon className="w-3 h-3" /></button>
+        </div>
+      );
+    }
+    return (
+      <span
+        className={`font-medium text-gray-900 ${onUpdateAdvisor ? 'cursor-pointer hover:text-tcs-teal group/edit' : ''}`}
+        onClick={() => onUpdateAdvisor && startEditing(field, currentValue)}
+      >
+        {currentValue || '—'}
+        {onUpdateAdvisor && <Pencil className="w-2.5 h-2.5 inline ml-1 opacity-0 group-hover/edit:opacity-50" />}
+      </span>
+    );
+  };
+
   const handleSaveCall = () => {
-    if (callDate && callDuration && callSummary.trim()) {
-      const callNote = `Call on ${callDate} (${callDuration}m): ${callSummary}`;
-      setNotes([...notes, callNote]);
+    const isEmail = logContactType === 'email';
+    if (isEmail ? (callDate && callSummary.trim()) : (callDate && callDuration && callSummary.trim())) {
+      const logNote = isEmail
+        ? `Email on ${callDate}: ${callSummary}${callSentiment ? ` [Sentiment: ${callSentiment}]` : ''}`
+        : `Call on ${callDate} (${callDuration}m): ${callSummary}${callSentiment ? ` [Sentiment: ${callSentiment}]` : ''}`;
+      setNotes([...notes, logNote]);
       setCallDate('');
       setCallDuration('');
       setCallSummary('');
+      setCallSentiment('');
       setLogCallOpen(false);
     }
   };
@@ -146,11 +223,44 @@ export function AdvisorPanel({
                 {getInitials(advisor.name)}
               </div>
               <div>
-                <h2 className="font-bold text-lg text-gray-900">
-                  {advisor.name}
-                </h2>
-                <p className="text-sm text-gray-600">{advisor.title}</p>
+                {editingField === 'name' ? (
+                  <div className="flex items-center gap-1 mb-1">
+                    <input value={editingValue} onChange={(e) => setEditingValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') saveEditing('name'); if (e.key === 'Escape') cancelEditing(); }} className="px-2 py-0.5 border border-gray-200 rounded text-sm font-bold focus:outline-none focus:ring-1 focus:ring-tcs-teal" autoFocus />
+                    <button onClick={() => saveEditing('name')} className="text-green-600"><Check className="w-3.5 h-3.5" /></button>
+                    <button onClick={cancelEditing} className="text-gray-400"><XIcon className="w-3.5 h-3.5" /></button>
+                  </div>
+                ) : (
+                  <h2 className={`font-bold text-lg text-gray-900 ${onUpdateAdvisor ? 'cursor-pointer hover:text-tcs-teal' : ''}`} onClick={() => onUpdateAdvisor && startEditing('name', advisor.name)}>
+                    {advisor.name}
+                    {onUpdateAdvisor && <Pencil className="w-3 h-3 inline ml-1 opacity-0 hover:opacity-50" />}
+                  </h2>
+                )}
+                {editingField === 'title' ? (
+                  <div className="flex items-center gap-1 mb-0.5">
+                    <input value={editingValue} onChange={(e) => setEditingValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') saveEditing('title'); if (e.key === 'Escape') cancelEditing(); }} className="px-2 py-0.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-tcs-teal" autoFocus />
+                    <button onClick={() => saveEditing('title')} className="text-green-600"><Check className="w-3 h-3" /></button>
+                    <button onClick={cancelEditing} className="text-gray-400"><XIcon className="w-3 h-3" /></button>
+                  </div>
+                ) : (
+                  <p className={`text-sm text-gray-600 ${onUpdateAdvisor ? 'cursor-pointer hover:text-tcs-teal' : ''}`} onClick={() => onUpdateAdvisor && startEditing('title', advisor.title)}>
+                    {advisor.title}{onUpdateAdvisor && <Pencil className="w-2.5 h-2.5 inline ml-1 opacity-0 hover:opacity-50" />}
+                  </p>
+                )}
                 <p className="text-xs text-gray-500">{advisor.company}</p>
+                {(advisor.phone || advisor.email) && (
+                  <div className="flex items-center gap-3 mt-1">
+                    {advisor.phone && (
+                      <button onClick={() => { setLogContactType('call'); setLogCallOpen(true); setActiveTab('notes'); }} className="text-xs text-[#157A6E] hover:underline flex items-center gap-1">
+                        <Phone className="w-3 h-3" /> {advisor.phone}
+                      </button>
+                    )}
+                    {advisor.email && (
+                      <button onClick={() => { setLogContactType('email'); setLogCallOpen(true); setActiveTab('notes'); }} className="text-xs text-[#157A6E] hover:underline flex items-center gap-1">
+                        <Mail className="w-3 h-3" /> {advisor.email}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <button
@@ -229,9 +339,19 @@ export function AdvisorPanel({
                 {/* MRR */}
                 <div className="p-4 bg-tcs-bg rounded-lg">
                   <div className="text-xs text-gray-600 mb-1 uppercase">MRR</div>
-                  <div className="text-3xl font-bold text-tcs-teal">
-                    ${(advisor.mrr / 1000).toFixed(1)}K
-                  </div>
+                  {editingField === 'mrr' ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl text-tcs-teal">$</span>
+                      <input type="number" value={editingValue} onChange={(e) => setEditingValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') saveEditing('mrr'); if (e.key === 'Escape') cancelEditing(); }} className="w-32 px-2 py-1 border border-gray-200 rounded text-xl font-bold focus:outline-none focus:ring-1 focus:ring-tcs-teal" autoFocus />
+                      <button onClick={() => saveEditing('mrr')} className="text-green-600"><Check className="w-4 h-4" /></button>
+                      <button onClick={cancelEditing} className="text-gray-400"><XIcon className="w-4 h-4" /></button>
+                    </div>
+                  ) : (
+                    <div className={`text-3xl font-bold text-tcs-teal ${onUpdateAdvisor ? 'cursor-pointer hover:opacity-80' : ''}`} onClick={() => onUpdateAdvisor && startEditing('mrr', advisor.mrr)}>
+                      ${(advisor.mrr / 1000).toFixed(1)}K
+                      {onUpdateAdvisor && <Pencil className="w-3.5 h-3.5 inline ml-2 opacity-0 hover:opacity-50" />}
+                    </div>
+                  )}
                 </div>
 
                 {/* Relationship Context */}
@@ -240,29 +360,37 @@ export function AdvisorPanel({
                     Relationship Context
                   </h3>
                   <dl className="space-y-2 text-sm">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
+                      <dt className="text-gray-600">Tier</dt>
+                      <dd>{renderEditableField('tier', advisor.tier, { selectOptions: [{ value: 'anchor', label: 'Anchor' }, { value: 'scaling', label: 'Scaling' }, { value: 'building', label: 'Building' }, { value: 'launching', label: 'Launching' }] })}</dd>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <dt className="text-gray-600">Stage</dt>
+                      <dd>{renderEditableField('relationshipStage', advisor.relationshipStage || 'Prospect', { selectOptions: [{ value: 'Prospect', label: 'Prospect' }, { value: 'Onboarding', label: 'Onboarding' }, { value: 'Activated', label: 'Activated' }, { value: 'Scaling', label: 'Scaling' }, { value: 'Strategic', label: 'Strategic' }] })}</dd>
+                    </div>
+                    <div className="flex justify-between items-center">
                       <dt className="text-gray-600">Connected Since</dt>
-                      <dd className="font-medium text-gray-900">
-                        {advisor.connectedSince}
-                      </dd>
+                      <dd>{renderEditableField('connectedSince', advisor.connectedSince, { type: 'date' })}</dd>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <dt className="text-gray-600">Best Day</dt>
-                      <dd className="font-medium text-gray-900">
-                        {advisor.bestDayToReach}
-                      </dd>
+                      <dd>{renderEditableField('bestDayToReach', advisor.bestDayToReach)}</dd>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <dt className="text-gray-600">Comm Pref</dt>
-                      <dd className="font-medium text-gray-900">
-                        {advisor.commPreference}
-                      </dd>
+                      <dd>{renderEditableField('commPreference', advisor.commPreference)}</dd>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <dt className="text-gray-600">Referred By</dt>
-                      <dd className="font-medium text-gray-900">
-                        {advisor.referredBy}
-                      </dd>
+                      <dd>{renderEditableField('referredBy', advisor.referredBy)}</dd>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <dt className="text-gray-600">Phone</dt>
+                      <dd>{renderEditableField('phone', advisor.phone || '', { type: 'tel' })}</dd>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <dt className="text-gray-600">Email</dt>
+                      <dd>{renderEditableField('email', advisor.email || '', { type: 'email' })}</dd>
                     </div>
                   </dl>
                 </div>
@@ -319,17 +447,26 @@ export function AdvisorPanel({
                 )}
 
                 {/* Personal Intel */}
-                {advisor.personalIntel && (
-                  <div>
-                    <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">
-                      Personal Intel
-                    </h3>
-                    <p className="text-sm text-gray-700">
-                      {advisor.personalIntel}
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">
+                    Personal Intel
+                  </h3>
+                  {editingField === 'personalIntel' ? (
+                    <div className="space-y-2">
+                      <textarea value={editingValue} onChange={(e) => setEditingValue(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-tcs-teal" rows={4} autoFocus />
+                      <div className="flex gap-2">
+                        <button onClick={() => saveEditing('personalIntel')} className="px-3 py-1 bg-tcs-teal text-white rounded text-xs font-medium hover:bg-opacity-90">Save</button>
+                        <button onClick={cancelEditing} className="px-3 py-1 border border-gray-200 rounded text-xs hover:bg-gray-50">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className={`text-sm text-gray-700 ${onUpdateAdvisor ? 'cursor-pointer hover:text-tcs-teal' : ''}`} onClick={() => onUpdateAdvisor && startEditing('personalIntel', advisor.personalIntel)}>
+                      {advisor.personalIntel || '—'}
+                      {onUpdateAdvisor && <Pencil className="w-2.5 h-2.5 inline ml-1 opacity-0 hover:opacity-50" />}
                     </p>
-                    <p className="text-[10px] text-gray-400 mt-2 italic">Compiled from CRM notes, call transcripts, and LinkedIn</p>
-                  </div>
-                )}
+                  )}
+                  <p className="text-[10px] text-gray-400 mt-2 italic">Compiled from CRM notes, call transcripts, and LinkedIn</p>
+                </div>
 
                 {/* White Space Analysis */}
                 {(() => {
@@ -437,70 +574,84 @@ export function AdvisorPanel({
                     Profile
                   </h3>
                   <dl className="space-y-2 text-sm">
-                    {advisor.location && (
-                      <div className="flex justify-between">
-                        <dt className="text-gray-600 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Location</dt>
-                        <dd className="font-medium text-gray-900">
-                          {advisor.location}
-                        </dd>
-                      </div>
-                    )}
-                    {advisor.birthday && (
-                      <div className="flex justify-between">
-                        <dt className="text-gray-600 flex items-center gap-1.5"><Cake className="w-3.5 h-3.5" /> Birthday</dt>
-                        <dd className="font-medium text-gray-900">
-                          {advisor.birthday}
-                        </dd>
-                      </div>
-                    )}
-                    {advisor.education && (
-                      <div className="flex justify-between">
-                        <dt className="text-gray-600 flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> Education</dt>
-                        <dd className="font-medium text-gray-900">
-                          {advisor.education}
-                        </dd>
-                      </div>
-                    )}
-                    {advisor.title && (
-                      <div className="flex justify-between">
-                        <dt className="text-gray-600 flex items-center gap-1.5"><Briefcase className="w-3.5 h-3.5" /> Title</dt>
-                        <dd className="font-medium text-gray-900">
-                          {advisor.title}
-                        </dd>
-                      </div>
-                    )}
+                    <div className="flex justify-between items-center">
+                      <dt className="text-gray-600 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> Location</dt>
+                      <dd>{renderEditableField('location', advisor.location)}</dd>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <dt className="text-gray-600 flex items-center gap-1.5"><Cake className="w-3.5 h-3.5" /> Birthday</dt>
+                      <dd>{renderEditableField('birthday', advisor.birthday)}</dd>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <dt className="text-gray-600 flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> Education</dt>
+                      <dd>{renderEditableField('education', advisor.education)}</dd>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <dt className="text-gray-600 flex items-center gap-1.5"><Briefcase className="w-3.5 h-3.5" /> Title</dt>
+                      <dd>{renderEditableField('title', advisor.title)}</dd>
+                    </div>
                   </dl>
                 </div>
 
                 {/* Family */}
-                {advisor.family && (
-                  <div>
-                    <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">
-                      Family
-                    </h3>
-                    <p className="text-sm text-gray-700">{advisor.family}</p>
-                  </div>
-                )}
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">
+                    Family
+                  </h3>
+                  {editingField === 'family' ? (
+                    <div className="space-y-2">
+                      <textarea value={editingValue} onChange={(e) => setEditingValue(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-tcs-teal" rows={2} autoFocus />
+                      <div className="flex gap-2">
+                        <button onClick={() => saveEditing('family')} className="px-3 py-1 bg-tcs-teal text-white rounded text-xs font-medium">Save</button>
+                        <button onClick={cancelEditing} className="px-3 py-1 border border-gray-200 rounded text-xs">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className={`text-sm text-gray-700 ${onUpdateAdvisor ? 'cursor-pointer hover:text-tcs-teal' : ''}`} onClick={() => onUpdateAdvisor && startEditing('family', advisor.family)}>
+                      {advisor.family || '—'}{onUpdateAdvisor && <Pencil className="w-2.5 h-2.5 inline ml-1 opacity-0 hover:opacity-50" />}
+                    </p>
+                  )}
+                </div>
 
                 {/* Hobbies */}
-                {advisor.hobbies && (
-                  <div>
-                    <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">
-                      Hobbies & Interests
-                    </h3>
-                    <p className="text-sm text-gray-700">{advisor.hobbies}</p>
-                  </div>
-                )}
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">
+                    Hobbies & Interests
+                  </h3>
+                  {editingField === 'hobbies' ? (
+                    <div className="space-y-2">
+                      <textarea value={editingValue} onChange={(e) => setEditingValue(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-tcs-teal" rows={2} autoFocus />
+                      <div className="flex gap-2">
+                        <button onClick={() => saveEditing('hobbies')} className="px-3 py-1 bg-tcs-teal text-white rounded text-xs font-medium">Save</button>
+                        <button onClick={cancelEditing} className="px-3 py-1 border border-gray-200 rounded text-xs">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className={`text-sm text-gray-700 ${onUpdateAdvisor ? 'cursor-pointer hover:text-tcs-teal' : ''}`} onClick={() => onUpdateAdvisor && startEditing('hobbies', advisor.hobbies)}>
+                      {advisor.hobbies || '—'}{onUpdateAdvisor && <Pencil className="w-2.5 h-2.5 inline ml-1 opacity-0 hover:opacity-50" />}
+                    </p>
+                  )}
+                </div>
 
                 {/* Fun Fact */}
-                {advisor.funFact && (
-                  <div>
-                    <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">
-                      Fun Fact
-                    </h3>
-                    <p className="text-sm text-gray-700">{advisor.funFact}</p>
-                  </div>
-                )}
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">
+                    Fun Fact
+                  </h3>
+                  {editingField === 'funFact' ? (
+                    <div className="space-y-2">
+                      <textarea value={editingValue} onChange={(e) => setEditingValue(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-tcs-teal" rows={2} autoFocus />
+                      <div className="flex gap-2">
+                        <button onClick={() => saveEditing('funFact')} className="px-3 py-1 bg-tcs-teal text-white rounded text-xs font-medium">Save</button>
+                        <button onClick={cancelEditing} className="px-3 py-1 border border-gray-200 rounded text-xs">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className={`text-sm text-gray-700 ${onUpdateAdvisor ? 'cursor-pointer hover:text-tcs-teal' : ''}`} onClick={() => onUpdateAdvisor && startEditing('funFact', advisor.funFact)}>
+                      {advisor.funFact || '—'}{onUpdateAdvisor && <Pencil className="w-2.5 h-2.5 inline ml-1 opacity-0 hover:opacity-50" />}
+                    </p>
+                  )}
+                </div>
 
                 {/* Channel Relationships */}
                 <div>
@@ -747,14 +898,25 @@ export function AdvisorPanel({
                 )}
                 <div className="border-t border-tcs-border pt-4 space-y-3">
                   {!logCallOpen ? (
-                    <button
-                      onClick={() => setLogCallOpen(true)}
-                      className="w-full py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center justify-center gap-1.5 transition-colors"
-                    >
-                      <Phone className="w-3.5 h-3.5" /> Log Call
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setLogContactType('call'); setLogCallOpen(true); }}
+                        className="flex-1 py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <Phone className="w-3.5 h-3.5" /> Log Call
+                      </button>
+                      <button
+                        onClick={() => { setLogContactType('email'); setLogCallOpen(true); }}
+                        className="flex-1 py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <Mail className="w-3.5 h-3.5" /> Log Email
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-2 bg-tcs-bg p-3 rounded-lg">
+                      <p className="text-xs font-semibold text-gray-700 mb-1">
+                        {logContactType === 'call' ? 'Log Call' : 'Log Email'}
+                      </p>
                       <input
                         type="date"
                         value={callDate}
@@ -762,26 +924,38 @@ export function AdvisorPanel({
                         className="w-full px-3 py-2 border border-tcs-border rounded-lg text-sm focus:outline-none focus:border-tcs-teal"
                         placeholder="Date"
                       />
-                      <input
-                        type="number"
-                        value={callDuration}
-                        onChange={(e) => setCallDuration(e.target.value)}
-                        className="w-full px-3 py-2 border border-tcs-border rounded-lg text-sm focus:outline-none focus:border-tcs-teal"
-                        placeholder="Duration (minutes)"
-                      />
+                      {logContactType === 'call' && (
+                        <input
+                          type="number"
+                          value={callDuration}
+                          onChange={(e) => setCallDuration(e.target.value)}
+                          className="w-full px-3 py-2 border border-tcs-border rounded-lg text-sm focus:outline-none focus:border-tcs-teal"
+                          placeholder="Duration (minutes)"
+                        />
+                      )}
                       <textarea
                         value={callSummary}
                         onChange={(e) => setCallSummary(e.target.value)}
                         className="w-full px-3 py-2 border border-tcs-border rounded-lg text-sm focus:outline-none focus:border-tcs-teal"
-                        placeholder="Summary..."
+                        placeholder={logContactType === 'call' ? 'Call summary...' : 'Email summary...'}
                         rows={3}
                       />
+                      <select
+                        value={callSentiment}
+                        onChange={(e) => setCallSentiment(e.target.value)}
+                        className="w-full px-3 py-2 border border-tcs-border rounded-lg text-sm focus:outline-none focus:border-tcs-teal bg-white"
+                      >
+                        <option value="">Sentiment (optional)</option>
+                        <option value="Positive">Positive</option>
+                        <option value="Neutral">Neutral</option>
+                        <option value="Negative">Negative</option>
+                      </select>
                       <div className="flex gap-2">
                         <button
                           onClick={handleSaveCall}
                           className="flex-1 py-2 px-4 bg-tcs-teal text-white rounded-lg text-sm font-medium hover:bg-opacity-90"
                         >
-                          Save
+                          {logContactType === 'call' ? 'Save Call' : 'Save Email'}
                         </button>
                         <button
                           onClick={() => {
@@ -789,6 +963,7 @@ export function AdvisorPanel({
                             setCallDate('');
                             setCallDuration('');
                             setCallSummary('');
+                            setCallSentiment('');
                           }}
                           className="flex-1 py-2 px-4 border border-tcs-border rounded-lg text-sm hover:bg-tcs-bg"
                         >
