@@ -13,6 +13,7 @@ interface TopBarProps {
   userInitials: string;
   pageTitle?: string;
   role?: 'manager' | 'leader';
+  notificationCount?: number;
 }
 
 const MANAGER_NOTIFICATIONS = [
@@ -36,6 +37,7 @@ export function TopBar({
   userInitials,
   pageTitle = 'Command Center',
   role = 'manager',
+  notificationCount = 0,
 }: TopBarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
@@ -111,9 +113,9 @@ export function TopBar({
           >
             <Bell className="w-4 h-4" />
           </button>
-          {notifications.length > 0 && !showNotifications && (
+          {(notifications.length + notificationCount) > 0 && !showNotifications && (
             <div className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold">
-              {notifications.length > 9 ? '9+' : notifications.length}
+              {(notifications.length + notificationCount) > 9 ? '9+' : (notifications.length + notificationCount)}
             </div>
           )}
         </div>

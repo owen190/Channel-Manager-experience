@@ -8,7 +8,7 @@ import {
   Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle, RefreshCw,
   Megaphone, Star, TrendingUp as TrendingUpIcon, CheckCircle, AlertCircle as AlertCircleIcon, Edit, Plus,
   LayoutGrid, Map, FileText, Mail, Building2, ArrowUpRight, BarChart3, UserPlus, Calendar, Shield, PlayCircle, ChevronRight, Search,
-  Send, Loader2,
+  Send, Loader2, Bell,
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -150,6 +150,10 @@ export default function LiveManagerPage() {
   const [advisorCoMarketingNotes, setAdvisorCoMarketingNotes] = useState<Record<string, string>>(() => loadFromStorage('cc_advisorCoMarketingNotes', {}));
   const [editingCoMarketing, setEditingCoMarketing] = useState(false);
   const [editingCoMarketingValue, setEditingCoMarketingValue] = useState('');
+
+  // Advisor notes with timestamps
+  const [advisorNotes, setAdvisorNotes] = useState<Record<string, string[]>>(() => loadFromStorage('cc_advisorNotes', {}));
+  const [noteInput, setNoteInput] = useState('');
 
   // Editable action items per advisor
   const [advisorActionItems, setAdvisorActionItems] = useState<Record<string, Array<{id: string; title: string; due: string; status: 'overdue' | 'pending' | 'low' | 'done'}>>>(() => loadFromStorage('cc_advisorActionItems', {}));
@@ -503,7 +507,31 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
       throw err;
     }
   };
+
+  // Inline deal creation state
+  const [showInlineAddDeal, setShowInlineAddDeal] = useState(false);
+  const [inlineDealName, setInlineDealName] = useState('');
+  const [inlineDealMRR, setInlineDealMRR] = useState('');
+
+  // Global search state
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+
   useEffect(() => { fetchData(); }, []);
+
+  // Global search keyboard shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowGlobalSearch(true);
+        setGlobalSearchQuery('');
+      }
+      if (e.key === 'Escape') setShowGlobalSearch(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   // Persist key state to localStorage
   useEffect(() => { saveToStorage('cc_launchedPlaybooks', launchedPlaybooks); }, [launchedPlaybooks]);
@@ -514,6 +542,7 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
   useEffect(() => { saveToStorage('cc_advisorWhiteSpaceNotes', advisorWhiteSpaceNotes); }, [advisorWhiteSpaceNotes]);
   useEffect(() => { saveToStorage('cc_advisorCoMarketingNotes', advisorCoMarketingNotes); }, [advisorCoMarketingNotes]);
   useEffect(() => { saveToStorage('cc_advisorActionItems', advisorActionItems); }, [advisorActionItems]);
+  useEffect(() => { saveToStorage('cc_advisorNotes', advisorNotes); }, [advisorNotes]);
   useEffect(() => { saveToStorage('cc_contactGroups', contactGroups); }, [contactGroups]);
 
   // Delete handlers
@@ -699,6 +728,21 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
   const stalledDeals = deals.filter(d => d.stage === 'Stalled');
   const closedWonDeals = deals.filter(d => d.stage === 'Closed Won');
   const closedWonMRR = closedWonDeals.reduce((sum, d) => sum + d.mrr, 0);
+
+  // Notification count: overdue cadences + critical actions
+  const overdueNotifCount = useMemo(() => {
+    const getDays = (d: string) => Math.floor((new Date().getTime() - new Date(d).getTime()) / (1000*60*60*24));
+    const overdueCadence = advisors.filter(a => {
+      if (a.tier === 'anchor' && getDays(a.lastContact) > 7) return true;
+      if (a.tier === 'scaling' && getDays(a.lastContact) > 14) return true;
+      if (a.tier === 'building' && getDays(a.lastContact) > 21) return true;
+      if (a.tier === 'launching' && getDays(a.lastContact) > 10) return true;
+      return false;
+    }).length;
+    const criticalFriction = advisors.filter(a => a.friction === 'Critical').length;
+    const stalledDealsCount = deals.filter(d => d.stage === 'Stalled').length;
+    return overdueCadence + criticalFriction + stalledDealsCount;
+  }, [advisors, deals]);
 
   const formatCurrency = (v: number) => v >= 1000 ? `$${(v / 1000).toFixed(1)}K` : `$${v}`;
 
@@ -1624,9 +1668,9 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                   {/* Action Buttons */}
                   <div className="grid grid-cols-4 gap-2 mb-2">
                     {[
-                      { label: 'Email', icon: Mail, action: () => {} },
-                      { label: 'Call', icon: Phone, action: () => {} },
-                      { label: 'Schedule', icon: Calendar, action: () => {} },
+                      { label: 'Email', icon: Mail, action: () => { window.open('mailto:' + selectedAdvisor.name.toLowerCase().replace(' ', '.') + '@' + selectedAdvisor.company.toLowerCase().replace(/\s+/g, '') + '.com'); } },
+                      { label: 'Call', icon: Phone, action: () => { window.open('tel:+1' + Math.floor(seededRandom(selectedAdvisor.id + '-area') * 900 + 100).toString() + Math.floor(seededRandom(selectedAdvisor.id + '-ph1') * 900 + 100).toString() + Math.floor(seededRandom(selectedAdvisor.id + '-ph2') * 9000 + 1000).toString()); } },
+                      { label: 'Schedule', icon: Calendar, action: () => { window.open('https://calendar.google.com/calendar/render?action=TEMPLATE&text=Meeting+with+' + encodeURIComponent(selectedAdvisor.name)); } },
                       { label: 'Log Call', icon: FileText, action: () => { setLogCallAdvisor(selectedAdvisor); setShowLogCallModal(true); } },
                     ].map(btn => (
                       <button key={btn.label} onClick={btn.action} className="flex flex-col items-center gap-1 px-2 py-2.5 border border-[#157A6E]/30 text-[#157A6E] rounded-lg hover:bg-[#157A6E]/5 transition-colors">
@@ -1856,9 +1900,30 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
               </div>
 
               {/* Deals */}
-              {advisorDeals.length > 0 && (
-                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-                  <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-4">Active Deals ({advisorDeals.length})</h3>
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">Active Deals ({advisorDeals.length})</h3>
+                  <button onClick={() => setShowInlineAddDeal(!showInlineAddDeal)} className="text-[#157A6E] hover:text-[#0f5550]"><Plus className="w-4 h-4" /></button>
+                </div>
+                {showInlineAddDeal && (
+                  <div className="mb-3 p-3 bg-teal-50/50 rounded-lg border border-[#157A6E]/20">
+                    <div className="flex gap-2 mb-2">
+                      <input placeholder="Deal name..." value={inlineDealName} onChange={e => setInlineDealName(e.target.value)} className="flex-1 text-12px border border-[#e8e5e1] rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" />
+                      <input placeholder="MRR" type="number" value={inlineDealMRR} onChange={e => setInlineDealMRR(e.target.value)} className="w-24 text-12px border border-[#e8e5e1] rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#157A6E]" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => {
+                        if (!inlineDealName.trim()) return;
+                        const newDeal: any = { id: `deal-${Date.now()}`, name: inlineDealName, advisorId: selectedAdvisor.id, stage: 'Discovery', mrr: parseInt(inlineDealMRR) || 0, health: 'Healthy', probability: 10, daysInStage: 0, lastActivity: new Date().toISOString().split('T')[0], nextStep: 'Initial qualification', decisionMaker: selectedAdvisor.name, products: [], actionItems: [] };
+                        setDeals(prev => [...prev, newDeal]);
+                        fetch('/api/live/deals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: inlineDealName, advisorId: selectedAdvisor.id, stage: 'Discovery', mrr: parseInt(inlineDealMRR) || 0, probability: 10, health: 'Healthy', daysInStage: 0 }) }).catch(console.error);
+                        setInlineDealName(''); setInlineDealMRR(''); setShowInlineAddDeal(false);
+                      }} className="px-3 py-1 text-11px font-medium bg-[#157A6E] text-white rounded hover:bg-[#0f5550]">Add Deal</button>
+                      <button onClick={() => { setShowInlineAddDeal(false); setInlineDealName(''); setInlineDealMRR(''); }} className="px-3 py-1 text-11px font-medium text-gray-500 hover:text-gray-700">Cancel</button>
+                    </div>
+                  </div>
+                )}
+                {advisorDeals.length > 0 && (
                   <div className="space-y-3">
                     {advisorDeals.map(deal => (
                       <div
@@ -1885,8 +1950,11 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+                {advisorDeals.length === 0 && !showInlineAddDeal && (
+                  <p className="text-12px text-gray-500">No active deals yet</p>
+                )}
+              </div>
 
               {/* Growth Opportunities */}
               <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
@@ -1968,13 +2036,37 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
 
               {/* Notes & Activity */}
               <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-3">Add a Note</h3>
-                <textarea
-                  placeholder={`Write a note about ${selectedAdvisor.name.split(' ')[0]}...`}
-                  className="w-full text-12px border border-[#e8e5e1] rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E] mb-3"
-                  rows={3}
-                />
-                <button className="px-4 py-2 text-12px font-medium bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] transition-colors">Save Note</button>
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-3">Notes</h3>
+                <div className="flex gap-2 mb-3">
+                  <textarea
+                    value={noteInput}
+                    onChange={e => setNoteInput(e.target.value)}
+                    placeholder={`Write a note about ${selectedAdvisor.name.split(' ')[0]}...`}
+                    className="flex-1 text-12px border border-[#e8e5e1] rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E]"
+                    rows={2}
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    if (!noteInput.trim()) return;
+                    const timestamp = new Date().toLocaleString();
+                    setAdvisorNotes(prev => ({ ...prev, [selectedAdvisor.id]: [`[${timestamp}] ${noteInput}`, ...(prev[selectedAdvisor.id] || [])] }));
+                    setNoteInput('');
+                  }}
+                  disabled={!noteInput.trim()}
+                  className="px-4 py-1.5 text-11px font-semibold bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] disabled:opacity-40 disabled:cursor-not-allowed mb-3"
+                >
+                  Save Note
+                </button>
+                {(advisorNotes[selectedAdvisor.id] || []).length > 0 && (
+                  <div className="space-y-2 mt-3 pt-3 border-t border-[#e8e5e1]">
+                    {(advisorNotes[selectedAdvisor.id] || []).map((note, i) => (
+                      <div key={i} className="text-11px text-gray-700 bg-gray-50 rounded-lg p-2.5 leading-relaxed">
+                        {note}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
             </div>
@@ -2240,6 +2332,20 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
             >
               + Add Partner
             </button>
+            {partnersSubView === 'contacts' && (
+              <button onClick={() => {
+                const csvRows = ['Partner Name,Company,Tier,MRR,Pulse,Trajectory,Friction,Last Contact'];
+                advisorsWithDeals.forEach(a => {
+                  csvRows.push(`"${a.name}","${a.company}","${a.tier}",${a.mrr},"${a.pulse}","${a.trajectory}","${a.friction}","${a.lastContact}"`);
+                });
+                const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const el = document.createElement('a'); el.href = url; el.download = 'partners-export.csv'; el.click();
+                URL.revokeObjectURL(url);
+              }} className="flex items-center gap-1.5 px-3 py-2 text-11px font-semibold text-gray-600 border border-[#e8e5e1] rounded-md hover:bg-gray-50 transition-colors">
+                <ArrowUpRight className="w-3 h-3" /> Export
+              </button>
+            )}
           </div>
 
           {/* ── COMPANIES TABLE VIEW ── */}
@@ -2641,8 +2747,8 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
 
                       <div className="grid grid-cols-4 gap-2 mb-2">
                         {[
-                          { label: 'Email', icon: Mail, action: () => {} }, { label: 'Call', icon: Phone, action: () => {} },
-                          { label: 'Schedule', icon: Calendar, action: () => {} }, { label: 'Log Call', icon: FileText, action: () => {} },
+                          { label: 'Email', icon: Mail, action: () => { window.open('mailto:' + tc.email); } }, { label: 'Call', icon: Phone, action: () => { window.open('tel:' + tc.phone.replace(/[^\d+]/g, '')); } },
+                          { label: 'Schedule', icon: Calendar, action: () => { window.open('https://calendar.google.com/calendar/render?action=TEMPLATE&text=Meeting+with+' + encodeURIComponent(tc.name)); } }, { label: 'Log Call', icon: FileText, action: () => {} },
                         ].map(btn => (
                           <button key={btn.label} onClick={btn.action} className="flex flex-col items-center gap-1 px-2 py-2.5 border border-[#157A6E]/30 text-[#157A6E] rounded-lg hover:bg-[#157A6E]/5 transition-colors">
                             <btn.icon className="w-4 h-4" />
@@ -2781,9 +2887,37 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
 
                     {/* Add Note */}
                     <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-                      <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-3">Add a Note</h3>
-                      <textarea placeholder={`Write a note about ${tc.name.split(' ')[0]}...`} className="w-full text-12px border border-[#e8e5e1] rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E] mb-3" rows={3} />
-                      <button className="px-4 py-2 text-12px font-medium bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] transition-colors">Save Note</button>
+                      <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900 mb-3">Notes</h3>
+                      <div className="flex gap-2 mb-3">
+                        <textarea
+                          value={noteInput}
+                          onChange={e => setNoteInput(e.target.value)}
+                          placeholder={`Write a note about ${tc.name.split(' ')[0]}...`}
+                          className="flex-1 text-12px border border-[#e8e5e1] rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E]"
+                          rows={2}
+                        />
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (!noteInput.trim()) return;
+                          const timestamp = new Date().toLocaleString();
+                          setAdvisorNotes(prev => ({ ...prev, [tc.id]: [`[${timestamp}] ${noteInput}`, ...(prev[tc.id] || [])] }));
+                          setNoteInput('');
+                        }}
+                        disabled={!noteInput.trim()}
+                        className="px-4 py-1.5 text-11px font-semibold bg-[#157A6E] text-white rounded-lg hover:bg-[#0f5550] disabled:opacity-40 disabled:cursor-not-allowed mb-3"
+                      >
+                        Save Note
+                      </button>
+                      {(advisorNotes[tc.id] || []).length > 0 && (
+                        <div className="space-y-2 mt-3 pt-3 border-t border-[#e8e5e1]">
+                          {(advisorNotes[tc.id] || []).map((note, i) => (
+                            <div key={i} className="text-11px text-gray-700 bg-gray-50 rounded-lg p-2.5 leading-relaxed">
+                              {note}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3561,6 +3695,19 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
               className="px-4 py-2 bg-[#157A6E] text-white rounded-md text-12px font-semibold hover:bg-[#12675b] transition-colors"
             >
               + Add Deal
+            </button>
+            <button onClick={() => {
+              const csvRows = ['Deal Name,Advisor,Company,Stage,MRR,Probability,Days in Stage,Health'];
+              deals.forEach(d => {
+                const adv = advisors.find(a => a.id === d.advisorId);
+                csvRows.push(`"${d.name}","${adv?.name || ''}","${adv?.company || ''}","${d.stage}",${d.mrr},${d.probability || 0},${d.daysInStage},"${d.health}"`);
+              });
+              const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url; a.download = 'pipeline-export.csv'; a.click();
+              URL.revokeObjectURL(url);
+            }} className="flex items-center gap-1.5 px-3 py-2 text-11px font-semibold text-gray-600 border border-[#e8e5e1] rounded-md hover:bg-gray-50 transition-colors">
+              <ArrowUpRight className="w-3 h-3" /> Export CSV
             </button>
           </div>
 
@@ -5434,6 +5581,7 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
           userName={userName}
           userInitials={userInitials}
           role="manager"
+          notificationCount={overdueNotifCount}
         />
         <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-[1400px] mx-auto">
@@ -5447,9 +5595,17 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                 </h1>
                 <span className="text-10px font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">LIVE</span>
               </div>
-              <button onClick={fetchData} className="flex items-center gap-1 text-12px text-gray-500 hover:text-[#157A6E]">
-                <RefreshCw className="w-3 h-3" /> Refresh
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setShowGlobalSearch(true); setGlobalSearchQuery(''); }} className="flex items-center gap-1.5 px-2.5 py-1 text-12px text-gray-500 hover:text-[#157A6E] border border-[#e8e5e1] rounded-lg hover:border-[#157A6E]/30 transition-colors">
+                  <Search className="w-3 h-3" /> <span className="text-[10px] text-gray-400">⌘K</span>
+                </button>
+                <a href="/settings" className="flex items-center gap-1 text-12px text-gray-500 hover:text-[#157A6E]">
+                  <Shield className="w-3 h-3" /> Settings
+                </a>
+                <button onClick={fetchData} className="flex items-center gap-1 text-12px text-gray-500 hover:text-[#157A6E]">
+                  <RefreshCw className="w-3 h-3" /> Refresh
+                </button>
+              </div>
             </div>
             {viewRenderers[activeView]?.() || renderCommandCenter()}
           </div>
@@ -6098,6 +6254,80 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                 Log Call
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Search Modal */}
+      {showGlobalSearch && (
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-start justify-center pt-[15vh]" onClick={() => setShowGlobalSearch(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-[560px] max-h-[60vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-[#e8e5e1]">
+              <Search className="w-5 h-5 text-gray-400" />
+              <input autoFocus value={globalSearchQuery} onChange={e => setGlobalSearchQuery(e.target.value)} placeholder="Search partners, deals, contacts..." className="flex-1 text-[15px] focus:outline-none" />
+              <kbd className="px-2 py-0.5 bg-gray-100 text-[10px] text-gray-500 rounded border border-gray-200 font-mono">ESC</kbd>
+            </div>
+            {globalSearchQuery && (
+              <div className="overflow-y-auto max-h-[45vh] p-2">
+                {(() => {
+                  const q = globalSearchQuery.toLowerCase();
+                  const matchedPartners = advisors.filter(a => a.name.toLowerCase().includes(q) || a.company.toLowerCase().includes(q)).slice(0, 5);
+                  const matchedDeals = deals.filter(d => d.name.toLowerCase().includes(q)).slice(0, 5);
+                  return (
+                    <>
+                      {matchedPartners.length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 px-3 py-1">Partners</p>
+                          {matchedPartners.map(a => (
+                            <button key={a.id} onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); setActiveViewRaw('relationships'); setShowGlobalSearch(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 rounded-lg text-left transition-colors">
+                              <div className="w-8 h-8 bg-[#157A6E] rounded-full flex items-center justify-center flex-shrink-0">
+                                <span className="text-white text-[10px] font-semibold">{a.name.split(' ').map(n => n[0]).join('')}</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-13px font-medium text-gray-900">{a.name}</p>
+                                <p className="text-11px text-gray-500">{a.company} · {a.tier}</p>
+                              </div>
+                              <span className="text-12px font-bold text-gray-600">{formatCurrency(a.mrr)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {matchedDeals.length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 px-3 py-1">Deals</p>
+                          {matchedDeals.map(d => {
+                            const adv = advisors.find(a => a.id === d.advisorId);
+                            return (
+                              <button key={d.id} onClick={() => { setSelectedDeal(d); setActiveViewRaw('pipeline'); setShowGlobalSearch(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 rounded-lg text-left transition-colors">
+                                <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                  <DollarSign className="w-4 h-4 text-amber-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-13px font-medium text-gray-900">{d.name}</p>
+                                  <p className="text-11px text-gray-500">{adv?.name || 'Unknown'} · {d.stage}</p>
+                                </div>
+                                <span className="text-12px font-bold text-gray-600">{formatCurrency(d.mrr)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {matchedPartners.length === 0 && matchedDeals.length === 0 && (
+                        <div className="px-3 py-8 text-center">
+                          <p className="text-13px text-gray-500">No results for "{globalSearchQuery}"</p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+            {!globalSearchQuery && (
+              <div className="px-5 py-6 text-center">
+                <p className="text-12px text-gray-400">Start typing to search across partners and deals</p>
+                <p className="text-[10px] text-gray-300 mt-1">Tip: Press ⌘K anywhere to open search</p>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,981 +1,179 @@
 'use client';
-
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import {
-  User, Bell, Zap, Users, Building2, LogOut, Save, Upload, X,
-  Cloud, Mail, MessageSquare, Calendar, ChevronRight, Check, Edit2,
-  Clock, AlertCircle, TrendingDown, BarChart3, MapPin, Globe,
-  ArrowLeft, RefreshCw, RefreshCcw, Activity, Database, ArrowRightLeft, CheckCircle, AlertTriangle,
-  FolderOpen, FileText, Download,
-} from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle, Settings as SettingsIcon, Users, Zap, Bell, Link2, GraduationCap } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
-import { SupplierProfile } from '@/components/shared/SupplierProfile';
 import { NAV_ITEMS_MANAGER } from '@/lib/constants';
 
-type Tab = 'profile' | 'notifications' | 'connectors' | 'team' | 'organization' | 'supplier' | 'resources';
-
-interface Teammate {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  status: 'active' | 'pending';
-}
-
-interface NotificationConfig {
-  morningBriefing: boolean;
-  briefingTime: string;
-  frictionAlerts: boolean;
-  dealHealthChanges: boolean;
-  weeklyDigest: boolean;
-}
-
-interface ConnectorDetail {
-  id: string;
-  name: string;
-}
-
-interface FieldMapping {
-  ccField: string;
-  externalField: string;
-  type: string;
-}
-
-interface SyncLog {
-  id: string;
-  timestamp: string;
-  action: string;
-  recordCount: number;
-  status: 'success' | 'error';
-  error?: string;
-}
-
 export default function SettingsPage() {
-  const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>('profile');
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('channel_manager');
-  const [saving, setSaving] = useState(false);
-  const [connectorDetail, setConnectorDetail] = useState<ConnectorDetail | null>(null);
-  const [connectorSubTab, setConnectorSubTab] = useState<'overview' | 'field-mapping' | 'sync-log'>('overview');
-  const [syncing, setSyncing] = useState(false);
+  const [cadence, setCadence] = useState({ anchor: 7, scaling: 14, building: 21, launching: 10 });
+  const [companyName, setCompanyName] = useState('Aptum');
+  const [userName, setUserName] = useState('Owen');
+  const [emailNotifs, setEmailNotifs] = useState(true);
+  const [inAppNotifs, setInAppNotifs] = useState(true);
+  const [saved, setSaved] = useState(false);
 
-  // Mock data
-  const [profileData, setProfileData] = useState({
-    name: 'Jordan Rivera',
-    email: 'jordan@example.com',
-    timezone: 'America/Los_Angeles',
-    role: 'channel_manager',
-  });
-
-  const [notificationConfig, setNotificationConfig] = useState<NotificationConfig>({
-    morningBriefing: true,
-    briefingTime: '08:00',
-    frictionAlerts: true,
-    dealHealthChanges: true,
-    weeklyDigest: true,
-  });
-
-  const [teammates, setTeammates] = useState<Teammate[]>([
-    { id: '1', name: 'Alex Chen', email: 'alex@example.com', role: 'channel_manager', status: 'active' },
-    { id: '2', name: 'Sam Patel', email: 'sam@example.com', role: 'channel_manager', status: 'active' },
-    { id: '3', name: 'Jordan Reynolds', email: 'jordan.r@example.com', role: 'channel_manager', status: 'pending' },
-  ]);
-
-  const [connectedTools] = useState({
-    salesforce: true,
-    hubspot: false,
-    gong: true,
-    slack: false,
-  });
-
-  const TOOLS = [
-    { id: 'salesforce', name: 'Salesforce', icon: Cloud, desc: 'CRM & opportunity data' },
-    { id: 'hubspot', name: 'HubSpot', icon: Cloud, desc: 'Deals & contacts' },
-    { id: 'gmail', name: 'Gmail', icon: Mail, desc: 'Email communications' },
-    { id: 'gong', name: 'Gong', icon: Zap, desc: 'Call recordings & insights' },
-    { id: 'slack', name: 'Slack', icon: MessageSquare, desc: 'Team communication' },
-    { id: 'gcalendar', name: 'Google Calendar', icon: Calendar, desc: 'Schedule & availability' },
-  ];
-
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/login');
+  const handleSave = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   };
-
-  const handleSaveProfile = async () => {
-    setSaving(true);
-    // Simulate save
-    setTimeout(() => {
-      setSaving(false);
-      alert('Profile saved!');
-    }, 500);
-  };
-
-  const handleInviteTeammate = async () => {
-    if (!inviteEmail) return;
-    // Simulate invite
-    setInviteEmail('');
-    setShowInviteModal(false);
-    alert(`Invite sent to ${inviteEmail}`);
-  };
-
-  const pendingCount = teammates.filter(t => t.status === 'pending').length;
 
   return (
     <div className="flex h-screen bg-[#F7F5F2]">
       <Sidebar
         items={NAV_ITEMS_MANAGER}
         activeView="settings"
-        onViewChange={(id) => router.push(`/live/manager?view=${id}`)}
+        onViewChange={() => {}}
         role="manager"
-        userName="Jordan Rivera"
-        userInitials="JR"
+        userName="Owen"
+        userInitials="O"
       />
 
       <div className="flex-1 flex flex-col">
         <TopBar
           nudges={[] as any}
-          userName="Jordan Rivera"
-          userInitials="JR"
+          userName="Owen"
+          userInitials="O"
           pageTitle="Settings"
         />
 
         <div className="flex-1 overflow-auto">
-          <div className="max-w-6xl mx-auto p-8">
-            {/* Tabs */}
-            <div className="flex border-b border-[#e8e5e1] gap-8 mb-8">
-              {[
-                { id: 'profile', label: 'Profile', icon: User },
-                { id: 'notifications', label: 'Notifications', icon: Bell },
-                { id: 'connectors', label: 'Connectors', icon: Zap },
-                { id: 'team', label: 'Team', icon: Users },
-                { id: 'organization', label: 'Organization', icon: Building2 },
-                { id: 'supplier', label: 'Supplier Profile', icon: Cloud },
-                { id: 'resources', label: 'Company Resources', icon: FolderOpen },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as Tab)}
-                  className={`pb-4 px-1 flex items-center gap-2 border-b-2 transition-colors text-[13px] font-medium ${
-                    activeTab === tab.id
-                      ? 'border-[#157A6E] text-[#157A6E]'
-                      : 'border-transparent text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  {tab.id === 'profile' && <User className="w-4 h-4" />}
-                  {tab.id === 'notifications' && <Bell className="w-4 h-4" />}
-                  {tab.id === 'connectors' && <Zap className="w-4 h-4" />}
-                  {tab.id === 'team' && <Users className="w-4 h-4" />}
-                  {tab.id === 'organization' && <Building2 className="w-4 h-4" />}
-                  {tab.id === 'supplier' && <Cloud className="w-4 h-4" />}
-                  {tab.id === 'resources' && <FolderOpen className="w-4 h-4" />}
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Profile Tab */}
-            {activeTab === 'profile' && (
-              <div className="space-y-6 max-w-2xl">
-                <div>
-                  <h3 className="font-newsreader text-lg font-bold text-gray-900 mb-1">
-                    Profile Information
-                  </h3>
-                  <p className="text-[12px] text-gray-600">
-                    Update your personal information and preferences
-                  </p>
-                </div>
-
-                {/* Photo Upload */}
-                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-                  <label className="block text-[13px] font-medium text-gray-900 mb-3">
-                    Profile Photo
-                  </label>
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-full bg-[#157A6E] flex items-center justify-center text-white font-semibold">
-                      JR
-                    </div>
-                    <button className="px-4 py-2 border border-[#e8e5e1] rounded-[8px] hover:bg-[#F7F5F2] transition-colors text-[12px] font-medium text-gray-700 flex items-center gap-2">
-                      <Upload className="w-4 h-4" />
-                      Change Photo
-                    </button>
-                  </div>
-                </div>
-
-                {/* Form Fields */}
-                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6 space-y-4">
-                  <div>
-                    <label className="block text-[12px] font-medium text-gray-700 mb-2">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      value={profileData.name}
-                      onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-[#e8e5e1] rounded-[8px] text-[13px] focus:outline-none focus:border-[#157A6E] focus:ring-1 focus:ring-[#157A6E] transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[12px] font-medium text-gray-700 mb-2">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      value={profileData.email}
-                      disabled
-                      className="w-full px-3 py-2 border border-[#e8e5e1] rounded-[8px] text-[13px] bg-gray-50 text-gray-600"
-                    />
-                    <p className="text-[11px] text-gray-500 mt-1">
-                      Contact support to change your email address
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-[12px] font-medium text-gray-700 mb-2">
-                      Timezone
-                    </label>
-                    <select
-                      value={profileData.timezone}
-                      onChange={(e) => setProfileData({ ...profileData, timezone: e.target.value })}
-                      className="w-full px-3 py-2 border border-[#e8e5e1] rounded-[8px] text-[13px] focus:outline-none focus:border-[#157A6E] focus:ring-1 focus:ring-[#157A6E] transition-colors"
-                    >
-                      <option>America/Los_Angeles</option>
-                      <option>America/Denver</option>
-                      <option>America/Chicago</option>
-                      <option>America/New_York</option>
-                      <option>Europe/London</option>
-                      <option>Europe/Paris</option>
-                      <option>Asia/Tokyo</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[12px] font-medium text-gray-700 mb-2">
-                      Role
-                    </label>
-                    <input
-                      type="text"
-                      value="Channel Manager"
-                      disabled
-                      className="w-full px-3 py-2 border border-[#e8e5e1] rounded-[8px] text-[13px] bg-gray-50 text-gray-600"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleSaveProfile}
-                    disabled={saving}
-                    className="px-4 py-2 bg-[#157A6E] text-white rounded-[8px] hover:bg-[#0f6960] transition-colors text-[13px] font-medium flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <Save className="w-4 h-4" />
-                    {saving ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
+          <div className="max-w-[800px] mx-auto py-8 px-6">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <a href="/live/manager" className="text-12px text-[#157A6E] hover:underline flex items-center gap-1">
+                  <ArrowLeft className="w-3 h-3" /> Back to Dashboard
+                </a>
+                <h1 className="text-xl font-semibold font-['Newsreader'] text-gray-800">Settings</h1>
               </div>
-            )}
-
-            {/* Notifications Tab */}
-            {activeTab === 'notifications' && (
-              <div className="space-y-6 max-w-2xl">
-                <div>
-                  <h3 className="font-newsreader text-lg font-bold text-gray-900 mb-1">
-                    Notification Preferences
-                  </h3>
-                  <p className="text-[12px] text-gray-600">
-                    Choose how and when we send you updates
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  {/* Morning Briefing */}
-                  <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-start gap-3">
-                        <Bell className="w-5 h-5 text-[#157A6E] flex-shrink-0 mt-0.5" />
-                        <div>
-                          <h4 className="font-medium text-gray-900 text-[13px]">Morning Briefing</h4>
-                          <p className="text-[12px] text-gray-500 mt-1">
-                            Daily email summary of key metrics and alerts
-                          </p>
-                        </div>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={notificationConfig.morningBriefing}
-                        onChange={(e) =>
-                          setNotificationConfig(prev => ({ ...prev, morningBriefing: e.target.checked }))
-                        }
-                        className="w-4 h-4"
-                      />
-                    </div>
-                    {notificationConfig.morningBriefing && (
-                      <div className="mt-3 flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-gray-400" />
-                        <input
-                          type="time"
-                          value={notificationConfig.briefingTime}
-                          onChange={(e) =>
-                            setNotificationConfig(prev => ({ ...prev, briefingTime: e.target.value }))
-                          }
-                          className="text-[12px] border border-[#e8e5e1] rounded-[6px] px-2 py-1"
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Friction Alerts */}
-                  <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3">
-                        <AlertCircle className="w-5 h-5 text-[#157A6E] flex-shrink-0 mt-0.5" />
-                        <div>
-                          <h4 className="font-medium text-gray-900 text-[13px]">Friction Alerts</h4>
-                          <p className="text-[12px] text-gray-500 mt-1">
-                            Immediate notifications when friction is detected
-                          </p>
-                        </div>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={notificationConfig.frictionAlerts}
-                        onChange={(e) =>
-                          setNotificationConfig(prev => ({ ...prev, frictionAlerts: e.target.checked }))
-                        }
-                        className="w-4 h-4"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Deal Health Changes */}
-                  <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3">
-                        <TrendingDown className="w-5 h-5 text-[#157A6E] flex-shrink-0 mt-0.5" />
-                        <div>
-                          <h4 className="font-medium text-gray-900 text-[13px]">Deal Health Changes</h4>
-                          <p className="text-[12px] text-gray-500 mt-1">
-                            Alerts when deal status moves to at-risk or closed
-                          </p>
-                        </div>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={notificationConfig.dealHealthChanges}
-                        onChange={(e) =>
-                          setNotificationConfig(prev => ({ ...prev, dealHealthChanges: e.target.checked }))
-                        }
-                        className="w-4 h-4"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Weekly Digest */}
-                  <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3">
-                        <BarChart3 className="w-5 h-5 text-[#157A6E] flex-shrink-0 mt-0.5" />
-                        <div>
-                          <h4 className="font-medium text-gray-900 text-[13px]">Weekly Digest</h4>
-                          <p className="text-[12px] text-gray-500 mt-1">
-                            Friday summary of the week's key moments
-                          </p>
-                        </div>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={notificationConfig.weeklyDigest}
-                        onChange={(e) =>
-                          setNotificationConfig(prev => ({ ...prev, weeklyDigest: e.target.checked }))
-                        }
-                        className="w-4 h-4"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <button className="px-4 py-2 bg-[#157A6E] text-white rounded-[8px] hover:bg-[#0f6960] transition-colors text-[13px] font-medium flex items-center gap-2">
-                  <Save className="w-4 h-4" />
-                  Save Preferences
-                </button>
-              </div>
-            )}
-
-            {/* Connectors Tab */}
-            {activeTab === 'connectors' && !connectorDetail && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="font-newsreader text-lg font-bold text-gray-900 mb-1">
-                    Connected Tools
-                  </h3>
-                  <p className="text-[12px] text-gray-600">
-                    Manage integrations with your favorite platforms
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 max-w-4xl">
-                  {TOOLS.map(tool => {
-                    const Icon = tool.icon;
-                    const isConnected = connectedTools[tool.id as keyof typeof connectedTools];
-                    return (
-                      <div
-                        key={tool.id}
-                        className={`bg-white rounded-[10px] border border-[#e8e5e1] p-4 flex items-start justify-between ${isConnected ? 'cursor-pointer hover:border-[#157A6E] hover:shadow-sm' : ''} transition-all`}
-                        onClick={() => {
-                          if (isConnected) {
-                            setConnectorDetail({ id: tool.id, name: tool.name });
-                            setConnectorSubTab('overview');
-                          }
-                        }}
-                      >
-                        <div className="flex items-start gap-3">
-                          <Icon className="w-5 h-5 text-[#157A6E] flex-shrink-0 mt-0.5" />
-                          <div>
-                            <h4 className="font-medium text-gray-900 text-[13px]">{tool.name}</h4>
-                            <p className="text-[11px] text-gray-500 mt-0.5">{tool.desc}</p>
-                            <div className="mt-2">
-                              {isConnected ? (
-                                <div className="flex items-center gap-1 text-[11px] text-green-600 font-medium">
-                                  <Check className="w-3 h-3" />
-                                  Connected
-                                </div>
-                              ) : (
-                                <div className="text-[11px] text-gray-500">Not connected</div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <button
-                            className="text-[12px] font-medium text-[#157A6E] hover:underline"
-                            onClick={(e) => { e.stopPropagation(); }}
-                          >
-                            {isConnected ? 'Disconnect' : 'Connect'}
-                          </button>
-                          {isConnected && (
-                            <span className="flex items-center gap-1 text-[10px] text-gray-400">
-                              <ChevronRight className="w-3 h-3" />
-                              Manage
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Connector Detail View */}
-            {activeTab === 'connectors' && connectorDetail && (() => {
-              const fieldMappings: Record<string, FieldMapping[]> = {
-                hubspot: [
-                  { ccField: 'name', externalField: 'firstname + lastname', type: 'text' },
-                  { ccField: 'title', externalField: 'jobtitle', type: 'text' },
-                  { ccField: 'company', externalField: 'company', type: 'text' },
-                  { ccField: 'email', externalField: 'email', type: 'email' },
-                  { ccField: 'mrr', externalField: 'custom note', type: 'currency' },
-                  { ccField: 'pulse', externalField: 'custom note', type: 'text' },
-                  { ccField: 'tier', externalField: 'role_in_the_channel', type: 'select' },
-                  { ccField: 'friction', externalField: 'custom note', type: 'text' },
-                  { ccField: 'lifecyclestage', externalField: 'based on tier', type: 'derived' },
-                ],
-                salesforce: [
-                  { ccField: 'name', externalField: 'Name', type: 'text' },
-                  { ccField: 'company', externalField: 'Account.Name', type: 'text' },
-                  { ccField: 'email', externalField: 'Email', type: 'email' },
-                  { ccField: 'mrr', externalField: 'Monthly_Revenue__c', type: 'currency' },
-                  { ccField: 'deals', externalField: 'Opportunity', type: 'object' },
-                  { ccField: 'stage', externalField: 'StageName', type: 'select' },
-                ],
-                gong: [
-                  { ccField: 'advisor.id', externalField: 'participant.email', type: 'lookup' },
-                  { ccField: 'transcript', externalField: 'call.transcript', type: 'text' },
-                  { ccField: 'sentiment', externalField: 'call.sentiment_score', type: 'number' },
-                  { ccField: 'topics', externalField: 'call.topics[]', type: 'array' },
-                  { ccField: 'duration', externalField: 'call.duration', type: 'number' },
-                ],
-                slack: [
-                  { ccField: 'notifications', externalField: '#channel-alerts', type: 'channel' },
-                  { ccField: 'deal_updates', externalField: '#deals-pipeline', type: 'channel' },
-                  { ccField: 'morning_briefing', externalField: 'DM to user', type: 'message' },
-                ],
-              };
-
-              const dealStageMappings: Record<string, Array<{ ccStage: string; externalStage: string }>> = {
-                hubspot: [
-                  { ccStage: 'Discovery', externalStage: 'appointmentscheduled' },
-                  { ccStage: 'Qualifying', externalStage: 'qualifiedtobuy' },
-                  { ccStage: 'Proposal', externalStage: 'presentationscheduled' },
-                  { ccStage: 'Negotiating', externalStage: 'decisionmakerboughtin' },
-                  { ccStage: 'Closed Won', externalStage: 'closedwon' },
-                  { ccStage: 'Stalled', externalStage: 'closedlost' },
-                ],
-                salesforce: [
-                  { ccStage: 'Discovery', externalStage: 'Prospecting' },
-                  { ccStage: 'Qualifying', externalStage: 'Qualification' },
-                  { ccStage: 'Proposal', externalStage: 'Proposal/Price Quote' },
-                  { ccStage: 'Negotiating', externalStage: 'Negotiation/Review' },
-                  { ccStage: 'Closed Won', externalStage: 'Closed Won' },
-                  { ccStage: 'Stalled', externalStage: 'Closed Lost' },
-                ],
-              };
-
-              const mappings = fieldMappings[connectorDetail.id] || [];
-              const stages = dealStageMappings[connectorDetail.id] || [];
-
-              const handleSync = async () => {
-                setSyncing(true);
-                setTimeout(() => {
-                  setSyncing(false);
-                  alert(`${connectorDetail.name} sync complete`);
-                }, 1500);
-              };
-
-              return (
-              <div className="space-y-6">
-                {/* Back button + Header */}
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => setConnectorDetail(null)}
-                    className="p-2 hover:bg-white rounded-lg transition-colors"
-                  >
-                    <ArrowLeft className="w-5 h-5 text-gray-600" />
-                  </button>
-                  <div className="flex-1">
-                    <h3 className="font-newsreader text-lg font-bold text-gray-900">
-                      {connectorDetail.name} Integration
-                    </h3>
-                    <p className="text-[12px] text-gray-500">Manage sync, field mappings, and activity</p>
-                  </div>
-                  <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                    <span className="text-[12px] font-medium text-green-700">Connected</span>
-                  </div>
-                </div>
-
-                {/* Sub-tabs */}
-                <div className="flex border-b border-[#e8e5e1] gap-6">
-                  {[
-                    { id: 'overview' as const, label: 'Overview' },
-                    { id: 'field-mapping' as const, label: 'Field Mapping' },
-                    { id: 'sync-log' as const, label: 'Sync Log' },
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setConnectorSubTab(tab.id)}
-                      className={`pb-3 px-1 border-b-2 transition-colors text-[13px] font-medium ${
-                        connectorSubTab === tab.id
-                          ? 'border-[#157A6E] text-[#157A6E]'
-                          : 'border-transparent text-gray-600 hover:text-gray-900'
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Overview sub-tab */}
-                {connectorSubTab === 'overview' && (
-                  <div className="space-y-4">
-                    <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-                      <h4 className="font-medium text-gray-900 text-[14px] mb-4">Sync Status</h4>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between py-2 border-b border-[#e8e5e1]">
-                          <span className="text-[13px] text-gray-700">Connection Status</span>
-                          <span className="text-[13px] font-medium text-green-600">Connected</span>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-[#e8e5e1]">
-                          <span className="text-[13px] text-gray-700">Last Sync</span>
-                          <span className="text-[13px] font-medium text-gray-900">Today, 8:00 AM</span>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-[#e8e5e1]">
-                          <span className="text-[13px] text-gray-700">Synced Records</span>
-                          <span className="text-[13px] font-medium text-gray-900">0</span>
-                        </div>
-                        <div className="flex items-center justify-between py-2">
-                          <span className="text-[13px] text-gray-700">Sync Direction</span>
-                          <span className="text-[13px] font-medium text-gray-900">Bi-directional</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-                      <h4 className="font-medium text-gray-900 text-[14px] mb-4">Quick Actions</h4>
-                      <div className="flex gap-3">
-                        <button
-                          onClick={handleSync}
-                          disabled={syncing}
-                          className="px-4 py-2 bg-[#157A6E] text-white rounded-[8px] hover:bg-[#0f6960] transition-colors text-[13px] font-medium flex items-center gap-2 disabled:opacity-50"
-                        >
-                          <RefreshCcw className="w-4 h-4" />
-                          {syncing ? 'Syncing...' : 'Sync Now'}
-                        </button>
-                        <button className="px-4 py-2 border border-[#157A6E] text-[#157A6E] rounded-[8px] hover:bg-[#F0FAF8] transition-colors text-[13px] font-medium">
-                          Push Advisors
-                        </button>
-                        <button className="px-4 py-2 border border-[#157A6E] text-[#157A6E] rounded-[8px] hover:bg-[#F0FAF8] transition-colors text-[13px] font-medium">
-                          Push Deals
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Deal Stage Mapping */}
-                    {stages.length > 0 && (
-                      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
-                        <h4 className="font-medium text-gray-900 text-[14px] mb-4">Deal Stage Mapping</h4>
-                        <table className="w-full text-[13px]">
-                          <thead>
-                            <tr className="border-b border-[#e8e5e1]">
-                              <th className="text-left py-2 font-medium text-gray-500">CC Stage</th>
-                              <th className="text-left py-2 font-medium text-gray-500">{connectorDetail.name} Stage</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {stages.map((s, i) => (
-                              <tr key={i} className="border-b border-[#e8e5e1] last:border-0">
-                                <td className="py-2 font-medium text-gray-900">{s.ccStage}</td>
-                                <td className="py-2 text-gray-700">{s.externalStage}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Field Mapping sub-tab */}
-                {connectorSubTab === 'field-mapping' && (
-                  <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
-                    <table className="w-full text-[13px]">
-                      <thead>
-                        <tr className="border-b border-[#e8e5e1] bg-[#F7F5F2]">
-                          <th className="px-6 py-4 text-left font-medium text-gray-700">Channel Companion Field</th>
-                          <th className="px-6 py-4 text-left font-medium text-gray-700">{connectorDetail.name} Field</th>
-                          <th className="px-6 py-4 text-left font-medium text-gray-700">Type</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {mappings.map((m, i) => (
-                          <tr key={i} className="border-b border-[#e8e5e1] hover:bg-[#F7F5F2]">
-                            <td className="px-6 py-4 font-medium text-gray-900">{m.ccField}</td>
-                            <td className="px-6 py-4 text-gray-700">{m.externalField}</td>
-                            <td className="px-6 py-4">
-                              <span className="px-2 py-1 rounded-full bg-[#F0FAF8] text-[#157A6E] text-[11px] font-medium">{m.type}</span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {/* Sync Log sub-tab */}
-                {connectorSubTab === 'sync-log' && (
-                  <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
-                    <Activity className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-[13px] text-gray-600">No sync activity yet</p>
-                    <p className="text-[11px] text-gray-400 mt-1">Sync activity will appear here once data starts flowing</p>
-                  </div>
-                )}
-              </div>
-              );
-            })()}
-
-            {/* Team Tab */}
-            {activeTab === 'team' && (
-              <div className="space-y-6 max-w-4xl">
-                <div>
-                  <h3 className="font-newsreader text-lg font-bold text-gray-900 mb-1">
-                    Team Members
-                  </h3>
-                  <p className="text-[12px] text-gray-600">
-                    Manage your team's access and roles
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => setShowInviteModal(true)}
-                  className="px-4 py-2 bg-[#157A6E] text-white rounded-[8px] hover:bg-[#0f6960] transition-colors text-[13px] font-medium"
-                >
-                  Invite Team Member
-                </button>
-
-                {/* Team List */}
-                <div className="space-y-2">
-                  {teammates.map(teammate => (
-                    <div
-                      key={teammate.id}
-                      className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-[#e8e5e1] flex items-center justify-center text-[12px] font-semibold text-gray-700">
-                          {teammate.name.split(' ').map(n => n[0]).join('')}
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-gray-900 text-[13px]">{teammate.name}</h4>
-                          <p className="text-[12px] text-gray-500">{teammate.email}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-[12px] text-gray-600">{teammate.role === 'channel_manager' ? 'Channel Manager' : 'Sales Leader'}</span>
-                        <span className={`px-2 py-1 rounded-full text-[11px] font-medium ${teammate.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                          {teammate.status === 'active' ? 'Active' : 'Pending'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {pendingCount > 0 && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-[8px] p-4">
-                    <p className="text-[12px] text-yellow-900">
-                      You have <span className="font-medium">{pendingCount} pending invite(s)</span> waiting to be accepted
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Organization Tab */}
-            {activeTab === 'organization' && (
-              <div className="space-y-6 max-w-2xl">
-                <div>
-                  <h3 className="font-newsreader text-lg font-bold text-gray-900 mb-1">
-                    Organization Settings
-                  </h3>
-                  <p className="text-[12px] text-gray-600">
-                    Manage organization profile and billing
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6 space-y-4">
-                  <div>
-                    <label className="block text-[12px] font-medium text-gray-700 mb-2">
-                      Organization Name
-                    </label>
-                    <input
-                      type="text"
-                      defaultValue="Acme Corporation"
-                      className="w-full px-3 py-2 border border-[#e8e5e1] rounded-[8px] text-[13px] focus:outline-none focus:border-[#157A6E] focus:ring-1 focus:ring-[#157A6E] transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[12px] font-medium text-gray-700 mb-2">
-                      Organization Slug
-                    </label>
-                    <input
-                      type="text"
-                      defaultValue="acme-corp"
-                      className="w-full px-3 py-2 border border-[#e8e5e1] rounded-[8px] text-[13px] focus:outline-none focus:border-[#157A6E] focus:ring-1 focus:ring-[#157A6E] transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[12px] font-medium text-gray-700 mb-2">
-                      Current Plan
-                    </label>
-                    <div className="flex items-center justify-between p-3 bg-[#F0FAF8] border border-[#157A6E] rounded-[8px]">
-                      <span className="text-[13px] font-medium text-[#157A6E]">Trial</span>
-                      <button className="text-[12px] font-medium text-[#157A6E] hover:underline">
-                        Upgrade
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[12px] font-medium text-gray-700 mb-2">
-                      Logo
-                    </label>
-                    <button className="px-4 py-2 border border-[#e8e5e1] rounded-[8px] hover:bg-[#F7F5F2] transition-colors text-[12px] font-medium text-gray-700 flex items-center gap-2">
-                      <Upload className="w-4 h-4" />
-                      Upload Logo
-                    </button>
-                  </div>
-                </div>
-
-                <button className="px-4 py-2 bg-[#157A6E] text-white rounded-[8px] hover:bg-[#0f6960] transition-colors text-[13px] font-medium">
-                  Save Changes
-                </button>
-              </div>
-            )}
-
-            {/* Supplier Profile Tab */}
-            {activeTab === 'supplier' && (
-              <div>
-                <div className="mb-6">
-                  <h3 className="font-newsreader text-lg font-bold text-gray-900 mb-1">
-                    Supplier Profile
-                  </h3>
-                  <p className="text-[12px] text-gray-600">
-                    Manage your organization's supplier positioning and messaging for advisors
-                  </p>
-                </div>
-                <SupplierProfile editable={true} onSave={(data) => {
-                  console.log('Supplier profile saved:', data);
-                }} />
-              </div>
-            )}
-
-            {/* Company Resources Tab */}
-            {activeTab === 'resources' && (
-              <div>
-                <div className="mb-6">
-                  <h3 className="font-newsreader text-lg font-bold text-gray-900 mb-1">
-                    Company Resources
-                  </h3>
-                  <p className="text-[12px] text-gray-600">
-                    Rebrandable assets, collateral, and co-marketing materials your partners can use
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex gap-2">
-                    <span className="px-3 py-1.5 bg-[#157A6E] text-white text-12px rounded-full font-medium">All Assets</span>
-                    <span className="px-3 py-1.5 bg-gray-100 text-gray-700 text-12px rounded-full font-medium hover:bg-gray-200 cursor-pointer">Email</span>
-                    <span className="px-3 py-1.5 bg-gray-100 text-gray-700 text-12px rounded-full font-medium hover:bg-gray-200 cursor-pointer">Social</span>
-                    <span className="px-3 py-1.5 bg-gray-100 text-gray-700 text-12px rounded-full font-medium hover:bg-gray-200 cursor-pointer">Presentations</span>
-                    <span className="px-3 py-1.5 bg-gray-100 text-gray-700 text-12px rounded-full font-medium hover:bg-gray-200 cursor-pointer">Case Studies</span>
-                    <span className="px-3 py-1.5 bg-gray-100 text-gray-700 text-12px rounded-full font-medium hover:bg-gray-200 cursor-pointer">Tools</span>
-                  </div>
-                  <button className="px-4 py-2 bg-[#157A6E] text-white text-[13px] rounded-[8px] hover:bg-[#0f6960] transition-colors font-medium flex items-center gap-2">
-                    <Upload className="w-4 h-4" />
-                    Upload Asset
-                  </button>
-                </div>
-
-                <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
-                  <table className="w-full text-[13px]">
-                    <thead>
-                      <tr className="border-b border-[#e8e5e1] bg-[#F7F5F2]">
-                        <th className="text-left py-3 px-4 font-medium text-gray-500 text-[12px]">Asset Name</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-500 text-[12px]">Type</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-500 text-[12px]">Format</th>
-                        <th className="text-center py-3 px-4 font-medium text-gray-500 text-[12px]">Rebrandable</th>
-                        <th className="text-right py-3 px-4 font-medium text-gray-500 text-[12px]">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        { name: 'Cloud Migration Email Sequence (3-part)', type: 'Email', format: 'HTML', rebrandable: true },
-                        { name: 'Security Assessment LinkedIn Posts (5x)', type: 'Social', format: 'Copy + Graphics', rebrandable: true },
-                        { name: 'SD-WAN ROI Calculator', type: 'Tool', format: 'Interactive PDF', rebrandable: true },
-                        { name: 'Hybrid Cloud Customer Story — Healthcare', type: 'Case Study', format: 'PDF + Landing Page', rebrandable: true },
-                        { name: 'Network Transformation Infographic', type: 'Visual', format: 'PNG + AI Source', rebrandable: true },
-                        { name: 'Managed Security Webinar Deck', type: 'Presentation', format: 'PPTX', rebrandable: true },
-                        { name: 'UCaaS Migration Checklist', type: 'Tool', format: 'PDF', rebrandable: true },
-                        { name: 'Channel Partner Onboarding Kit', type: 'Guide', format: 'DOCX + PDF', rebrandable: false },
-                        { name: 'Quarterly Business Review Template', type: 'Presentation', format: 'PPTX', rebrandable: true },
-                        { name: 'SASE/SSE Architecture Overview', type: 'Technical', format: 'PDF', rebrandable: true },
-                      ].map((asset, i) => (
-                        <tr key={i} className="border-b border-[#e8e5e1] last:border-0 hover:bg-gray-50 transition-colors">
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
-                              <FileText className="w-4 h-4 text-gray-400 shrink-0" />
-                              <span className="font-medium text-gray-800">{asset.name}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-[11px] rounded font-medium">{asset.type}</span>
-                          </td>
-                          <td className="py-3 px-4 text-gray-600">{asset.format}</td>
-                          <td className="py-3 px-4 text-center">
-                            {asset.rebrandable ? (
-                              <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[11px] rounded-full font-medium">Rebrandable</span>
-                            ) : (
-                              <span className="text-gray-400 text-[11px]">Fixed</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button className="text-[11px] text-[#157A6E] hover:underline font-medium">Share</button>
-                              <button className="text-[11px] text-gray-500 hover:text-gray-700 font-medium flex items-center gap-1">
-                                <Download className="w-3 h-3" />
-                                Download
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Invite Modal */}
-      {showInviteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-[10px] p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-newsreader text-lg font-bold text-gray-900">
-                Invite Team Member
-              </h2>
-              <button
-                onClick={() => setShowInviteModal(false)}
-                className="p-1 hover:bg-gray-100 rounded-[8px] transition-colors"
-              >
-                <X className="w-4 h-4 text-gray-600" />
+              <button onClick={handleSave} className="flex items-center gap-2 px-4 py-2 bg-[#157A6E] text-white text-13px font-semibold rounded-lg hover:bg-[#0f5550] transition-colors">
+                {saved ? <><CheckCircle className="w-4 h-4" /> Saved</> : <><Save className="w-4 h-4" /> Save Changes</>}
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-[12px] font-medium text-gray-700 mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="invite@example.com"
-                  className="w-full px-3 py-2 border border-[#e8e5e1] rounded-[8px] text-[13px] focus:outline-none focus:border-[#157A6E] focus:ring-1 focus:ring-[#157A6E] transition-colors"
-                />
+            <div className="space-y-6">
+              {/* General */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <SettingsIcon className="w-4 h-4 text-[#157A6E]" />
+                  <h2 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">General</h2>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-11px font-semibold text-gray-700 mb-1 block">Company Name</label>
+                    <input value={companyName} onChange={e => setCompanyName(e.target.value)} className="w-full text-13px border border-[#e8e5e1] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
+                  </div>
+                  <div>
+                    <label className="text-11px font-semibold text-gray-700 mb-1 block">Your Name</label>
+                    <input value={userName} onChange={e => setUserName(e.target.value)} className="w-full text-13px border border-[#e8e5e1] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-[12px] font-medium text-gray-700 mb-2">
-                  Role
-                </label>
-                <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value)}
-                  className="w-full px-3 py-2 border border-[#e8e5e1] rounded-[8px] text-[13px] focus:outline-none focus:border-[#157A6E] focus:ring-1 focus:ring-[#157A6E] transition-colors"
-                >
-                  <option value="channel_manager">Channel Manager</option>
-                  <option value="sales_leader">Sales Leader</option>
-                  <option value="admin">Admin</option>
-                </select>
+              {/* Cadence Rules */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <Zap className="w-4 h-4 text-[#157A6E]" />
+                  <h2 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">Cadence Rules</h2>
+                </div>
+                <p className="text-11px text-gray-500 mb-4">Set how often you should contact partners in each tier. Action items are auto-generated when cadence lapses.</p>
+                <div className="space-y-3">
+                  {[
+                    { key: 'anchor' as const, label: 'Anchor', desc: 'Your core strategic partners', color: 'bg-[#157A6E]' },
+                    { key: 'scaling' as const, label: 'Scaling', desc: 'High-growth partners expanding fast', color: 'bg-amber-400' },
+                    { key: 'building' as const, label: 'Building', desc: 'Developing partners with potential', color: 'bg-gray-400' },
+                    { key: 'launching' as const, label: 'Launching', desc: 'New partners in accelerated onboarding', color: 'bg-blue-400' },
+                  ].map(tier => (
+                    <div key={tier.key} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                      <div className={`w-3 h-3 rounded-sm ${tier.color}`} />
+                      <div className="flex-1">
+                        <p className="text-12px font-semibold text-gray-800">{tier.label}</p>
+                        <p className="text-[10px] text-gray-500">{tier.desc}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-11px text-gray-500">Every</span>
+                        <input type="number" value={cadence[tier.key]} onChange={e => setCadence(prev => ({ ...prev, [tier.key]: parseInt(e.target.value) || 0 }))} className="w-16 text-13px text-center border border-[#e8e5e1] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" />
+                        <span className="text-11px text-gray-500">days</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="flex gap-2 pt-4">
-                <button
-                  onClick={() => setShowInviteModal(false)}
-                  className="flex-1 px-4 py-2 border border-[#e8e5e1] rounded-[8px] hover:bg-gray-50 transition-colors text-[13px] font-medium text-gray-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleInviteTeammate}
-                  className="flex-1 px-4 py-2 bg-[#157A6E] text-white rounded-[8px] hover:bg-[#0f6960] transition-colors text-[13px] font-medium"
-                >
-                  Send Invite
-                </button>
+              {/* Notifications */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Bell className="w-4 h-4 text-[#157A6E]" />
+                  <h2 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">Notifications</h2>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="text-12px font-semibold text-gray-800">Email Notifications</p>
+                      <p className="text-[10px] text-gray-500">Daily digest of overdue actions and signals</p>
+                    </div>
+                    <button onClick={() => setEmailNotifs(!emailNotifs)} className={`w-10 h-5.5 rounded-full transition-colors relative ${emailNotifs ? 'bg-[#157A6E]' : 'bg-gray-300'}`}>
+                      <span className={`absolute top-0.5 w-4.5 h-4.5 bg-white rounded-full shadow transition-transform ${emailNotifs ? 'left-5' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="text-12px font-semibold text-gray-800">In-App Notifications</p>
+                      <p className="text-[10px] text-gray-500">Real-time alerts for critical signals and deal updates</p>
+                    </div>
+                    <button onClick={() => setInAppNotifs(!inAppNotifs)} className={`w-10 h-5.5 rounded-full transition-colors relative ${inAppNotifs ? 'bg-[#157A6E]' : 'bg-gray-300'}`}>
+                      <span className={`absolute top-0.5 w-4.5 h-4.5 bg-white rounded-full shadow transition-transform ${inAppNotifs ? 'left-5' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Integrations */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Link2 className="w-4 h-4 text-[#157A6E]" />
+                  <h2 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">Integrations</h2>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { name: 'Salesforce', status: 'connected', desc: 'CRM sync' },
+                    { name: 'Gong', status: 'connected', desc: 'Call intelligence' },
+                    { name: 'Fireflies', status: 'connected', desc: 'Meeting transcripts' },
+                    { name: 'Microsoft Teams', status: 'connected', desc: 'Communication' },
+                    { name: 'Slack', status: 'available', desc: 'Team messaging' },
+                    { name: 'HubSpot', status: 'available', desc: 'Marketing automation' },
+                  ].map(int => (
+                    <div key={int.name} className="flex items-center gap-3 p-3 border border-[#e8e5e1] rounded-lg">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[11px] font-bold ${int.status === 'connected' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'}`}>
+                        {int.name[0]}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-12px font-semibold text-gray-800">{int.name}</p>
+                        <p className="text-[10px] text-gray-500">{int.desc}</p>
+                      </div>
+                      <span className={`px-2 py-0.5 text-[10px] font-medium rounded ${int.status === 'connected' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {int.status === 'connected' ? 'Connected' : 'Available'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Onboarding */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <GraduationCap className="w-4 h-4 text-[#157A6E]" />
+                  <h2 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">Guided Onboarding</h2>
+                </div>
+                <p className="text-11px text-gray-500 mb-3">Re-run the guided setup to reconfigure your workspace, import partners, or update your cadence rules.</p>
+                <a href="/onboarding" className="inline-flex items-center gap-2 px-4 py-2 text-12px font-semibold text-[#157A6E] border border-[#157A6E] rounded-lg hover:bg-teal-50 transition-colors">
+                  Launch Onboarding Guide →
+                </a>
               </div>
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
