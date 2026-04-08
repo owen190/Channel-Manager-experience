@@ -5,7 +5,7 @@ import {
   Clock, AlertTriangle, ChevronDown, ChevronRight, ArrowLeft,
   MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays,
   Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle, X, RefreshCw, Users,
-  TrendingDown, TrendingUp, BarChart3, Star, Shield, CheckCircle,
+  TrendingDown, TrendingUp, BarChart3, Star, Shield, CheckCircle, ArrowUpRight, ArrowDownLeft,
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -20,7 +20,7 @@ import { FrictionBadge } from '@/components/shared/FrictionBadge';
 import { TierBadge } from '@/components/shared/TierBadge';
 import { SupplierAccountabilityCard, AdvisorSentimentFeed } from '@/components/shared/RatingsDisplay';
 import { NAV_ITEMS_LEADER, QUARTER_END, DAYS_REMAINING, STAGE_WEIGHTS } from '@/lib/constants';
-import { EngagementScore, DealStage, Advisor, Deal, Rep, ForecastHistoryEntry } from '@/lib/types';
+import { EngagementScore, DealStage, Advisor, Deal, Rep, FrictionLevel } from '@/lib/types';
 import { adaptAdvisor, adaptDeal, adaptRep } from '@/lib/db/adapter';
 
 function EngLabel({ score }: { score: EngagementScore }) {
@@ -30,6 +30,23 @@ function EngLabel({ score }: { score: EngagementScore }) {
     Fading: 'bg-red-100 text-red-800',
   };
   return <span className={`px-2 py-0.5 rounded-full text-11px font-semibold ${colors[score]}`}>{score}</span>;
+}
+
+interface Signal {
+  type: string;
+  text: string;
+  severity: 'critical' | 'high' | 'medium';
+  repName: string;
+  advisorName?: string;
+  mrr?: number;
+  time: string;
+}
+
+interface FrictionInsight {
+  issue: string;
+  severity: FrictionLevel;
+  advisorCount: number;
+  names: string[];
 }
 
 export default function LiveLeaderDashboard() {
@@ -46,12 +63,13 @@ export default function LiveLeaderDashboard() {
   const [expandedReps, setExpandedReps] = useState<string[]>([]);
   const [inlineTab, setInlineTab] = useState<'overview' | 'personal' | 'deals' | 'notes' | 'activity'>('overview');
   const [relationshipsView, setRelationshipsView] = useState<'list' | 'detail'>('list');
-  const [expandedKPIPanel, setExpandedKPIPanel] = useState<string | null>(null);
-  const [expandedForecastRep, setExpandedForecastRep] = useState<string | null>(null);
   const [relationshipFilter, setRelationshipFilter] = useState('All');
+  const [myOnlyPartners, setMyOnlyPartners] = useState(false);
+  const [expandedForecastRep, setExpandedForecastRep] = useState<string | null>(null);
   const [expandedStage, setExpandedStage] = useState<DealStage | null>(null);
   const [expandedPipelineRep, setExpandedPipelineRep] = useState<string | null>(null);
   const [overrideActions, setOverrideActions] = useState<Record<string, 'approved' | 'denied'>>({});
+  const [dealActions, setDealActions] = useState<Record<string, 'flagged' | 'joined'>>({});
 
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
@@ -59,7 +77,6 @@ export default function LiveLeaderDashboard() {
       setSelectedAdvisor(null);
       setPanelOpen(false);
     }
-    setExpandedKPIPanel(null);
     setExpandedForecastRep(null);
     setExpandedStage(null);
     setExpandedPipelineRep(null);
@@ -98,36 +115,142 @@ export default function LiveLeaderDashboard() {
   const userName = 'Priya M.';
   const userInitials = 'PM';
 
-  // KPI computations
-  const teamMRR = reps.reduce((sum, rep) => sum + rep.managedMRR, 0);
-  const prevTeamMRR = teamMRR * 0.942;
-  const mrrChange = ((teamMRR - prevTeamMRR) / prevTeamMRR * 100).toFixed(1);
-  const teamTarget = reps.reduce((sum, rep) => sum + rep.quotaTarget, 0);
-  const teamCommit = reps.reduce((sum, rep) => sum + rep.currentCommit, 0);
-  const commitGap = teamTarget - teamCommit;
-  const commitPercentage = teamTarget > 0 ? Math.round((teamCommit / teamTarget) * 100) : 0;
-
-  const allDeals = deals;
-  const teamPipeline = allDeals.reduce((sum, deal) => sum + deal.mrr, 0);
-  const weightedPipeline = allDeals.reduce((sum, deal) => {
-    const stageWeight = STAGE_WEIGHTS.find(sw => sw.stage === deal.stage)?.weight || 0;
-    return sum + (deal.mrr * stageWeight);
-  }, 0);
-  const activeDealCount = allDeals.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Stalled').length;
-  const atRiskDeals = allDeals.filter(d => d.health === 'At Risk' || d.health === 'Stalled');
-  const stalledDeals = allDeals.filter(d => d.stage === 'Stalled');
-
-  const avgWinRate = reps.length > 0 ? Math.round(reps.reduce((s, r) => s + r.winRate, 0) / reps.length) : 0;
-  const avgCycle = reps.length > 0 ? Math.round(reps.reduce((s, r) => s + r.avgCycle, 0) / reps.length) : 0;
-
   const formatCurrency = (num: number): string => {
     if (num >= 1000000) return `$${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `$${(num / 1000).toFixed(0)}K`;
     return `$${num}`;
   };
 
-  const toggleRepExpansion = (repId: string) => {
-    setExpandedReps(prev => prev.includes(repId) ? prev.filter(id => id !== repId) : [...prev, repId]);
+  // Compute leaderOwned
+  const leaderOwned = useMemo(() => {
+    return new Set(advisors
+      .filter(a => a.tier === 'anchor' && (a.relationshipStage === 'Strategic' || a.relationshipStage === 'Scaling'))
+      .map(a => a.id));
+  }, [advisors]);
+
+  // Compute leaderInvolved deals
+  const leaderInvolved = useMemo(() => {
+    return new Set(deals
+      .filter(d => {
+        const advisorIds = d.advisorIds?.length ? d.advisorIds : [d.advisorId];
+        return advisorIds.some(id => leaderOwned.has(id)) || d.mrr >= 15000;
+      })
+      .map(d => d.id));
+  }, [deals, leaderOwned]);
+
+  // Generate signals
+  const signals = useMemo(() => {
+    const sigs: Signal[] = [];
+    const now = new Date();
+
+    // Critical deals
+    deals.forEach(d => {
+      if (d.health === 'At Risk' || d.health === 'Critical') {
+        const rep = reps.find(r => r.id === d.repId);
+        const advisorIds = d.advisorIds?.length ? d.advisorIds : [d.advisorId];
+        const advisorName = advisors.find(a => a.id === advisorIds[0])?.name || 'Unknown';
+        sigs.push({
+          type: 'deal_at_risk',
+          text: `${d.name} is ${d.health}. Immediate action needed.`,
+          severity: 'critical',
+          repName: rep?.name || 'Unknown',
+          advisorName,
+          mrr: d.mrr,
+          time: '2h ago',
+        });
+      }
+    });
+
+    // Override requests
+    deals.forEach(d => {
+      if (d.overrideRequested && !overrideActions[d.id]) {
+        const rep = reps.find(r => r.id === d.repId);
+        sigs.push({
+          type: 'override_pending',
+          text: `${d.name} has a pending forecast override request.`,
+          severity: 'medium',
+          repName: rep?.name || 'Unknown',
+          mrr: d.mrr,
+          time: '4h ago',
+        });
+      }
+    });
+
+    // Fading anchor partners
+    advisors.forEach(a => {
+      if (a.tier === 'anchor' && (a.pulse === 'Fading' || a.pulse === 'Flatline')) {
+        const rep = reps.find(r => r.id === a.id);
+        sigs.push({
+          type: 'partner_fading',
+          text: `${a.name} is ${a.pulse}. May need engagement intervention.`,
+          severity: 'high',
+          repName: 'Account Team',
+          advisorName: a.name,
+          mrr: a.mrr,
+          time: '1d ago',
+        });
+      }
+    });
+
+    // Freefall trajectories
+    advisors.forEach(a => {
+      if (a.trajectory === 'Freefall') {
+        sigs.push({
+          type: 'trajectory_freefall',
+          text: `${a.name} in freefall. Risk of complete disengagement.`,
+          severity: 'critical',
+          repName: 'Account Team',
+          advisorName: a.name,
+          mrr: a.mrr,
+          time: '3d ago',
+        });
+      }
+    });
+
+    // Low win rates
+    const avgWin = reps.length > 0 ? Math.round(reps.reduce((s, r) => s + r.winRate, 0) / reps.length) : 0;
+    reps.forEach(r => {
+      if (r.winRate < avgWin - 15) {
+        sigs.push({
+          type: 'low_win_rate',
+          text: `${r.name}'s win rate (${r.winRate}%) is significantly below team average.`,
+          severity: 'high',
+          repName: r.name,
+          time: '5d ago',
+        });
+      }
+    });
+
+    return sigs.sort((a, b) => {
+      const severityOrder = { critical: 0, high: 1, medium: 2 };
+      return severityOrder[a.severity] - severityOrder[b.severity];
+    });
+  }, [deals, advisors, reps, overrideActions]);
+
+  // Generate friction insights
+  const frictionInsights = useMemo(() => {
+    const insights: FrictionInsight[] = [];
+    const frictionLevels: FrictionLevel[] = ['Critical', 'High', 'Moderate'];
+
+    frictionLevels.forEach(level => {
+      const advisorsWithFriction = advisors.filter(a => a.friction === level);
+      if (advisorsWithFriction.length >= 2) {
+        insights.push({
+          issue: `${level} friction across multiple partners`,
+          severity: level as FrictionLevel,
+          advisorCount: advisorsWithFriction.length,
+          names: advisorsWithFriction.map(a => a.name),
+        });
+      }
+    });
+
+    return insights;
+  }, [advisors]);
+
+  // Helper for multi-partner deal lookups
+  const getDealAdvisorIds = (deal: Deal): string[] => {
+    if (deal.advisorIds && deal.advisorIds.length > 0) return deal.advisorIds;
+    return deal.advisorId ? [deal.advisorId] : [];
   };
 
   const handleAdvisorClick = (advisorId: string) => {
@@ -155,11 +278,24 @@ export default function LiveLeaderDashboard() {
     }
   };
 
-  // Helper for multi-partner deal lookups
-  const getDealAdvisorIds = (deal: Deal): string[] => {
-    if (deal.advisorIds && deal.advisorIds.length > 0) return deal.advisorIds;
-    return deal.advisorId ? [deal.advisorId] : [];
-  };
+  // KPI computations
+  const teamMRR = reps.reduce((sum, rep) => sum + rep.managedMRR, 0);
+  const prevTeamMRR = teamMRR * 0.942;
+  const mrrChange = ((teamMRR - prevTeamMRR) / prevTeamMRR * 100).toFixed(1);
+  const teamTarget = reps.reduce((sum, rep) => sum + rep.quotaTarget, 0);
+  const teamCommit = reps.reduce((sum, rep) => sum + rep.currentCommit, 0);
+  const commitGap = teamTarget - teamCommit;
+  const commitPercentage = teamTarget > 0 ? Math.round((teamCommit / teamTarget) * 100) : 0;
+  const avgWinRate = reps.length > 0 ? Math.round(reps.reduce((s, r) => s + r.winRate, 0) / reps.length) : 0;
+  const avgCycle = reps.length > 0 ? Math.round(reps.reduce((s, r) => s + r.avgCycle, 0) / reps.length) : 0;
+  const allDeals = deals;
+  const teamPipeline = allDeals.reduce((sum, deal) => sum + deal.mrr, 0);
+  const weightedPipeline = allDeals.reduce((sum, deal) => {
+    const stageWeight = STAGE_WEIGHTS.find(sw => sw.stage === deal.stage)?.weight || 0;
+    return sum + (deal.mrr * stageWeight);
+  }, 0);
+  const activeDealCount = allDeals.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Stalled').length;
+  const atRiskDeals = allDeals.filter(d => d.health === 'At Risk' || d.health === 'Stalled' || d.health === 'Critical');
 
   if (loading) {
     return (
@@ -189,224 +325,331 @@ export default function LiveLeaderDashboard() {
     );
   }
 
-  const renderCommandCenter = () => (
-    <div className="space-y-6">
-      {/* KPI Row */}
-      <div className="grid grid-cols-4 gap-4">
-        <KPICard label="Team MRR" value={formatCurrency(teamMRR)} change={`+${mrrChange}% QoQ`} changeType="positive" />
-        <KPICard label="Commit vs Target" value={`${commitPercentage}%`} change={`Gap: ${formatCurrency(commitGap)}`} changeType={commitPercentage >= 90 ? "positive" : "negative"} />
-        <KPICard label="Avg Win Rate" value={`${avgWinRate}%`} change={`${avgCycle}d avg cycle`} changeType="neutral" />
-        <KPICard label="Pipeline Health" value={`${activeDealCount} active`} change={`${atRiskDeals.length} at risk`} changeType={atRiskDeals.length > 3 ? "negative" : "positive"} />
-      </div>
+  // ═══════════════════ RENDER FUNCTIONS ═══════════════════
 
-      {/* Two Column */}
-      <div className="grid grid-cols-2 gap-6">
-        {/* Rep Performance */}
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Rep Performance</h3>
-          <div className="space-y-3">
-            {reps.map(rep => {
-              const repDeals = deals.filter(d => d.repId === rep.id);
-              const repPipeline = repDeals.reduce((s, d) => s + d.mrr, 0);
-              const utilization = Math.round((rep.partnerCount / rep.partnerCapacity) * 100);
-              const expanded = expandedReps.includes(rep.id);
-              return (
-                <div key={rep.id}>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
-                       onClick={() => toggleRepExpansion(rep.id)}>
-                    <div className="flex items-center gap-3">
-                      {expanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-                      <div>
-                        <p className="text-13px font-medium text-gray-800">{rep.name}</p>
-                        <p className="text-11px text-gray-500">{rep.title}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <EngLabel score={rep.engagementScore} />
-                      <span className="text-13px font-semibold">{formatCurrency(rep.managedMRR)}</span>
-                    </div>
-                  </div>
-                  {expanded && (
-                    <div className="ml-7 mt-2 p-3 bg-white border border-gray-100 rounded-lg text-12px space-y-2">
-                      <div className="grid grid-cols-3 gap-3">
-                        <div><span className="text-gray-500">Win Rate</span><p className="font-semibold">{rep.winRate}%</p></div>
-                        <div><span className="text-gray-500">Avg Cycle</span><p className="font-semibold">{rep.avgCycle}d</p></div>
-                        <div><span className="text-gray-500">Capacity</span><p className="font-semibold">{rep.partnerCount}/{rep.partnerCapacity} ({utilization}%)</p></div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-3">
-                        <div><span className="text-gray-500">Quota</span><p className="font-semibold">{formatCurrency(rep.quotaTarget)}</p></div>
-                        <div><span className="text-gray-500">Commit</span><p className="font-semibold">{formatCurrency(rep.currentCommit)}</p></div>
-                        <div><span className="text-gray-500">Pipeline</span><p className="font-semibold">{formatCurrency(repPipeline)}</p></div>
-                      </div>
-                      {rep.topConcern && (
-                        <div className="flex items-start gap-2 mt-2 p-2 bg-amber-50 rounded">
-                          <AlertTriangle className="w-3 h-3 text-amber-500 mt-0.5 shrink-0" />
-                          <span className="text-11px text-amber-700">{rep.topConcern}</span>
-                        </div>
-                      )}
-                      {repDeals.length > 0 && (
-                        <div className="mt-2">
-                          <p className="text-11px text-gray-500 mb-1">Active Deals:</p>
-                          {repDeals.slice(0, 5).map(d => (
-                            <div key={d.id} className="flex items-center justify-between py-1">
-                              <span className="text-11px text-gray-700">{d.name}</span>
-                              <div className="flex items-center gap-2">
-                                <DealHealthBadge health={d.health} />
-                                <span className="text-11px font-medium">{formatCurrency(d.mrr)}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+  const renderCommandCenter = () => {
+    const myDeals = allDeals.filter(d => leaderInvolved.has(d.id));
+
+    return (
+      <div className="space-y-6">
+        {/* KPI Row */}
+        <div className="grid grid-cols-5 gap-4">
+          <KPICard label="Team MRR" value={formatCurrency(teamMRR)} change={`+${mrrChange}% QoQ`} changeType="positive" />
+          <KPICard label="Commit / Target" value={`${commitPercentage}%`} change={`Gap: ${formatCurrency(commitGap)}`} changeType={commitPercentage >= 85 ? "positive" : "negative"} />
+          <KPICard label="Avg Win Rate" value={`${avgWinRate}%`} change={`${avgCycle}d avg cycle`} changeType="neutral" />
+          <KPICard label="At-Risk Deals" value={`${atRiskDeals.length}`} change={`${formatCurrency(atRiskDeals.reduce((s, d) => s + d.mrr, 0))} exposed`} changeType={atRiskDeals.length <= 2 ? "positive" : "negative"} />
+          <KPICard label="Days Left in Q" value={`${DAYS_REMAINING}`} change="Q1 closes Mar 31" changeType="neutral" />
         </div>
 
-        {/* Alerts & At-Risk */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">At-Risk Deals</h3>
-            {atRiskDeals.length === 0 ? (
-              <p className="text-12px text-gray-400 italic">No at-risk deals</p>
-            ) : (
-              <div className="space-y-2">
-                {atRiskDeals.map(d => {
-                  const dealAdvIds = getDealAdvisorIds(d);
-                  const dealAdvNames = dealAdvIds.map(id => advisors.find(a => a.id === id)?.name || '?').join(', ');
-                  const rep = reps.find(r => r.id === d.repId);
-                  return (
-                    <div key={d.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
-                      <div>
-                        <p className="text-13px font-medium text-gray-800">{d.name}</p>
-                        <p className="text-11px text-gray-500">{dealAdvNames} · {rep?.name || '?'} · {d.stage} · {d.daysInStage}d</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <DealHealthBadge health={d.health} />
-                        <span className="text-13px font-semibold">{formatCurrency(d.mrr)}</span>
-                      </div>
+        {/* My Deals */}
+        {myDeals.length > 0 && (
+          <div className="bg-white rounded-[10px] border-2 border-[#157A6E] p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">My Deals <span className="text-12px font-normal text-gray-500">— deals you're personally involved in</span></h3>
+              <span className="text-11px text-[#157A6E] font-semibold">{myDeals.length} active</span>
+            </div>
+            <div className="space-y-2">
+              {myDeals.map(d => {
+                const advisorIds = getDealAdvisorIds(d);
+                const advisorName = advisors.find(a => a.id === advisorIds[0])?.name || '?';
+                const rep = reps.find(r => r.id === d.repId);
+                return (
+                  <div key={d.id} className="flex items-center justify-between px-4 py-3 bg-green-50 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-3">
+                      <DealHealthBadge health={d.health} />
+                      <span className="text-13px font-semibold text-gray-800">{d.name}</span>
+                      <span className="text-11px text-gray-500">{advisorName} · {rep?.name}</span>
+                      {d.committed && <span className="text-9px bg-green-600 text-white px-1.5 py-0.5 rounded-full font-bold">COMMITTED</span>}
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Quarter Snapshot</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between text-12px">
-                <span className="text-gray-500">Days Remaining</span>
-                <span className="font-semibold text-gray-800">{DAYS_REMAINING}</span>
-              </div>
-              <div className="flex justify-between text-12px">
-                <span className="text-gray-500">Team Target</span>
-                <span className="font-semibold text-gray-800">{formatCurrency(teamTarget)}</span>
-              </div>
-              <div className="flex justify-between text-12px">
-                <span className="text-gray-500">Current Commit</span>
-                <span className="font-semibold text-gray-800">{formatCurrency(teamCommit)}</span>
-              </div>
-              <div className="flex justify-between text-12px">
-                <span className="text-gray-500">Gap to Close</span>
-                <span className={`font-semibold ${commitGap > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(Math.abs(commitGap))}</span>
-              </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${Math.min(commitPercentage, 100)}%` }} />
-              </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-11px text-gray-500">{d.stage} · {d.daysInStage}d</span>
+                      <span className="text-14px font-bold">{formatCurrency(d.mrr)}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Revenue Intent Summary */}
-      {intents.filter((i: any) => i.signals90d > 0).length > 0 && (
+        {/* Needs Attention */}
         <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Revenue Intent — Top Partners</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Needs Your Attention</h3>
+            <span className="text-11px text-gray-400">{signals.length} items</span>
+          </div>
           <div className="space-y-2">
-            {intents.filter((i: any) => i.signals90d > 0).sort((a: any, b: any) => b.score - a.score).slice(0, 6).map((intent: any) => {
-              const badgeColors: Record<string, string> = { Hot: 'bg-red-100 text-red-700', Warm: 'bg-amber-100 text-amber-700', Interested: 'bg-blue-100 text-blue-700', Cold: 'bg-gray-100 text-gray-500' };
+            {signals.map((sig, i) => {
+              const bgColor = sig.severity === 'critical' ? 'bg-red-50 border-red-200' : sig.severity === 'high' ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200';
+              const dotColor = sig.severity === 'critical' ? 'bg-red-500' : sig.severity === 'high' ? 'bg-amber-500' : 'bg-blue-500';
+              const pillColor = sig.severity === 'critical' ? 'bg-red-100 text-red-700' : sig.severity === 'high' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700';
               return (
-                <div key={intent.advisorId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer"
-                     onClick={() => handleAdvisorClick(intent.advisorId)}>
-                  <div className="flex items-center gap-3">
-                    <span className={`px-2 py-0.5 rounded text-10px font-bold ${badgeColors[intent.label]}`}>{intent.label}</span>
-                    <div>
-                      <p className="text-13px font-medium text-gray-800">{intent.advisorName}</p>
-                      <p className="text-10px text-gray-500">
-                        {intent.quoteCount30d} quotes · {intent.signals30d} signals (30d)
-                        {intent.topProducts.length > 0 ? ` · ${intent.topProducts.join(', ')}` : ''}
-                      </p>
+                <div key={i} className={`flex items-start gap-3 px-4 py-3 rounded-lg border ${bgColor}`}>
+                  <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${dotColor}`} />
+                  <div className="flex-1">
+                    <p className="text-13px font-semibold text-gray-800 leading-tight">{sig.text}</p>
+                    <div className="flex gap-3 mt-2 text-10px">
+                      <span className="text-gray-600">{sig.repName}</span>
+                      {sig.mrr && <span className="font-bold text-gray-800">{formatCurrency(sig.mrr)}</span>}
+                      <span className="text-gray-400">{sig.time}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${intent.score >= 70 ? 'bg-red-400' : intent.score >= 40 ? 'bg-amber-400' : 'bg-blue-400'}`} style={{ width: `${intent.score}%` }} />
+                  <span className={`px-2 py-1 rounded-full text-9px font-bold whitespace-nowrap ${pillColor}`}>
+                    {sig.type.replace(/_/g, ' ').toUpperCase()}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Rep Commit vs Target */}
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Rep Commit vs Target</h3>
+          <div className="space-y-4">
+            {reps.map(rep => {
+              const cp = rep.quotaTarget > 0 ? Math.round((rep.currentCommit / rep.quotaTarget) * 100) : 0;
+              const ok = cp >= 85;
+              return (
+                <div key={rep.id}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-13px font-semibold text-gray-800">{rep.name}</span>
+                      <EngLabel score={rep.engagementScore} />
                     </div>
-                    <span className="text-11px font-semibold text-gray-600 w-6 text-right">{intent.score}</span>
+                    <span className={`text-13px font-bold ${ok ? 'text-green-600' : 'text-red-600'}`}>{cp}%</span>
+                  </div>
+                  <div className="relative h-5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${ok ? 'bg-green-500' : 'bg-red-500'}`} style={{ width: `${Math.min(cp, 100)}%` }} />
+                    <div className="absolute inset-0 flex items-center justify-between px-2 text-10px font-bold text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                      <span>{formatCurrency(rep.currentCommit)}</span>
+                      <span className="text-gray-400">{formatCurrency(rep.quotaTarget)}</span>
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
         </div>
-      )}
-    </div>
-  );
-
-  const renderForecast = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
-        <KPICard label="Weighted Pipeline" value={formatCurrency(weightedPipeline)} change="Stage-weighted" changeType="neutral" />
-        <KPICard label="Commit Coverage" value={`${commitPercentage}%`} change={`${formatCurrency(teamCommit)} / ${formatCurrency(teamTarget)}`} changeType={commitPercentage >= 90 ? "positive" : "negative"} />
-        <KPICard label="Stalled Deals" value={`${stalledDeals.length}`} change={formatCurrency(stalledDeals.reduce((s, d) => s + d.mrr, 0))} changeType={stalledDeals.length > 0 ? "negative" : "neutral"} />
       </div>
+    );
+  };
 
-      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-        <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Rep Forecast Breakdown</h3>
-        <div className="space-y-3">
-          {reps.map(rep => {
-            const repDeals = deals.filter(d => d.repId === rep.id && d.stage !== 'Closed Won' && d.stage !== 'Stalled');
-            const repWeighted = repDeals.reduce((s, d) => {
-              const w = STAGE_WEIGHTS.find(sw => sw.stage === d.stage)?.weight || 0;
-              return s + d.mrr * w;
-            }, 0);
-            const quotaPct = rep.quotaTarget > 0 ? Math.round((rep.currentCommit / rep.quotaTarget) * 100) : 0;
-            const expanded = expandedForecastRep === rep.id;
-            return (
-              <div key={rep.id}>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
-                     onClick={() => setExpandedForecastRep(expanded ? null : rep.id)}>
-                  <div className="flex items-center gap-2">
-                    {expanded ? <ChevronDown className="w-3 h-3 text-gray-400" /> : <ChevronRight className="w-3 h-3 text-gray-400" />}
-                    <span className="text-13px font-medium text-gray-800">{rep.name}</span>
+  const renderForecast = () => {
+    const weighted = allDeals.reduce((s, d) => s + d.mrr * (STAGE_WEIGHTS.find(sw => sw.stage === d.stage)?.weight || 0), 0);
+    const pending = allDeals.filter(d => d.overrideRequested && !overrideActions[d.id]);
+    const gapClosers = allDeals.filter(d => !d.committed && d.stage !== 'Stalled' && d.stage !== 'Closed Won').sort((a, b) => (b.mrr * b.probability) - (a.mrr * a.probability));
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-4 gap-4">
+          <KPICard label="Weighted Pipeline" value={formatCurrency(weighted)} change="Stage-weighted" changeType="neutral" />
+          <KPICard label="Team Commit" value={formatCurrency(teamCommit)} change={`${commitPercentage}% of target`} changeType={commitPercentage >= 85 ? "positive" : "negative"} />
+          <KPICard label="Gap to Close" value={formatCurrency(commitGap)} change={`${allDeals.filter(d => d.stage === 'Stalled').length} stalled`} changeType="negative" />
+          <KPICard label="Override Requests" value={`${pending.length}`} change="Pending review" changeType="neutral" />
+        </div>
+
+        {/* Forecast by Rep */}
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Forecast by Rep</h3>
+          <div className="space-y-4">
+            {reps.map(rep => {
+              const rd = allDeals.filter(d => d.repId === rep.id);
+              const rw = rd.reduce((s, d) => s + d.mrr * (STAGE_WEIGHTS.find(sw => sw.stage === d.stage)?.weight || 0), 0);
+              const qp = rep.quotaTarget > 0 ? Math.round((rep.currentCommit / rep.quotaTarget) * 100) : 0;
+              return (
+                <div key={rep.id} className="border border-gray-100 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-14px font-bold text-gray-800">{rep.name}</span>
+                      <EngLabel score={rep.engagementScore} />
+                    </div>
+                    <div className="flex gap-4 text-12px">
+                      <span className="text-gray-500">Commit: <b className="text-gray-800">{formatCurrency(rep.currentCommit)}</b></span>
+                      <span className="text-gray-500">Weighted: <b className="text-gray-800">{formatCurrency(rw)}</b></span>
+                      <span className={`font-bold ${qp >= 90 ? 'text-green-600' : qp >= 70 ? 'text-amber-600' : 'text-red-600'}`}>{qp}%</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4 text-12px">
-                    <span className="text-gray-500">Commit: {formatCurrency(rep.currentCommit)}</span>
-                    <span className="text-gray-500">Weighted: {formatCurrency(repWeighted)}</span>
-                    <span className={`font-semibold ${quotaPct >= 90 ? 'text-green-600' : quotaPct >= 70 ? 'text-amber-600' : 'text-red-600'}`}>
-                      {quotaPct}%
-                    </span>
-                  </div>
-                </div>
-                {expanded && repDeals.length > 0 && (
-                  <div className="ml-5 mt-2 space-y-1">
-                    {repDeals.map(d => {
-                      const advNames = getDealAdvisorIds(d).map(id => advisors.find(a => a.id === id)?.name || '?').join(', ');
+                  <div className="space-y-1">
+                    {rd.map(d => {
+                      const advisorIds = getDealAdvisorIds(d);
+                      const advisorName = advisors.find(a => a.id === advisorIds[0])?.name || '?';
                       return (
-                        <div key={d.id} className="flex items-center justify-between py-1.5 px-3 text-11px">
-                          <span className="text-gray-700">{d.name} ({advNames})</span>
+                        <div key={d.id} className="flex items-center justify-between px-2 py-1.5 bg-gray-50 rounded text-11px">
+                          <div className="flex items-center gap-2">
+                            <DealHealthBadge health={d.health} />
+                            <span className="font-semibold text-gray-800">{d.name}</span>
+                            <span className="text-gray-500">({advisorName})</span>
+                            {d.committed && <span className="text-9px bg-green-600 text-white px-1.5 py-0.5 rounded-full font-bold">COMMITTED</span>}
+                            {leaderInvolved.has(d.id) && <span className="text-9px bg-[#157A6E] text-white px-1.5 py-0.5 rounded-full font-bold">YOU'RE ON THIS</span>}
+                          </div>
                           <div className="flex items-center gap-3">
                             <span className="text-gray-500">{d.stage}</span>
-                            <DealHealthBadge health={d.health} />
-                            <span className="font-medium">{formatCurrency(d.mrr)}</span>
+                            <span className="text-gray-500">{d.probability}%</span>
+                            <span className="font-bold text-gray-800">{formatCurrency(d.mrr)}</span>
                           </div>
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Pending Override Requests */}
+        {pending.length > 0 && (
+          <div className="bg-white rounded-[10px] border-2 border-amber-300 p-5">
+            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-1">Pending Override Requests</h3>
+            <p className="text-11px text-gray-500 mb-4">CMs have requested forecast adjustments</p>
+            <div className="space-y-3">
+              {pending.map(d => {
+                const advisorIds = getDealAdvisorIds(d);
+                const advisorName = advisors.find(a => a.id === advisorIds[0])?.name || '?';
+                const rep = reps.find(r => r.id === d.repId);
+                return (
+                  <div key={d.id} className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-14px font-bold text-gray-800">{d.name}</p>
+                        <p className="text-11px text-gray-600">{advisorName} · {rep?.name} · {d.stage} · {formatCurrency(d.mrr)}</p>
+                        {d.overrideNote && <p className="text-11px text-amber-900 italic mt-2">"{d.overrideNote}"</p>}
+                        {d.competitor && <p className="text-10px text-red-600 mt-1">Competitor: {d.competitor}</p>}
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => setOverrideActions(p => ({ ...p, [d.id]: 'approved' }))}
+                                className="px-3 py-1.5 bg-green-600 text-white text-11px font-bold rounded hover:bg-green-700">
+                          Approve
+                        </button>
+                        <button onClick={() => setOverrideActions(p => ({ ...p, [d.id]: 'denied' }))}
+                                className="px-3 py-1.5 bg-gray-200 text-gray-800 text-11px font-bold rounded hover:bg-gray-300">
+                          Deny
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Gap Closers */}
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-1">Gap Closers</h3>
+          <p className="text-11px text-gray-500 mb-4">Uncommitted deals ranked by expected value</p>
+          <div className="space-y-2">
+            {gapClosers.slice(0, 5).map(d => {
+              const ev = Math.round(d.mrr * d.probability / 100);
+              const advisorIds = getDealAdvisorIds(d);
+              const advisorName = advisors.find(a => a.id === advisorIds[0])?.name || '?';
+              return (
+                <div key={d.id} className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg">
+                  <div className="w-12 text-right">
+                    <span className="text-14px font-bold text-gray-800">{formatCurrency(ev)}</span>
+                    <p className="text-9px text-gray-500">EV</p>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-13px font-semibold text-gray-800">{d.name}</p>
+                    <p className="text-10px text-gray-500">{advisorName} · {d.stage} · {d.probability}%</p>
+                  </div>
+                  <DealHealthBadge health={d.health} />
+                  <span className="text-14px font-bold text-gray-800">{formatCurrency(d.mrr)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTeam = () => {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-4 gap-4">
+          <KPICard label="Team Size" value={`${reps.length}`} change="Active CMs" changeType="neutral" />
+          <KPICard label="Avg Win Rate" value={`${avgWinRate}%`} change="Team benchmark" changeType="neutral" />
+          <KPICard label="Avg Cycle" value={`${avgCycle}d`} change="Days to close" changeType="neutral" />
+          <KPICard label="Attention Needed" value={`${reps.filter(r => r.engagementScore === 'Fading' || r.winRate < 50).length}`} change="Underperforming" changeType={reps.filter(r => r.engagementScore === 'Fading' || r.winRate < 50).length === 0 ? "positive" : "negative"} />
+        </div>
+
+        {/* Team Coaching Cards Grid */}
+        <div className="grid grid-cols-2 gap-4">
+          {reps.map(rep => {
+            const repAdvisors = advisors.filter(a => {
+              const repDeals = allDeals.filter(d => d.repId === rep.id);
+              return repDeals.some(d => getDealAdvisorIds(d).includes(a.id));
+            });
+            const util = rep.partnerCapacity > 0 ? Math.round((rep.partnerCount / rep.partnerCapacity) * 100) : 0;
+            const staleAnchors = repAdvisors.filter(a => a.tier === 'anchor' && (a.pulse === 'Fading' || a.pulse === 'Flatline'));
+            const stalledDeals = allDeals.filter(d => d.repId === rep.id && (d.stage === 'Stalled' || d.daysInStage > 25));
+            const flags: string[] = [];
+            if (rep.winRate < avgWinRate - 10) flags.push(`Win rate ${rep.winRate}% — ${avgWinRate - rep.winRate}pts below team avg`);
+            if (rep.avgCycle > avgCycle + 10) flags.push(`Avg cycle ${rep.avgCycle}d — ${rep.avgCycle - avgCycle}d slower than team`);
+            if (staleAnchors.length > 0) flags.push(`${staleAnchors.length} anchor partner${staleAnchors.length > 1 ? 's' : ''} going cold`);
+            if (stalledDeals.length > 0) flags.push(`${stalledDeals.length} deal${stalledDeals.length > 1 ? 's' : ''} stalled or aging`);
+            const isAttention = rep.engagementScore === 'Fading' || flags.length >= 3;
+            const isRising = rep.winRate >= 75 && rep.engagementScore === 'Strong';
+
+            return (
+              <div key={rep.id} className={`rounded-[10px] border-2 p-4 ${isAttention ? 'border-red-300 bg-red-50' : isRising ? 'border-green-300 bg-green-50' : 'border-[#e8e5e1] bg-white'}`}>
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-15px font-bold text-gray-800">{rep.name}</span>
+                      <EngLabel score={rep.engagementScore} />
+                      {isRising && <span className="text-9px bg-green-600 text-white px-2 py-0.5 rounded-full font-bold">RISING STAR</span>}
+                      {isAttention && <span className="text-9px bg-red-600 text-white px-2 py-0.5 rounded-full font-bold">NEEDS ATTENTION</span>}
+                    </div>
+                    <p className="text-11px text-gray-500">{rep.title}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-15px font-bold text-gray-800">{formatCurrency(rep.managedMRR)}</p>
+                    <p className="text-10px text-gray-500">managed MRR</p>
+                  </div>
+                </div>
+
+                {/* Benchmark bars */}
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  {[
+                    { label: 'Win Rate', value: rep.winRate, avg: avgWinRate, unit: '%', inverse: false },
+                    { label: 'Cycle', value: rep.avgCycle, avg: avgCycle, unit: 'd', inverse: true },
+                    { label: 'Capacity', value: util, avg: 60, unit: '%', inverse: false },
+                  ].map(m => {
+                    const good = m.inverse ? m.value <= m.avg : m.value >= m.avg;
+                    return (
+                      <div key={m.label}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-10px text-gray-500">{m.label}</span>
+                          <span className={`text-12px font-bold ${good ? 'text-green-600' : 'text-red-600'}`}>{m.value}{m.unit}</span>
+                        </div>
+                        <div className="relative h-1 bg-gray-200 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${good ? 'bg-green-400' : 'bg-red-400'}`} style={{ width: `${Math.min(m.value, 100)}%` }} />
+                          <div className="absolute inset-y-0 w-0.5 bg-gray-600" style={{ left: `${Math.min(m.avg, 100)}%` }} title={`Team avg: ${m.avg}`} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Tier mix */}
+                <div className="flex gap-2 flex-wrap mb-2">
+                  {[['anchor', rep.anchor], ['scaling', rep.scaling], ['building', rep.building]].filter(([, n]) => (n as number) > 0).map(([tier, n]) => (
+                    <TierBadge key={tier} tier={tier as any} />
+                  ))}
+                </div>
+
+                {/* Coaching flags */}
+                {flags.length > 0 && (
+                  <div className="border-t border-gray-300 pt-2">
+                    {flags.map((f, i) => (
+                      <div key={i} className="flex items-start gap-2 text-11px text-gray-700">
+                        <span className="text-amber-500 flex-shrink-0 mt-0.5">⚠</span>
+                        <span>{f}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -414,124 +657,206 @@ export default function LiveLeaderDashboard() {
           })}
         </div>
       </div>
-    </div>
-  );
-
-  const renderTeam = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-4 gap-4">
-        <KPICard label="Team Size" value={`${reps.length}`} change="Active reps" changeType="neutral" />
-        <KPICard label="Avg Win Rate" value={`${avgWinRate}%`} change="Team average" changeType="positive" />
-        <KPICard label="Avg Cycle" value={`${avgCycle}d`} change="Days to close" changeType="neutral" />
-        <KPICard label="Total Partners" value={`${reps.reduce((s, r) => s + r.partnerCount, 0)}`} change={`/ ${reps.reduce((s, r) => s + r.partnerCapacity, 0)} capacity`} changeType="neutral" />
-      </div>
-
-      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-        <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Rep Capacity & Performance</h3>
-        <table className="w-full text-12px">
-          <thead>
-            <tr className="border-b border-gray-100">
-              <th className="text-left py-2 font-medium text-gray-500">Rep</th>
-              <th className="text-left py-2 font-medium text-gray-500">MRR</th>
-              <th className="text-left py-2 font-medium text-gray-500">Win Rate</th>
-              <th className="text-left py-2 font-medium text-gray-500">Cycle</th>
-              <th className="text-left py-2 font-medium text-gray-500">Capacity</th>
-              <th className="text-left py-2 font-medium text-gray-500">Engagement</th>
-              <th className="text-left py-2 font-medium text-gray-500">Concern</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reps.map(rep => {
-              const utilization = Math.round((rep.partnerCount / rep.partnerCapacity) * 100);
-              const overCapacity = utilization > 100;
-              return (
-                <tr key={rep.id} className="border-b border-gray-50 hover:bg-gray-50">
-                  <td className="py-2">
-                    <p className="font-medium text-gray-800">{rep.name}</p>
-                    <p className="text-10px text-gray-400">{rep.title}</p>
-                  </td>
-                  <td className="py-2 font-semibold text-gray-800">{formatCurrency(rep.managedMRR)}</td>
-                  <td className="py-2">
-                    <span className={`font-semibold ${rep.winRate >= 75 ? 'text-green-600' : rep.winRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-                      {rep.winRate}%
-                    </span>
-                  </td>
-                  <td className="py-2">{rep.avgCycle}d</td>
-                  <td className="py-2">
-                    <span className={overCapacity ? 'text-red-600 font-semibold' : ''}>
-                      {rep.partnerCount}/{rep.partnerCapacity}
-                    </span>
-                    <span className="text-gray-400 ml-1">({utilization}%)</span>
-                  </td>
-                  <td className="py-2"><EngLabel score={rep.engagementScore} /></td>
-                  <td className="py-2 text-gray-500 max-w-[200px] truncate">{rep.topConcern || '—'}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Rising Stars */}
-      {reps.filter(r => r.winRate >= 75 && r.engagementScore === 'Strong').length > 0 && (
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Rising Stars</h3>
-          <div className="grid grid-cols-2 gap-3">
-            {reps.filter(r => r.winRate >= 75 && r.engagementScore === 'Strong').map(rep => (
-              <div key={rep.id} className="p-3 bg-green-50 rounded-lg">
-                <p className="text-13px font-medium text-gray-800">{rep.name}</p>
-                <p className="text-11px text-gray-500">{rep.winRate}% win rate · {rep.dealsWonQTD} won QTD · {formatCurrency(rep.managedMRR)} MRR</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   const renderRelationships = () => {
-    const filteredAdvisors = relationshipFilter === 'All' ? advisors
-      : advisors.filter(a => a.tier === (relationshipFilter === 'Anchor' ? 'anchor' : relationshipFilter === 'Scaling' ? 'scaling' : relationshipFilter === 'Building' ? 'building' : 'launching'));
+    let filtered = advisors;
+    if (relationshipFilter !== 'All') {
+      filtered = filtered.filter(a => a.tier === relationshipFilter.toLowerCase());
+    }
+    if (myOnlyPartners) {
+      filtered = filtered.filter(a => leaderOwned.has(a.id));
+    }
 
     if (relationshipsView === 'detail' && selectedAdvisor) {
+      const rep = reps.find(r => r.id === selectedAdvisor.id);
+      const advDeals = allDeals.filter(d => getDealAdvisorIds(d).includes(selectedAdvisor.id));
       return (
         <div className="space-y-4">
           <button onClick={() => { setRelationshipsView('list'); setSelectedAdvisor(null); }}
-                  className="flex items-center gap-1 text-12px text-[#157A6E] hover:underline">
+                  className="flex items-center gap-1 text-12px text-[#157A6E] font-semibold hover:underline">
             <ArrowLeft className="w-3 h-3" /> Back to list
           </button>
-          <AdvisorPanel advisor={selectedAdvisor} deals={deals.filter(d => getDealAdvisorIds(d).includes(selectedAdvisor.id))} isOpen={true} onClose={() => { setRelationshipsView('list'); setSelectedAdvisor(null); }} onUpdateAdvisor={updateAdvisorField} />
+          <AdvisorPanel
+            advisor={selectedAdvisor}
+            deals={advDeals}
+            isOpen={true}
+            onClose={() => { setRelationshipsView('list'); setSelectedAdvisor(null); }}
+            onUpdateAdvisor={updateAdvisorField}
+          />
         </div>
       );
     }
 
+    const portfolioStats = {
+      shown: filtered.length,
+      shownMRR: filtered.reduce((s, a) => s + a.mrr, 0),
+      avgMRR: filtered.length > 0 ? Math.round(filtered.reduce((s, a) => s + a.mrr, 0) / filtered.length) : 0,
+      atRisk: filtered.filter(a => a.trajectory === 'Slipping' || a.trajectory === 'Freefall').length,
+      discrepancies: filtered.filter(a => {
+        const deals = allDeals.filter(d => getDealAdvisorIds(d).includes(a.id)).filter(d => d.overrideRequested);
+        return deals.length > 0 || (a.friction === 'High' || a.friction === 'Critical');
+      }).length,
+    };
+
     return (
       <div className="space-y-4">
+        {/* Filters */}
         <div className="flex items-center gap-2">
           {['All', 'Anchor', 'Scaling', 'Building', 'Launching'].map(f => (
             <button key={f} onClick={() => setRelationshipFilter(f)}
-                    className={`px-3 py-1.5 rounded-full text-12px font-medium transition-colors ${relationshipFilter === f ? 'bg-[#157A6E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    className={`px-3 py-1.5 rounded-full text-12px font-semibold transition-colors ${relationshipFilter === f ? 'bg-[#157A6E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
               {f}
             </button>
           ))}
+          <div className="w-0.5 h-5 bg-gray-300 mx-2" />
+          <button onClick={() => setMyOnlyPartners(!myOnlyPartners)}
+                  className={`px-3 py-1.5 rounded-full text-12px font-semibold transition-colors ${myOnlyPartners ? 'bg-[#157A6E] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            {myOnlyPartners ? 'My Partners ✓' : 'My Partners'}
+          </button>
         </div>
+
+        {/* Portfolio Stats */}
+        <div className="grid grid-cols-4 gap-3">
+          <KPICard label="Partners Shown" value={`${portfolioStats.shown}`} change={`${formatCurrency(portfolioStats.shownMRR)} MRR`} changeType="neutral" />
+          <KPICard label="Avg MRR" value={formatCurrency(portfolioStats.avgMRR)} change="Per partner" changeType="neutral" />
+          <KPICard label="At Risk" value={`${portfolioStats.atRisk}`} change="Declining trajectory" changeType={portfolioStats.atRisk === 0 ? "positive" : "negative"} />
+          <KPICard label="Discrepancies" value={`${portfolioStats.discrepancies}`} change="CM override vs signals" changeType={portfolioStats.discrepancies === 0 ? "positive" : "negative"} />
+        </div>
+
+        {/* Partner Table */}
         <AdvisorTable
-          advisors={filteredAdvisors}
-          onAdvisorClick={(id) => { const a = advisors.find(x => x.id === id); if (a) { setSelectedAdvisor(a); setRelationshipsView('detail'); } }}
+          advisors={filtered.sort((a, b) => b.mrr - a.mrr)}
+          onAdvisorClick={(id) => {
+            const a = advisors.find(x => x.id === id);
+            if (a) {
+              setSelectedAdvisor(a);
+              setRelationshipsView('detail');
+            }
+          }}
         />
       </div>
     );
   };
 
   const renderPipeline = () => {
-    const stages: DealStage[] = ['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Closed Won', 'Stalled'];
+    const stages: DealStage[] = ['Discovery', 'Qualifying', 'Proposal', 'Negotiating', 'Stalled'];
+    const stageData = stages.map(s => ({
+      stage: s,
+      deals: allDeals.filter(d => d.stage === s),
+      mrr: allDeals.filter(d => d.stage === s).reduce((sum, d) => sum + d.mrr, 0),
+      count: allDeals.filter(d => d.stage === s).length,
+    }));
+    const maxMRR = Math.max(...stageData.map(s => s.mrr), 1);
+    const myInvolved = allDeals.filter(d => leaderInvolved.has(d.id));
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-3 gap-4">
-          <KPICard label="Total Pipeline" value={formatCurrency(teamPipeline)} change={`${allDeals.length} deals`} changeType="positive" />
+        <div className="grid grid-cols-4 gap-4">
+          <KPICard label="Total Pipeline" value={formatCurrency(teamPipeline)} change={`${allDeals.length} deals`} changeType="neutral" />
           <KPICard label="Weighted" value={formatCurrency(weightedPipeline)} change="Stage-weighted" changeType="neutral" />
           <KPICard label="Active Deals" value={`${activeDealCount}`} change={`${atRiskDeals.length} at risk`} changeType="neutral" />
+          <KPICard label="My Involvement" value={`${myInvolved.length}`} change={`${formatCurrency(myInvolved.reduce((s, d) => s + d.mrr, 0))} MRR`} changeType="neutral" />
+        </div>
+
+        {/* Pipeline Funnel */}
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Pipeline Funnel</h3>
+          <div className="space-y-3">
+            {stageData.map((s, i) => {
+              const next = stageData[i + 1];
+              const conv = next && s.count > 0 ? Math.round((next.count / s.count) * 100) : null;
+              const colors: Record<string, string> = { Discovery: 'bg-blue-400', Qualifying: 'bg-blue-500', Proposal: 'bg-teal-500', Negotiating: 'bg-green-500', Stalled: 'bg-gray-400' };
+              return (
+                <div key={s.stage}>
+                  <div className="flex items-center gap-3">
+                    <span className="w-24 text-12px font-medium text-gray-700 flex-shrink-0">{s.stage}</span>
+                    <div className="flex-1 h-7 bg-gray-100 rounded-lg overflow-hidden relative">
+                      <div className={`h-full rounded-lg flex items-center pl-3 ${colors[s.stage]}`} style={{ width: `${Math.max((s.mrr / maxMRR) * 100, 10)}%` }}>
+                        <span className="text-10px font-bold text-white">{formatCurrency(s.mrr)}</span>
+                      </div>
+                    </div>
+                    <span className="w-12 text-11px text-gray-600 text-right">{s.count} deal{s.count !== 1 ? 's' : ''}</span>
+                  </div>
+                  {conv !== null && s.stage !== 'Stalled' && (
+                    <div className="ml-27 text-9px text-gray-500">↓ {conv}% conversion</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Deal Management Table */}
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-1">Deal Management</h3>
+          <p className="text-11px text-gray-500 mb-4">Review, flag, and take action on deals across your team</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-11px">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="text-left px-3 py-2 font-semibold text-gray-700">Deal</th>
+                  <th className="text-left px-2 py-2 font-semibold text-gray-700">Partner</th>
+                  <th className="text-left px-2 py-2 font-semibold text-gray-700">Rep</th>
+                  <th className="text-left px-2 py-2 font-semibold text-gray-700">Stage</th>
+                  <th className="text-left px-2 py-2 font-semibold text-gray-700">Health</th>
+                  <th className="text-left px-2 py-2 font-semibold text-gray-700">Confidence</th>
+                  <th className="text-right px-2 py-2 font-semibold text-gray-700">MRR</th>
+                  <th className="text-right px-3 py-2 font-semibold text-gray-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allDeals.sort((a, b) => b.mrr - a.mrr).map(d => {
+                  const advisorIds = getDealAdvisorIds(d);
+                  const advisorName = advisors.find(a => a.id === advisorIds[0])?.name || '?';
+                  const rep = reps.find(r => r.id === d.repId);
+                  const action = dealActions[d.id];
+                  return (
+                    <tr key={d.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-gray-800">{d.name}</span>
+                          {leaderInvolved.has(d.id) && <span className="text-8px bg-[#157A6E] text-white px-1.5 py-0.5 rounded-full font-bold">MINE</span>}
+                          {d.overrideRequested && <span className="text-8px bg-amber-500 text-white px-1.5 py-0.5 rounded-full font-bold">OVERRIDE</span>}
+                        </div>
+                        {d.competitor && <p className="text-10px text-red-600">vs {d.competitor}</p>}
+                      </td>
+                      <td className="px-2 py-2 text-gray-700">{advisorName}</td>
+                      <td className="px-2 py-2 text-gray-600">{rep?.name}</td>
+                      <td className="px-2 py-2">
+                        <span className="text-gray-800">{d.stage}</span>
+                        <span className="text-gray-500 ml-2">{d.daysInStage}d</span>
+                      </td>
+                      <td className="px-2 py-2"><DealHealthBadge health={d.health} /></td>
+                      <td className="px-2 py-2">{d.confidenceScore && <span className="text-11px bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">{d.confidenceScore}</span>}</td>
+                      <td className="px-2 py-2 text-right font-bold text-gray-800">{formatCurrency(d.mrr)}</td>
+                      <td className="px-3 py-2 text-right">
+                        {action ? (
+                          <span className={`text-10px font-bold ${action === 'flagged' ? 'text-amber-600' : 'text-green-600'}`}>
+                            {action === 'flagged' ? 'Flagged ⚑' : 'Joined ✓'}
+                          </span>
+                        ) : (
+                          <div className="flex gap-1 justify-end">
+                            <button onClick={() => setDealActions(p => ({ ...p, [d.id]: 'flagged' }))}
+                                    className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-10px font-bold hover:bg-amber-200">
+                              ⚑ Flag
+                            </button>
+                            {!leaderInvolved.has(d.id) && (
+                              <button onClick={() => setDealActions(p => ({ ...p, [d.id]: 'joined' }))}
+                                      className="px-2 py-1 bg-green-100 text-green-700 rounded text-10px font-bold hover:bg-green-200">
+                                + Join
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Pipeline by Rep */}
@@ -539,38 +864,26 @@ export default function LiveLeaderDashboard() {
           <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Pipeline by Rep</h3>
           <div className="space-y-3">
             {reps.map(rep => {
-              const repDeals = deals.filter(d => d.repId === rep.id);
-              const repPipeline = repDeals.reduce((s, d) => s + d.mrr, 0);
-              const maxRepPipeline = Math.max(...reps.map(r => deals.filter(d => d.repId === r.id).reduce((s, d) => s + d.mrr, 0)), 1);
-              const expanded = expandedPipelineRep === rep.id;
+              const rd = allDeals.filter(d => d.repId === rep.id);
+              const rm = rd.reduce((s, d) => s + d.mrr, 0);
               return (
-                <div key={rep.id}>
-                  <div className="cursor-pointer" onClick={() => setExpandedPipelineRep(expanded ? null : rep.id)}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-12px font-medium text-gray-700">{rep.name}</span>
-                      <span className="text-11px text-gray-500">{repDeals.length} deals · {formatCurrency(repPipeline)}</span>
-                    </div>
-                    <div className="h-4 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${(repPipeline / maxRepPipeline) * 100}%` }} />
-                    </div>
+                <div key={rep.id} className="border border-gray-100 rounded-lg p-2.5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-13px font-semibold text-gray-800">{rep.name}</span>
+                    <span className="text-12px font-semibold text-gray-600">{rd.length} deals · {formatCurrency(rm)}</span>
                   </div>
-                  {expanded && (
-                    <div className="ml-2 mt-2 space-y-1">
-                      {repDeals.map(d => {
-                        const advNames = getDealAdvisorIds(d).map(id => advisors.find(a => a.id === id)?.name || '?').join(', ');
-                        return (
-                          <div key={d.id} className="flex items-center justify-between py-1 text-11px">
-                            <span className="text-gray-700">{d.name} ({advNames})</span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-500">{d.stage}</span>
-                              <DealHealthBadge health={d.health} />
-                              <span className="font-medium">{formatCurrency(d.mrr)}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <div className="flex h-3 rounded-full overflow-hidden bg-gray-200">
+                    {stages.map(st => {
+                      const cnt = rd.filter(d => d.stage === st).length;
+                      if (!cnt) return null;
+                      const colors: Record<string, string> = { Discovery: 'bg-blue-400', Qualifying: 'bg-blue-500', Proposal: 'bg-teal-500', Negotiating: 'bg-green-500', Stalled: 'bg-gray-400' };
+                      return (
+                        <div key={st} className={`${colors[st]} flex items-center justify-center`} style={{ width: `${(cnt / rd.length) * 100}%` }}>
+                          <span className="text-8px font-bold text-white">{cnt}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })}
@@ -581,28 +894,37 @@ export default function LiveLeaderDashboard() {
   };
 
   const renderIntelligence = () => {
-    const atRiskAdvisors = advisors.filter(a => a.trajectory === 'Freefall' || a.trajectory === 'Slipping');
-    const frictionAdvisors = advisors.filter(a => a.friction === 'High' || a.friction === 'Critical');
+    const declining = advisors.filter(a => a.trajectory === 'Freefall' || a.trajectory === 'Slipping');
+    const rising = advisors.filter(a => a.trajectory === 'Accelerating' || a.trajectory === 'Climbing');
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-3 gap-4">
+          <KPICard label="Declining" value={`${declining.length}`} change={`${formatCurrency(declining.reduce((s, a) => s + a.mrr, 0))} at risk`} changeType={declining.length <= 1 ? "positive" : "negative"} />
+          <KPICard label="Rising" value={`${rising.length}`} change={`${formatCurrency(rising.reduce((s, a) => s + a.mrr, 0))} growing`} changeType="positive" />
+          <KPICard label="Systemic Issues" value={`${frictionInsights.length}`} change={`${frictionInsights.reduce((s, f) => s + f.advisorCount, 0)} partners affected`} changeType={frictionInsights.length === 0 ? "positive" : "negative"} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {/* Declining */}
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">At-Risk Partners</h3>
-            {atRiskAdvisors.length === 0 ? (
-              <p className="text-12px text-gray-400 italic">No at-risk partners</p>
+            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-red-600 mb-4">Declining Partners</h3>
+            {declining.length === 0 ? (
+              <p className="text-12px text-gray-500 italic">None</p>
             ) : (
               <div className="space-y-2">
-                {atRiskAdvisors.map(a => (
-                  <div key={a.id} className="flex items-center justify-between p-3 bg-red-50 rounded-lg cursor-pointer hover:bg-red-100"
-                       onClick={() => handleAdvisorClick(a.id)}>
+                {declining.sort((a, b) => b.mrr - a.mrr).map(a => (
+                  <div key={a.id} className="flex items-center justify-between p-2.5 bg-red-50 rounded-lg">
                     <div>
-                      <p className="text-13px font-medium text-gray-800">{a.name}</p>
-                      <p className="text-11px text-gray-500">{a.company}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-13px font-semibold text-gray-800">{a.name}</span>
+                        <PulseBadge pulse={a.pulse} />
+                      </div>
+                      <p className="text-10px text-gray-500">{a.company}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <TrajectoryBadge trajectory={a.trajectory} />
-                      <span className="text-13px font-semibold">{formatCurrency(a.mrr)}</span>
+                    <div className="text-right">
+                      <span className="text-12px font-bold text-red-600">{a.trajectory}</span>
+                      <p className="text-13px font-bold text-gray-800">{formatCurrency(a.mrr)}</p>
                     </div>
                   </div>
                 ))}
@@ -610,245 +932,233 @@ export default function LiveLeaderDashboard() {
             )}
           </div>
 
+          {/* Rising */}
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">High Friction</h3>
-            {frictionAdvisors.length === 0 ? (
-              <p className="text-12px text-gray-400 italic">No high-friction partners</p>
+            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-green-600 mb-4">Rising Partners</h3>
+            {rising.length === 0 ? (
+              <p className="text-12px text-gray-500 italic">None</p>
             ) : (
               <div className="space-y-2">
-                {frictionAdvisors.map(a => (
-                  <div key={a.id} className="flex items-center justify-between p-3 bg-amber-50 rounded-lg cursor-pointer hover:bg-amber-100"
-                       onClick={() => handleAdvisorClick(a.id)}>
+                {rising.sort((a, b) => b.mrr - a.mrr).map(a => (
+                  <div key={a.id} className="flex items-center justify-between p-2.5 bg-green-50 rounded-lg">
                     <div>
-                      <p className="text-13px font-medium text-gray-800">{a.name}</p>
-                      <p className="text-11px text-gray-500">{a.diagnosis || a.company}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-13px font-semibold text-gray-800">{a.name}</span>
+                        <PulseBadge pulse={a.pulse} />
+                      </div>
+                      <p className="text-10px text-gray-500">{a.company}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <FrictionBadge level={a.friction} />
-                      <span className="text-13px font-semibold">{formatCurrency(a.mrr)}</span>
+                    <div className="text-right">
+                      <span className="text-12px font-bold text-green-600">{a.trajectory}</span>
+                      <p className="text-13px font-bold text-gray-800">{formatCurrency(a.mrr)}</p>
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
+        </div>
+
+        {/* Systemic Friction Patterns */}
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-1">Systemic Friction Patterns</h3>
+          <p className="text-11px text-gray-500 mb-4">Issues appearing across multiple partners</p>
+          {frictionInsights.length === 0 ? (
+            <p className="text-12px text-gray-500 italic">No systemic issues detected</p>
+          ) : (
+            <div className="space-y-2">
+              {frictionInsights.map((f, i) => (
+                <div key={i} className="border border-gray-100 rounded-lg p-2.5">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <FrictionBadge level={f.severity} />
+                      <span className="text-14px font-bold text-gray-800">{f.issue}</span>
+                    </div>
+                    <span className="text-11px text-gray-500">{f.advisorCount} partners</span>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {f.names.map(n => (
+                      <span key={n} className="text-10px px-2 py-1 bg-gray-100 rounded text-gray-700">{n}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
   };
 
   const renderSupplierAccountability = () => {
-    // Aggregate friction data across all reps' advisors
-    const frictionByLevel = [
-      { level: 'Critical', advisors: advisors.filter(a => a.friction === 'Critical'), color: 'bg-red-600', textColor: 'text-red-700', bgColor: 'bg-red-50' },
-      { level: 'High', advisors: advisors.filter(a => a.friction === 'High'), color: 'bg-red-400', textColor: 'text-red-600', bgColor: 'bg-red-50' },
-      { level: 'Moderate', advisors: advisors.filter(a => a.friction === 'Moderate'), color: 'bg-amber-400', textColor: 'text-amber-700', bgColor: 'bg-amber-50' },
-      { level: 'Low', advisors: advisors.filter(a => a.friction === 'Low'), color: 'bg-emerald-400', textColor: 'text-emerald-700', bgColor: 'bg-emerald-50' },
+    const frictionLevels = [
+      { level: 'Critical', advisors: advisors.filter(a => a.friction === 'Critical'), color: 'bg-red-600', mrr: advisors.filter(a => a.friction === 'Critical').reduce((s, a) => s + a.mrr, 0) },
+      { level: 'High', advisors: advisors.filter(a => a.friction === 'High'), color: 'bg-red-500', mrr: advisors.filter(a => a.friction === 'High').reduce((s, a) => s + a.mrr, 0) },
+      { level: 'Moderate', advisors: advisors.filter(a => a.friction === 'Moderate'), color: 'bg-amber-400', mrr: advisors.filter(a => a.friction === 'Moderate').reduce((s, a) => s + a.mrr, 0) },
+      { level: 'Low', advisors: advisors.filter(a => a.friction === 'Low'), color: 'bg-green-500', mrr: advisors.filter(a => a.friction === 'Low').reduce((s, a) => s + a.mrr, 0) },
     ];
-    const totalFrictionPartners = advisors.filter(a => a.friction === 'High' || a.friction === 'Critical').length;
-    const frictionMRR = advisors.filter(a => a.friction === 'High' || a.friction === 'Critical').reduce((s, a) => s + a.mrr, 0);
-    const avgFrictionScore = advisors.length > 0 ? Math.round(advisors.reduce((s, a) => {
+    const avgScore = advisors.length > 0 ? Math.round(advisors.reduce((s, a) => {
       const scores: Record<string, number> = { Low: 100, Moderate: 65, High: 30, Critical: 10 };
       return s + (scores[a.friction] || 50);
     }, 0) / advisors.length) : 0;
-
-    // Aggregate rep-level friction
-    const repFriction = reps.map(rep => {
-      const repAdvisors = advisors.filter(a => {
-        const repDeals = deals.filter(d => d.repId === rep.id);
-        return repDeals.some(d => getDealAdvisorIds(d).includes(a.id));
-      });
-      const highFriction = repAdvisors.filter(a => a.friction === 'High' || a.friction === 'Critical');
-      return {
-        rep,
-        totalPartners: repAdvisors.length,
-        highFrictionCount: highFriction.length,
-        frictionMRR: highFriction.reduce((s, a) => s + a.mrr, 0),
-        topIssues: highFriction.slice(0, 3),
-      };
-    }).filter(r => r.totalPartners > 0).sort((a, b) => b.highFrictionCount - a.highFrictionCount);
+    const highFriction = advisors.filter(a => a.friction === 'High' || a.friction === 'Critical');
 
     return (
-    <div className="space-y-6">
-      {/* KPI Row */}
-      <div className="grid grid-cols-4 gap-4">
-        <KPICard label="Org Friction Score" value={`${avgFrictionScore}/100`} change={avgFrictionScore >= 70 ? 'Healthy' : avgFrictionScore >= 50 ? 'Needs attention' : 'Critical'} changeType={avgFrictionScore >= 70 ? "positive" : avgFrictionScore >= 50 ? "neutral" : "negative"} />
-        <KPICard label="High Friction Partners" value={`${totalFrictionPartners}`} change={`${formatCurrency(frictionMRR)} MRR at risk`} changeType={totalFrictionPartners > 0 ? "negative" : "positive"} />
-        <KPICard label="Avg Win Rate" value={`${avgWinRate}%`} change="across team" changeType="neutral" />
-        <KPICard label="Active Suppliers" value={`${new Set(deals.map(d => d.name.split(' ')[0])).size}`} change="in pipeline" changeType="positive" />
-      </div>
-
-      {/* Friction Distribution */}
-      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-        <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Friction Distribution Across Partners</h3>
-        <div className="flex h-8 rounded-lg overflow-hidden mb-3">
-          {frictionByLevel.filter(f => f.advisors.length > 0).map(f => (
-            <div key={f.level} className={`${f.color} flex items-center justify-center transition-all`}
-                 style={{ width: `${(f.advisors.length / advisors.length) * 100}%` }}>
-              <span className="text-[10px] font-bold text-white">{f.advisors.length}</span>
-            </div>
-          ))}
+      <div className="space-y-6">
+        <div className="grid grid-cols-4 gap-4">
+          <KPICard label="Org Friction Score" value={`${avgScore}/100`} change={avgScore >= 70 ? 'Healthy' : avgScore >= 50 ? 'Needs attention' : 'Critical'} changeType={avgScore >= 70 ? "positive" : avgScore >= 50 ? "neutral" : "negative"} />
+          <KPICard label="High Friction" value={`${highFriction.length}`} change={`${formatCurrency(highFriction.reduce((s, a) => s + a.mrr, 0))} MRR at risk`} changeType={highFriction.length === 0 ? "positive" : "negative"} />
+          <KPICard label="Avg Win Rate" value={`${avgWinRate}%`} change="across team" changeType="neutral" />
+          <KPICard label="Active Suppliers" value={`${new Set(allDeals.map(d => d.name.split(' ')[0])).size}`} change="in pipeline" changeType="neutral" />
         </div>
-        <div className="flex items-center gap-4">
-          {frictionByLevel.filter(f => f.advisors.length > 0).map(f => (
-            <div key={f.level} className="flex items-center gap-1.5">
-              <div className={`w-2.5 h-2.5 rounded-sm ${f.color}`} />
-              <span className="text-11px text-gray-600">{f.level}: {f.advisors.length} ({formatCurrency(f.advisors.reduce((s, a) => s + a.mrr, 0))})</span>
-            </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Channel Standard Ratings */}
-      {ratings && (
+        {/* Friction Distribution */}
         <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Supplier Ratings</h3>
-              <p className="text-11px text-gray-400 mt-0.5">Data from The Channel Standard Ratings Platform</p>
-            </div>
-            <a
-              href="https://www.the-channel-standard.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[#157A6E] text-11px font-semibold hover:underline flex items-center gap-1"
-            >
-              View Full Ratings
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6v12h12v-6m0-6l4-4m0 0l-4 4m4-4v4" />
-              </svg>
-            </a>
-          </div>
-          <SupplierAccountabilityCard data={ratings} loading={false} />
-        </div>
-      )}
-
-      {/* Advisor Sentiment Feed */}
-      {ratings?.supplier?.recentFeedback && ratings.supplier.recentFeedback.length > 0 && (
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <AdvisorSentimentFeed data={ratings} />
-        </div>
-      )}
-
-      {/* Friction by Rep */}
-      <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-        <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Friction by Rep</h3>
-        {repFriction.length === 0 ? (
-          <p className="text-12px text-gray-400 italic">No rep-level friction data available</p>
-        ) : (
-          <div className="space-y-3">
-            {repFriction.map(rf => (
-              <div key={rf.rep.id} className="p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <p className="text-13px font-semibold text-gray-800">{rf.rep.name}</p>
-                    <EngLabel score={rf.rep.engagementScore} />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {rf.highFrictionCount > 0 && (
-                      <span className="text-11px font-medium text-red-600">{rf.highFrictionCount} high friction</span>
-                    )}
-                    <span className="text-12px font-semibold text-gray-700">{rf.totalPartners} partners</span>
-                  </div>
-                </div>
-                {rf.topIssues.length > 0 && (
-                  <div className="space-y-1 mt-2">
-                    {rf.topIssues.map(a => (
-                      <div key={a.id} className="flex items-center justify-between text-11px py-1 px-2 bg-white rounded">
-                        <div className="flex items-center gap-2">
-                          <FrictionBadge level={a.friction} />
-                          <span className="text-gray-800 font-medium">{a.name}</span>
-                          <span className="text-gray-400">·</span>
-                          <span className="text-gray-500">{a.company}</span>
-                        </div>
-                        <span className="font-semibold text-gray-700">{formatCurrency(a.mrr)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-3">Friction Distribution</h3>
+          <div className="flex h-7 rounded-lg overflow-hidden mb-3">
+            {frictionLevels.filter(f => f.advisors.length > 0).map(f => (
+              <div key={f.level} className={`${f.color} flex items-center justify-center`} style={{ width: `${(f.advisors.length / advisors.length) * 100}%` }}>
+                <span className="text-10px font-bold text-white">{f.advisors.length}</span>
               </div>
             ))}
+          </div>
+          <div className="flex gap-4 flex-wrap">
+            {frictionLevels.filter(f => f.advisors.length > 0).map(f => (
+              <div key={f.level} className="flex items-center gap-1.5">
+                <div className={`w-2.5 h-2.5 rounded-sm ${f.color}`} />
+                <span className="text-11px text-gray-600">{f.level}: {f.advisors.length} ({formatCurrency(f.mrr)})</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Channel Standard Ratings */}
+        {ratings && (
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">The Channel Standard Ratings</h3>
+                <p className="text-11px text-gray-500 mt-1">Live supplier accountability data</p>
+              </div>
+              <a href="https://www.the-channel-standard.com" target="_blank" rel="noopener noreferrer" className="text-[#157A6E] text-11px font-semibold hover:underline">
+                View Full Ratings →
+              </a>
+            </div>
+            <SupplierAccountabilityCard data={ratings} loading={false} />
+          </div>
+        )}
+
+        {/* Friction by Rep */}
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Friction by Rep</h3>
+          <div className="space-y-3">
+            {reps.map(rep => {
+              const repAdvisors = advisors.filter(a => {
+                const repDeals = allDeals.filter(d => d.repId === rep.id);
+                return repDeals.some(d => getDealAdvisorIds(d).includes(a.id));
+              });
+              const rhf = repAdvisors.filter(a => a.friction === 'High' || a.friction === 'Critical');
+              return (
+                <div key={rep.id} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-13px font-bold text-gray-800">{rep.name}</span>
+                      <EngLabel score={rep.engagementScore} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {rhf.length > 0 && <span className="text-11px font-semibold text-red-600">{rhf.length} high friction</span>}
+                      <span className="text-12px font-semibold text-gray-700">{repAdvisors.length} partners</span>
+                    </div>
+                  </div>
+                  {rhf.length > 0 && (
+                    <div className="space-y-1">
+                      {rhf.map(a => (
+                        <div key={a.id} className="flex items-center justify-between px-2 py-1.5 bg-white rounded text-11px">
+                          <div className="flex items-center gap-2">
+                            <FrictionBadge level={a.friction} />
+                            <span className="font-semibold text-gray-800">{a.name}</span>
+                            <span className="text-gray-500">{a.company}</span>
+                          </div>
+                          <span className="font-bold text-gray-800">{formatCurrency(a.mrr)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Critical Friction Cases */}
+        {advisors.filter(a => a.friction === 'Critical').length > 0 && (
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">
+              Critical Friction Cases
+              <span className="text-12px font-normal text-red-600 ml-2">({advisors.filter(a => a.friction === 'Critical').length} requiring attention)</span>
+            </h3>
+            <div className="space-y-2">
+              {advisors.filter(a => a.friction === 'Critical').sort((a, b) => b.mrr - a.mrr).map(a => (
+                <div key={a.id} className="p-3 bg-red-50 border border-red-200 rounded-lg cursor-pointer hover:bg-red-100" onClick={() => handleAdvisorClick(a.id)}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-13px font-semibold text-gray-800">{a.name}</span>
+                        <FrictionBadge level={a.friction} />
+                        <PulseBadge pulse={a.pulse} />
+                        <TrajectoryBadge trajectory={a.trajectory} />
+                      </div>
+                      <p className="text-12px text-gray-600 mb-1">{a.company} · {a.location || 'Unknown'}</p>
+                      <p className="text-11px text-gray-700 leading-tight">{a.diagnosis}</p>
+                    </div>
+                    <div className="text-right ml-4 flex-shrink-0">
+                      <p className="text-14px font-bold text-red-600">{formatCurrency(a.mrr)}</p>
+                      <p className="text-10px text-gray-500">MRR</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
-
-      {/* Critical Friction Cases */}
-      {advisors.filter(a => a.friction === 'Critical').length > 0 && (
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">
-            Critical Friction Cases
-            <span className="ml-2 text-12px font-normal text-red-500">
-              ({advisors.filter(a => a.friction === 'Critical').length} requiring immediate attention)
-            </span>
-          </h3>
-          <div className="space-y-3">
-            {advisors.filter(a => a.friction === 'Critical').sort((a, b) => b.mrr - a.mrr).map(a => (
-              <div key={a.id} className="p-4 bg-red-50 border border-red-200 rounded-lg cursor-pointer hover:bg-red-100 transition-colors"
-                   onClick={() => { setSelectedAdvisor(a); setPanelOpen(true); }}>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-13px font-semibold text-gray-800">{a.name}</p>
-                      <FrictionBadge level={a.friction} />
-                      <PulseBadge pulse={a.pulse} />
-                      <TrajectoryBadge trajectory={a.trajectory} />
-                    </div>
-                    <p className="text-12px text-gray-600">{a.company} · {a.location || 'Unknown'}</p>
-                    <p className="text-11px text-gray-500 mt-1.5 leading-relaxed">{a.diagnosis}</p>
-                  </div>
-                  <div className="text-right ml-4 shrink-0">
-                    <p className="text-[15px] font-bold text-gray-800">{formatCurrency(a.mrr)}</p>
-                    <p className="text-10px text-gray-400">monthly</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
     );
   };
 
-  const viewRenderers: Record<string, () => React.ReactNode> = {
-    'command-center': renderCommandCenter,
-    'forecast': renderForecast,
-    'team': renderTeam,
-    'relationships': renderRelationships,
-    'pipeline': renderPipeline,
-    'intelligence': renderIntelligence,
-    'supplier-accountability': renderSupplierAccountability,
+  // ═══════════════════ MAIN RENDER ═══════════════════
+
+  const contentByView: Record<string, React.ReactNode> = {
+    'command-center': renderCommandCenter(),
+    'forecast': renderForecast(),
+    'team': renderTeam(),
+    'relationships': renderRelationships(),
+    'pipeline': renderPipeline(),
+    'intelligence': renderIntelligence(),
+    'supplier-accountability': renderSupplierAccountability(),
   };
 
   return (
-    <div className="flex h-screen bg-[#F7F5F2] font-['Inter']">
-      <Sidebar items={NAV_ITEMS_LEADER} activeView={activeView} onViewChange={setActiveView} role="leader" userName={userName} userInitials={userInitials} />
+    <div className="flex h-screen bg-[#F7F5F2]">
+      <Sidebar
+        items={NAV_ITEMS_LEADER}
+        activeView={activeView}
+        onViewChange={setActiveView}
+        role="leader"
+        userName={userName}
+        userInitials={userInitials}
+      />
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar nudges={[]} userName={userName} userInitials={userInitials} role="leader" />
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-[1400px] mx-auto">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <a href="/live" className="text-12px text-[#157A6E] hover:underline flex items-center gap-1">
-                  <ArrowLeft className="w-3 h-3" /> Admin
-                </a>
-                <h1 className="text-xl font-semibold font-['Newsreader'] text-gray-800">
-                  {NAV_ITEMS_LEADER.find(n => n.id === activeView)?.label || 'Dashboard'}
-                </h1>
-                <span className="text-10px font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">LIVE</span>
-              </div>
-              <button onClick={fetchData} className="flex items-center gap-1 text-12px text-gray-500 hover:text-[#157A6E]">
-                <RefreshCw className="w-3 h-3" /> Refresh
-              </button>
-            </div>
-            {viewRenderers[activeView]?.() || renderCommandCenter()}
+        <div className="flex-1 overflow-auto">
+          <div className="p-6 max-w-7xl mx-auto">
+            {contentByView[activeView]}
           </div>
-        </main>
+        </div>
       </div>
-      {panelOpen && selectedAdvisor && activeView !== 'relationships' && (
+      {panelOpen && selectedAdvisor && (
         <AdvisorPanel
           advisor={selectedAdvisor}
-          deals={deals.filter(d => getDealAdvisorIds(d).includes(selectedAdvisor.id))}
+          deals={allDeals.filter(d => getDealAdvisorIds(d).includes(selectedAdvisor.id))}
           isOpen={panelOpen}
           onClose={() => { setPanelOpen(false); setSelectedAdvisor(null); }}
           onUpdateAdvisor={updateAdvisorField}
