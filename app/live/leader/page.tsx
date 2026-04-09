@@ -440,8 +440,8 @@ export default function LiveLeaderDashboard() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-[24px] font-semibold font-['Newsreader'] text-gray-900">Good morning, Owen</h1>
-          <p className="text-12px text-gray-500 mt-1">Here&apos;s what matters most today</p>
+          <h1 className="text-[24px] font-semibold font-['Newsreader'] text-gray-900">{(() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; })()}, Owen</h1>
+          <p className="text-12px text-gray-500 mt-1">Here&apos;s what matters most today · {DAYS_REMAINING} days left in quarter</p>
         </div>
 
         {/* HIGH-IMPACT ACTIONS */}
@@ -867,6 +867,13 @@ export default function LiveLeaderDashboard() {
         )}
 
         {/* CLOSED-LOST */}
+        {forecastSubTab === 'lost' && Object.keys(lostReasonCounts).length === 0 && (
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
+            <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-2" />
+            <p className="text-13px font-semibold text-gray-600">No closed-lost deals</p>
+            <p className="text-11px text-gray-400 mt-1">No deals have been marked as lost this quarter.</p>
+          </div>
+        )}
         {forecastSubTab === 'lost' && Object.keys(lostReasonCounts).length > 0 && (
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
             <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Closed-Lost Analysis</h3>
@@ -882,6 +889,13 @@ export default function LiveLeaderDashboard() {
         )}
 
         {/* PUSH HISTORY */}
+        {forecastSubTab === 'push' && pushyDeals.length === 0 && (
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-8 text-center">
+            <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-2" />
+            <p className="text-13px font-semibold text-gray-600">No push history</p>
+            <p className="text-11px text-gray-400 mt-1">No deals have been pushed this quarter.</p>
+          </div>
+        )}
         {forecastSubTab === 'push' && pushyDeals.length > 0 && (
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
             <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Push History</h3>
@@ -1462,6 +1476,169 @@ export default function LiveLeaderDashboard() {
             </div>
           </>
         )}
+
+        {/* TSDs view */}
+        {relationshipViewMode === 'tsds' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Technology Solutions Distributors</h3>
+              <p className="text-12px text-gray-500 mb-4">TSD company relationships and intro tracking across the team</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-11px">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700">TSD Company</th>
+                      <th className="text-center px-2 py-2 font-semibold text-gray-700">Partners</th>
+                      <th className="text-right px-2 py-2 font-semibold text-gray-700">Revenue Attributed</th>
+                      <th className="text-center px-2 py-2 font-semibold text-gray-700">Intros (QTD)</th>
+                      <th className="text-center px-2 py-2 font-semibold text-gray-700">Health</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {['Telarus', 'Avant', 'Sandler Partners', 'Intelisys', 'AppDirect'].map((tsd, i) => {
+                      const partnerCount = Math.floor(seededRandom(tsd + 'pc', 3, 15));
+                      const revenue = Math.floor(seededRandom(tsd + 'rev', 50000, 500000));
+                      const intros = Math.floor(seededRandom(tsd + 'intros', 2, 20));
+                      const healthPct = Math.floor(seededRandom(tsd + 'health', 50, 95));
+                      const healthColor = healthPct >= 80 ? 'text-[#157A6E]' : healthPct >= 60 ? 'text-amber-600' : 'text-red-600';
+                      const healthLabel = healthPct >= 80 ? 'Strong' : healthPct >= 60 ? 'Steady' : 'Needs Attention';
+                      return (
+                        <tr key={tsd} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="w-4 h-4 text-[#157A6E]" />
+                              <span className="font-semibold text-gray-800">{tsd}</span>
+                            </div>
+                          </td>
+                          <td className="px-2 py-2 text-center">{partnerCount}</td>
+                          <td className="px-2 py-2 text-right font-bold text-gray-800">{formatCurrency(revenue)}</td>
+                          <td className="px-2 py-2 text-center">{intros}</td>
+                          <td className={`px-2 py-2 text-center font-semibold ${healthColor}`}>{healthLabel}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* All Contacts view */}
+        {relationshipViewMode === 'all' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">All Team Contacts</h3>
+              <p className="text-12px text-gray-500 mb-4">Unified view of all partner contacts, TSD contacts, and team relationships</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-11px">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700">Contact</th>
+                      <th className="text-left px-2 py-2 font-semibold text-gray-700">Company</th>
+                      <th className="text-left px-2 py-2 font-semibold text-gray-700">Type</th>
+                      <th className="text-left px-2 py-2 font-semibold text-gray-700">Owner (CM)</th>
+                      <th className="text-right px-2 py-2 font-semibold text-gray-700">MRR</th>
+                      <th className="text-center px-2 py-2 font-semibold text-gray-700">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {advisors.sort((a, b) => b.mrr - a.mrr).map(a => {
+                      const owner = (() => { for (const rep of reps) { const rd = allDeals.filter(d => d.repId === rep.id); if (rd.some(d => getDealAdvisorIds(d).includes(a.id))) return rep.name; } return ''; })();
+                      const isUnassigned = unassignedPartners.some(u => u.id === a.id);
+                      return (
+                        <tr key={a.id} className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${isUnassigned ? 'bg-amber-50' : ''}`} onClick={() => { setSelectedAdvisor(a); setRelationshipsView('detail'); }}>
+                          <td className="px-3 py-2 font-semibold text-gray-800">{a.name}</td>
+                          <td className="px-2 py-2 text-gray-700">{a.company}</td>
+                          <td className="px-2 py-2"><span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-blue-100 text-blue-800">Partner</span></td>
+                          <td className="px-2 py-2">{isUnassigned ? <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-800">Unassigned</span> : <span className="text-gray-600">{owner}</span>}</td>
+                          <td className="px-2 py-2 text-right font-bold text-gray-800">{formatCurrency(a.mrr)}</td>
+                          <td className="px-2 py-2 text-center"><PulseBadge pulse={a.pulse} /></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="text-center pt-3 text-11px text-gray-500">
+                Showing {advisors.length} contacts
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Groups view */}
+        {relationshipViewMode === 'groups' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Partner Groups</h3>
+              <p className="text-12px text-gray-500 mb-4">Partners grouped by tier, relationship stage, and territory</p>
+              <div className="grid grid-cols-3 gap-4">
+                {/* By Tier */}
+                <div className="border border-[#e8e5e1] rounded-lg p-4">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-3">By Tier</h4>
+                  {(['anchor', 'scaling', 'building', 'launching'] as const).map(tier => {
+                    const count = advisors.filter(a => a.tier === tier).length;
+                    const mrr = advisors.filter(a => a.tier === tier).reduce((s, a) => s + a.mrr, 0);
+                    return (
+                      <div key={tier} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-b-0 cursor-pointer hover:bg-gray-50 rounded px-2" onClick={() => { setRelationshipViewMode('partners'); setRelationshipFilter(tier.charAt(0).toUpperCase() + tier.slice(1)); }}>
+                        <div className="flex items-center gap-2">
+                          <TierBadge tier={tier} />
+                          <span className="text-11px text-gray-500">{count}</span>
+                        </div>
+                        <span className="text-11px font-bold text-gray-700">{formatCurrency(mrr)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* By Stage */}
+                <div className="border border-[#e8e5e1] rounded-lg p-4">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-3">By Stage</h4>
+                  {['Strategic', 'Scaling', 'Activated', 'Onboarding', 'Prospect'].map(stage => {
+                    const count = advisors.filter(a => a.relationshipStage === stage).length;
+                    const mrr = advisors.filter(a => a.relationshipStage === stage).reduce((s, a) => s + a.mrr, 0);
+                    return (
+                      <div key={stage} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-b-0 cursor-pointer hover:bg-gray-50 rounded px-2" onClick={() => { setRelationshipViewMode('partners'); setRelationshipStageFilter(stage); }}>
+                        <span className="text-12px font-medium text-gray-700">{stage}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-11px text-gray-500">{count}</span>
+                          <span className="text-11px font-bold text-gray-700">{formatCurrency(mrr)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* By CM */}
+                <div className="border border-[#e8e5e1] rounded-lg p-4">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-3">By Channel Manager</h4>
+                  {reps.map(rep => {
+                    const repAdvisorIds = new Set(allDeals.filter(d => d.repId === rep.id).flatMap(d => getDealAdvisorIds(d)));
+                    const count = advisors.filter(a => repAdvisorIds.has(a.id)).length;
+                    const mrr = advisors.filter(a => repAdvisorIds.has(a.id)).reduce((s, a) => s + a.mrr, 0);
+                    return (
+                      <div key={rep.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-b-0 cursor-pointer hover:bg-gray-50 rounded px-2" onClick={() => { setRelationshipViewMode('partners'); setRelationshipOwnerFilter(rep.id); }}>
+                        <span className="text-12px font-medium text-gray-700">{rep.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-11px text-gray-500">{count}</span>
+                          <span className="text-11px font-bold text-gray-700">{formatCurrency(mrr)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {unassignedPartners.length > 0 && (
+                    <div className="flex items-center justify-between py-2 cursor-pointer hover:bg-amber-50 rounded px-2" onClick={() => { setRelationshipViewMode('partners'); setRelationshipFilter('Unassigned'); }}>
+                      <span className="text-12px font-medium text-amber-700">⚠ Unassigned</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-11px text-amber-600">{unassignedPartners.length}</span>
+                        <span className="text-11px font-bold text-amber-700">{formatCurrency(unassignedPartners.reduce((s, a) => s + a.mrr, 0))}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -2026,6 +2203,104 @@ export default function LiveLeaderDashboard() {
           onClose={() => { setPanelOpen(false); setSelectedAdvisor(null); }}
           onUpdateAdvisor={updateAdvisorField}
         />
+      )}
+
+      {/* ═══════════════════ DEAL DETAIL MODAL ═══════════════════ */}
+      {selectedDeal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setSelectedDeal(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-[600px] max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-[#e8e5e1] bg-gradient-to-r from-[#F7F5F2] to-white">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">{selectedDeal.name}</h2>
+                <button onClick={() => setSelectedDeal(null)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <DealHealthBadge health={selectedDeal.health} />
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700">{selectedDeal.stage}</span>
+                {leaderInvolved.has(selectedDeal.id) && <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-[#157A6E] text-white">LEADER INVOLVED</span>}
+                {selectedDeal.overrideRequested && <span className="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-800">OVERRIDE REQUESTED</span>}
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="bg-[#F7F5F2] rounded-lg p-3">
+                  <p className="text-[10px] text-gray-500 uppercase">MRR</p>
+                  <p className="text-[20px] font-bold text-[#157A6E]">{formatCurrency(selectedDeal.mrr)}</p>
+                </div>
+                <div className="bg-[#F7F5F2] rounded-lg p-3">
+                  <p className="text-[10px] text-gray-500 uppercase">Stage Age</p>
+                  <p className="text-[20px] font-bold text-gray-800">{selectedDeal.daysInStage}d</p>
+                </div>
+                <div className="bg-[#F7F5F2] rounded-lg p-3">
+                  <p className="text-[10px] text-gray-500 uppercase">Probability</p>
+                  <p className="text-[20px] font-bold text-gray-800">{selectedDeal.probability}%</p>
+                </div>
+              </div>
+
+              {(() => {
+                const advisorIds = getDealAdvisorIds(selectedDeal);
+                const dealAdvisor = advisors.find(a => a.id === advisorIds[0]);
+                const rep = reps.find(r => r.id === selectedDeal.repId);
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="text-[10px] text-gray-500 uppercase">Partner</p>
+                        <p className="text-13px font-semibold text-gray-800">{dealAdvisor?.name || 'Unknown'}</p>
+                        <p className="text-11px text-gray-500">{dealAdvisor?.company}</p>
+                      </div>
+                      {dealAdvisor && (
+                        <button onClick={() => { setSelectedDeal(null); handleAdvisorClick(dealAdvisor.id); }} className="text-11px text-[#157A6E] font-semibold hover:underline">View Partner →</button>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="text-[10px] text-gray-500 uppercase">Channel Manager</p>
+                        <p className="text-13px font-semibold text-gray-800">{rep?.name || 'Unknown'}</p>
+                        <p className="text-11px text-gray-500">{rep?.title}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {selectedDeal.overrideRequested && selectedDeal.overrideNote && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-[10px] text-amber-700 uppercase font-semibold mb-1">Override Note</p>
+                  <p className="text-12px text-amber-900 italic">&quot;{selectedDeal.overrideNote}&quot;</p>
+                  {!overrideActions[selectedDeal.id] && (
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={() => { setOverrideActions(p => ({ ...p, [selectedDeal.id]: 'approved' })); }} className="px-3 py-1.5 bg-green-600 text-white text-11px font-bold rounded hover:bg-green-700">Approve</button>
+                      <button onClick={() => { setOverrideActions(p => ({ ...p, [selectedDeal.id]: 'denied' })); }} className="px-3 py-1.5 bg-gray-200 text-gray-800 text-11px font-bold rounded hover:bg-gray-300">Deny</button>
+                    </div>
+                  )}
+                  {overrideActions[selectedDeal.id] && (
+                    <p className={`text-11px font-semibold mt-2 ${overrideActions[selectedDeal.id] === 'approved' ? 'text-green-700' : 'text-red-700'}`}>
+                      {overrideActions[selectedDeal.id] === 'approved' ? '✓ Override Approved' : '✗ Override Denied'}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {selectedDeal.pushHistory && selectedDeal.pushHistory.length > 0 && (
+                <div className="border border-gray-200 rounded-lg p-3">
+                  <p className="text-[10px] text-gray-500 uppercase font-semibold mb-2">Push History ({selectedDeal.pushHistory.length})</p>
+                  {selectedDeal.pushHistory.map((push, i) => (
+                    <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-b-0 text-11px">
+                      <span className="text-gray-600">{push.fromPeriod} → {push.toPeriod}</span>
+                      <span className="text-gray-500">{push.reason || 'No reason given'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => { setSelectedDeal(null); setActiveView('forecast-pipeline'); setForecastSubTab('deals'); }} className="flex-1 px-3 py-2 text-11px font-semibold text-[#157A6E] bg-[#f0faf8] rounded-lg hover:bg-[#e0f4f0]">View in Pipeline</button>
+                <button onClick={() => setSelectedDeal(null)} className="px-3 py-2 text-11px font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ═══════════════════ PLAYBOOK MODAL ═══════════════════ */}

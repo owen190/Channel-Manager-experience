@@ -25,7 +25,7 @@ export default function Home() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16 max-w-4xl w-full">
         {/* Channel Manager Card */}
         <button
-          onClick={() => router.push('/manager')}
+          onClick={() => router.push('/live/manager')}
           className="bg-[#F7F5F2] rounded-xl shadow-lg p-8 text-left transition-all duration-300 hover:shadow-2xl hover:border-2 hover:border-[#157A6E] hover:transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[#157A6E] focus:ring-offset-2 focus:ring-offset-[#1a1d23] border border-[#e8e5e1]"
         >
           <div className="text-[#157A6E] mb-4"><Handshake className="w-10 h-10" /></div>
@@ -49,7 +49,7 @@ export default function Home() {
 
         {/* Sales Leader Card */}
         <button
-          onClick={() => router.push('/leader')}
+          onClick={() => router.push('/live/leader')}
           className="bg-[#F7F5F2] rounded-xl shadow-lg p-8 text-left transition-all duration-300 hover:shadow-2xl hover:border-2 hover:border-[#157A6E] hover:transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[#157A6E] focus:ring-offset-2 focus:ring-offset-[#1a1d23] border border-[#e8e5e1]"
         >
           <div className="text-[#157A6E] mb-4"><BarChart3 className="w-10 h-10" /></div>
@@ -57,7 +57,7 @@ export default function Home() {
             Sales Leader
           </h2>
           <p className="text-[#157A6E] text-sm font-medium mb-4">
-            Priya M.
+            Owen W.
           </p>
           <p className="text-gray-600 mb-6 leading-relaxed text-[15px]">
             Know which reps need coaching, which forecasts to trust, and where your pipeline is leaking — without asking for a report.
