@@ -7,12 +7,33 @@ export type DealHealth = 'Healthy' | 'Monitor' | 'At Risk' | 'Stalled' | 'Slippi
 export type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Closed Lost' | 'Stalled';
 export type PartnerTier = 'anchor' | 'scaling' | 'building' | 'launching';
 export type EngagementScore = 'Strong' | 'Steady' | 'Fading';
+export type LostReason = 'price' | 'reputation' | 'competitor' | 'timing' | 'feature-gap' | 'relationship' | 'unknown' | 'other';
+export type MeetingParty = 'customer' | 'agent';
+export type MeetingNature = 'discovery' | 'needs-analysis' | 'solutions-presentation' | 'relationship-building' | 'QBR' | 'event' | 'other';
 
 export interface ActivityItem {
   text: string;
   sentiment: Tone;
   time: string;
   type?: 'call' | 'email' | 'meeting' | 'deal' | 'training';
+  meetingType?: MeetingParty;
+  meetingNature?: MeetingNature;
+  loggedBy?: 'cm' | 'leader';
+}
+
+export interface MonthlySnapshot {
+  month: string;
+  pulse: PulseState;
+  trajectory: Trajectory;
+  tier: PartnerTier;
+  mrr: number;
+}
+
+export interface DealPushEvent {
+  fromPeriod: string;
+  toPeriod: string;
+  date: string;
+  reason?: string;
 }
 
 export interface ActionItem {
@@ -44,6 +65,11 @@ export interface Deal {
   overrideApproved?: boolean;
   overrideNote?: string;
   lastModified: string;
+  lostReason?: LostReason;
+  lostReasonDetail?: string;
+  isUpside?: boolean;
+  pushHistory?: DealPushEvent[];
+  leaderTouchedAt?: string[];
 }
 
 export type RelationshipStage = 'Prospect' | 'Onboarding' | 'Activated' | 'Scaling' | 'Strategic';
@@ -90,6 +116,7 @@ export interface Advisor {
     growthPotential: EngagementScore;
   };
   diagnosis: string;
+  monthlySnapshots?: MonthlySnapshot[];
 }
 
 export interface Rep {
@@ -113,6 +140,8 @@ export interface Rep {
   avgCycle: number;
   engagementScore: EngagementScore;
   dealsWonQTD: number;
+  territories?: string[];
+  exceptionAdvisors?: string[];
 }
 
 export interface Nudge {

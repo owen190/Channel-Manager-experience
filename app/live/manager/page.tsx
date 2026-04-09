@@ -27,7 +27,7 @@ import { TierBadge } from '@/components/shared/TierBadge';
 import { DealModal } from '@/components/shared/DealModal';
 import { PartnerModal } from '@/components/shared/PartnerModal';
 import { NAV_ITEMS_MANAGER, STAGE_WEIGHTS, QUARTER_END, DAYS_REMAINING, SERVICE_CATALOG } from '@/lib/constants';
-import { Advisor, Deal, DealHealth, FrictionLevel, DiagnosticRow, EngagementScore, PartnerTier } from '@/lib/types';
+import { Advisor, Deal, DealHealth, FrictionLevel, DiagnosticRow, EngagementScore, PartnerTier, LostReason, MeetingParty, MeetingNature } from '@/lib/types';
 import { adaptAdvisor, adaptDeal } from '@/lib/db/adapter';
 
 type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Closed Lost' | 'Stalled';
@@ -136,6 +136,14 @@ export default function LiveManagerPage() {
   const [logCallNewDeal, setLogCallNewDeal] = useState(false);
   const [logCallNewDealName, setLogCallNewDealName] = useState('');
   const [logContactType, setLogContactType] = useState<'call' | 'email'>('call');
+  const [showClosedLostModal, setShowClosedLostModal] = useState(false);
+  const [closedLostDealId, setClosedLostDealId] = useState<string | null>(null);
+  const [closedLostReason, setClosedLostReason] = useState<LostReason | ''>('');
+  const [closedLostDetail, setClosedLostDetail] = useState('');
+  const [logMeetingType, setLogMeetingType] = useState<MeetingParty | ''>('');
+  const [logMeetingNature, setLogMeetingNature] = useState<MeetingNature | ''>('');
+  const [pipelineTimeframe, setPipelineTimeframe] = useState<'all' | '30d' | '45d' | 'quarter' | 'ytd'>('all');
+  const [overdueThreshold, setOverdueThreshold] = useState(7);
 
   // Persisted TSD contact edits (overrides for static TSD data)
   const [tsdContactOverrides, setTsdContactOverrides] = useState<Record<string, Record<string, string>>>(() => loadFromStorage('cc_tsdContactOverrides', {}));
@@ -639,6 +647,21 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
       console.error('Error saving partner:', err);
       throw err;
     }
+  };
+
+  const handleCloseDealLost = (dealId: string) => {
+    if (!closedLostReason) return;
+    setDeals(prev => prev.map(d => d.id === dealId ? { ...d, stage: 'Closed Lost' as any, lostReason: closedLostReason as any, lostReasonDetail: closedLostDetail } : d));
+    fetch('/api/live/deals', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: dealId, stage: 'Closed Lost', lostReason: closedLostReason, lostReasonDetail: closedLostDetail }),
+    }).catch(console.error);
+    setShowClosedLostModal(false);
+    setClosedLostDealId(null);
+    setClosedLostReason('');
+    setClosedLostDetail('');
+    if (selectedDeal?.id === dealId) setSelectedDeal(null);
   };
 
   const handleLogCall = () => {
@@ -1956,7 +1979,93 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                         </div>
                       )}
                     </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-11px text-gray-600">Stage</span>
+                      {(() => {
+                        const stage = selectedAdvisor.relationshipStage || 'Activated';
+                        const stageColors: Record<string, string> = {
+                          'Prospect': 'bg-gray-100 text-gray-700',
+                          'Onboarding': 'bg-blue-100 text-blue-700',
+                          'Activated': 'bg-green-100 text-green-700',
+                          'Scaling': 'bg-[#d4f3f0] text-[#157A6E]',
+                          'Strategic': 'bg-purple-100 text-purple-700',
+                        };
+                        return (
+                          <span className={`px-2 py-0.5 text-10px font-medium rounded ${stageColors[stage] || stageColors['Activated']}`}>
+                            {stage}
+                          </span>
+                        );
+                      })()}
+                    </div>
                   </div>
+                </div>
+
+                {/* 12-Month Trend */}
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                  <h3 className="text-13px font-semibold font-['Newsreader'] text-gray-900 mb-3">12-Month Trend</h3>
+                  {(() => {
+                    let snapshots = selectedAdvisor.monthlySnapshots || [];
+
+                    // If no snapshots, generate mock data
+                    if (snapshots.length === 0) {
+                      snapshots = [];
+                      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      const baseMRR = selectedAdvisor.mrr || 50000;
+                      for (let i = 0; i < 12; i++) {
+                        const variance = seededRandom(`${selectedAdvisor.id}-mrr-${i}`) * 0.3 - 0.15;
+                        snapshots.push({
+                          month: months[i],
+                          pulse: ['Strong', 'Steady', 'Rising', 'Fading', 'Flatline'][Math.floor(seededRandom(`${selectedAdvisor.id}-pulse-${i}`) * 5)] as any,
+                          trajectory: ['Accelerating', 'Climbing', 'Stable', 'Slipping', 'Freefall'][Math.floor(seededRandom(`${selectedAdvisor.id}-traj-${i}`) * 5)] as any,
+                          tier: ['anchor', 'scaling', 'building', 'launching'][Math.floor(seededRandom(`${selectedAdvisor.id}-tier-${i}`) * 4)] as any,
+                          mrr: Math.max(20000, baseMRR * (1 + variance)),
+                        });
+                      }
+                    }
+
+                    const mrrValues = snapshots.map(s => s.mrr);
+                    const minMRR = Math.min(...mrrValues);
+                    const maxMRR = Math.max(...mrrValues);
+                    const mrrRange = maxMRR - minMRR || 1;
+
+                    const avgMRR = Math.round(mrrValues.reduce((a, b) => a + b, 0) / mrrValues.length);
+                    const peakMRR = Math.max(...mrrValues);
+                    const currentMRR = mrrValues[mrrValues.length - 1];
+
+                    // SVG sparkline
+                    const sparklineWidth = 280;
+                    const sparklineHeight = 60;
+                    const padding = 8;
+                    const graphWidth = sparklineWidth - padding * 2;
+                    const graphHeight = sparklineHeight - padding * 2;
+                    const points = mrrValues.map((val, idx) => {
+                      const x = padding + (idx / (mrrValues.length - 1)) * graphWidth;
+                      const y = sparklineHeight - padding - ((val - minMRR) / mrrRange) * graphHeight;
+                      return `${x},${y}`;
+                    }).join(' ');
+
+                    return (
+                      <div>
+                        <svg width={sparklineWidth} height={sparklineHeight} className="w-full mb-3" style={{ maxWidth: '100%' }}>
+                          <polyline points={points} fill="none" stroke="#157A6E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <p className="text-[10px] text-gray-500 uppercase tracking-wide">12mo Avg</p>
+                            <p className="text-12px font-semibold text-gray-900">${(avgMRR / 1000).toFixed(1)}k</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Peak</p>
+                            <p className="text-12px font-semibold text-gray-900">${(peakMRR / 1000).toFixed(1)}k</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-500 uppercase tracking-wide">Current</p>
+                            <p className="text-12px font-semibold text-gray-900">${(currentMRR / 1000).toFixed(1)}k</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Personal Intel */}
@@ -3900,13 +4009,8 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                 {selectedDeal.stage !== 'Closed Won' && selectedDeal.stage !== 'Closed Lost' && (
                   <button
                     onClick={() => {
-                      setDeals(prev => prev.map(d => d.id === selectedDeal.id ? { ...d, stage: 'Closed Lost' } : d));
-                      fetch('/api/live/deals', {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: selectedDeal.id, stage: 'Closed Lost' }),
-                      }).catch(console.error);
-                      setSelectedDeal(null);
+                      setClosedLostDealId(selectedDeal.id);
+                      setShowClosedLostModal(true);
                     }}
                     className="px-4 py-2 text-12px font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                   >
@@ -4110,6 +4214,22 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
           !(adv?.company || '').toLowerCase().includes(q)
         ) return false;
       }
+      // Apply timeframe filter
+      if (pipelineTimeframe !== 'all') {
+        const today = new Date();
+        const dealDate = d.closeDate ? new Date(d.closeDate) : new Date(d.lastModified || '');
+        let cutoffDate = new Date();
+        if (pipelineTimeframe === '30d') cutoffDate.setDate(today.getDate() - 30);
+        else if (pipelineTimeframe === '45d') cutoffDate.setDate(today.getDate() - 45);
+        else if (pipelineTimeframe === 'quarter') {
+          const quarter = Math.floor(today.getMonth() / 3);
+          cutoffDate = new Date(today.getFullYear(), quarter * 3, 1);
+        }
+        else if (pipelineTimeframe === 'ytd') {
+          cutoffDate = new Date(today.getFullYear(), 0, 1);
+        }
+        if (dealDate < cutoffDate) return false;
+      }
       return true;
     });
 
@@ -4203,6 +4323,17 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
             >
               <option value="all">All Stages</option>
               {stages.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select
+              value={pipelineTimeframe}
+              onChange={e => setPipelineTimeframe(e.target.value as any)}
+              className="px-3 py-2 border border-gray-200 rounded-md text-12px font-['Inter'] text-gray-700 hover:border-[#157A6E] cursor-pointer"
+            >
+              <option value="all">All Time</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="45d">Last 45 Days</option>
+              <option value="quarter">This Quarter</option>
+              <option value="ytd">YTD</option>
             </select>
             <button
               onClick={() => { setShowDealModal(true); setEditingDeal(null); }}
@@ -4375,12 +4506,17 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                         e.preventDefault();
                         const dealId = e.dataTransfer.getData('dealId');
                         if (dealId) {
-                          setDeals(prev => prev.map(d => d.id === dealId ? { ...d, stage: stage as any } : d));
-                          fetch('/api/live/deals', {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: dealId, stage: stage }),
-                          }).catch(console.error);
+                          if (stage === 'Closed Lost') {
+                            setClosedLostDealId(dealId);
+                            setShowClosedLostModal(true);
+                          } else {
+                            setDeals(prev => prev.map(d => d.id === dealId ? { ...d, stage: stage as any } : d));
+                            fetch('/api/live/deals', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: dealId, stage: stage }),
+                            }).catch(console.error);
+                          }
                         }
                         setDragOverStage(null);
                       }}
@@ -4411,7 +4547,11 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                                   <span className="text-10px text-gray-500">{d.daysInStage}d</span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                  <DealHealthBadge health={d.health} />
+                                  <div className="flex items-center gap-1">
+                                    <DealHealthBadge health={d.health} />
+                                    {d.committed && <span className="text-[8px] font-bold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">COMMIT</span>}
+                                    {d.isUpside && <span className="text-[8px] font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">UPSIDE</span>}
+                                  </div>
                                   <div className="flex items-center gap-1">
                                     <div className="w-8 h-1 bg-gray-200 rounded-full overflow-hidden">
                                       <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${d.probability || 50}%` }} />
@@ -6740,6 +6880,34 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                   ))}
                 </div>
               </div>
+              {/* Meeting Type & Nature (for meetings/calls) */}
+              {logContactType === 'call' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-11px font-semibold text-gray-700 mb-2 block">Meeting With</label>
+                  <div className="flex gap-2">
+                    {([['customer', 'Customer'], ['agent', 'Advisor']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => setLogMeetingType(logMeetingType === val ? '' : val)} className={`px-3 py-1.5 text-11px font-medium rounded-lg border transition-colors ${logMeetingType === val ? 'bg-[#157A6E] border-[#157A6E] text-white' : 'border-[#e8e5e1] text-gray-500 hover:border-gray-300'}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-11px font-semibold text-gray-700 mb-2 block">Nature</label>
+                  <select value={logMeetingNature} onChange={e => setLogMeetingNature(e.target.value as any)} className="w-full text-11px border border-[#e8e5e1] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#157A6E]">
+                    <option value="">Select...</option>
+                    <option value="discovery">Discovery</option>
+                    <option value="needs-analysis">Needs Analysis</option>
+                    <option value="solutions-presentation">Solutions Presentation</option>
+                    <option value="relationship-building">Relationship Building</option>
+                    <option value="QBR">QBR</option>
+                    <option value="event">Event</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+              )}
               {/* Notes */}
               <div>
                 <label className="text-11px font-semibold text-gray-700 mb-1 block">{logContactType === 'email' ? 'Email Summary' : 'Call Notes'}</label>
@@ -6844,6 +7012,40 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                 <p className="text-[10px] text-gray-300 mt-1">Tip: Press ⌘K anywhere to open search</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Closed Lost Reason Modal */}
+      {showClosedLostModal && closedLostDealId && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => { setShowClosedLostModal(false); setClosedLostDealId(null); setClosedLostReason(''); setClosedLostDetail(''); }}>
+          <div className="bg-white rounded-xl shadow-xl w-[480px]" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-[#e8e5e1] bg-gradient-to-r from-[#F7F5F2] to-white">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Close Deal as Lost</h2>
+                <button onClick={() => { setShowClosedLostModal(false); setClosedLostDealId(null); }} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              </div>
+              <p className="text-12px text-gray-500 mt-1">{deals.find(d => d.id === closedLostDealId)?.name || 'Deal'}</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-11px font-semibold text-gray-700 mb-2 block">Why was this deal lost? <span className="text-red-500">*</span></label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([['price', 'Price'], ['competitor', 'Competitor Won'], ['timing', 'Bad Timing'], ['reputation', 'Reputation'], ['feature-gap', 'Feature Gap'], ['relationship', 'Relationship Issue'], ['unknown', 'Unknown'], ['other', 'Other']] as [LostReason, string][]).map(([val, label]) => (
+                    <button key={val} onClick={() => setClosedLostReason(val)} className={`px-3 py-2 text-12px font-medium rounded-lg border transition-colors text-left ${closedLostReason === val ? 'bg-red-50 border-red-400 text-red-700' : 'border-[#e8e5e1] text-gray-600 hover:border-gray-300 hover:bg-gray-50'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-11px font-semibold text-gray-700 mb-1 block">Additional Details {closedLostReason === 'other' && <span className="text-red-500">*</span>}</label>
+                <textarea value={closedLostDetail} onChange={e => setClosedLostDetail(e.target.value)} placeholder="What happened? Competitor name, pricing feedback, lessons learned..." className="w-full text-12px border border-[#e8e5e1] rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[#157A6E]" rows={3} />
+              </div>
+              <button onClick={() => closedLostDealId && handleCloseDealLost(closedLostDealId)} disabled={!closedLostReason || (closedLostReason === 'other' && !closedLostDetail.trim())} className="w-full px-4 py-2.5 text-13px font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                Confirm Close as Lost
+              </button>
+            </div>
           </div>
         </div>
       )}

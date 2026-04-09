@@ -32,6 +32,7 @@ export function adaptAdvisor(live: LiveAdvisor): Advisor {
     funFact: live.funFact || '',
     personalIntel: live.personalIntel || '',
     diagnosis: live.diagnosis || '',
+    monthlySnapshots: (live as any).monthlySnapshots || [],
     tsds: live.tsds || [],
     previousCompanies: live.previousCompanies || [],
     mutualConnections: live.mutualConnections || [],
@@ -72,6 +73,11 @@ export function adaptDeal(live: LiveDeal): Deal {
     overrideApproved: live.overrideApproved,
     overrideNote: live.overrideNote,
     lastModified: live.lastModified || live.updatedAt || new Date().toISOString(),
+    lostReason: (live as any).lostReason || undefined,
+    lostReasonDetail: (live as any).lostReasonDetail || undefined,
+    isUpside: (live as any).isUpside || false,
+    pushHistory: (live as any).pushHistory || [],
+    leaderTouchedAt: (live as any).leaderTouchedAt || [],
   };
 }
 
@@ -97,5 +103,7 @@ export function adaptRep(live: LiveRep): Rep {
     avgCycle: live.avgCycle,
     engagementScore: (live.engagementScore || 'Steady') as EngagementScore,
     dealsWonQTD: live.dealsWonQTD,
+    territories: (live as any).territories || [],
+    exceptionAdvisors: (live as any).exceptionAdvisors || [],
   };
 }
