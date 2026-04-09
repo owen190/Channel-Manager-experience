@@ -6,7 +6,7 @@ import {
   MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays,
   Sparkles, Target, Heart, MessageCircle, Lightbulb, AlertCircle, X, RefreshCw, Users,
   TrendingDown, TrendingUp, BarChart3, Star, Shield, CheckCircle, ArrowUpRight, ArrowDownLeft,
-  Settings, DollarSign, Brain, Zap, Download, Plus, Edit, MoreHorizontal,
+  Settings, DollarSign, Brain, Zap, Download, Plus, Edit, MoreHorizontal, PlayCircle, Send, Loader2,
 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -139,6 +139,50 @@ export default function LiveLeaderDashboard() {
   const [overrideActions, setOverrideActions] = useState<Record<string, 'approved' | 'denied'>>({});
   const [dealActions, setDealActions] = useState<Record<string, 'flagged' | 'joined'>>({});
 
+  // Playbook state
+  const [launchedPlaybooks, setLaunchedPlaybooks] = useState<Array<{templateId: string; advisorId: string; advisorName: string; launchedAt: string; priority: 'critical' | 'high' | 'medium'; completedSteps: number[]; skippedSteps: number[]; customSteps?: Array<{day: number; label: string; desc: string; phase: string}>; notes?: string; playbookName?: string}>>(() => loadFromStorage('cc_launchedPlaybooks', []));
+  const [showPlaybookModal, setShowPlaybookModal] = useState(false);
+  const [playbookModalAdvisor, setPlaybookModalAdvisor] = useState<Advisor | null>(null);
+  const [playbookModalMode, setPlaybookModalMode] = useState<'template' | 'custom' | 'ai'>('template');
+  const [selectedPlaybookTemplate, setSelectedPlaybookTemplate] = useState<string | null>(null);
+  const [playbookPriority, setPlaybookPriority] = useState<'critical' | 'high' | 'medium'>('high');
+  const [customPlaybookName, setCustomPlaybookName] = useState('');
+  const [customPlaybookSteps, setCustomPlaybookSteps] = useState<Array<{label: string; desc: string; day: number}>>([{label: '', desc: '', day: 1}]);
+  const [playbookAdvisorSearch, setPlaybookAdvisorSearch] = useState('');
+  const [showPlaybookAdvisorPicker, setShowPlaybookAdvisorPicker] = useState(false);
+  const [editingPlaybookIdx, setEditingPlaybookIdx] = useState<number | null>(null);
+
+  const playbookTemplates = [
+    { id: 'win-back', title: 'Win-Back', icon: '🔄', subtitle: 'Re-engage at-risk partners', duration: '7 days', bgColor: 'bg-rose-50', borderColor: 'border-l-rose-400', color: '#e11d48', tagColor: 'bg-rose-100 text-rose-800', category: 'Retention', steps: [
+      { day: 1, label: 'Review partner history', desc: 'Analyze engagement decline and identify root cause', phase: 'Assess' },
+      { day: 2, label: 'Internal strategy session', desc: 'Align with CM on win-back approach', phase: 'Plan' },
+      { day: 3, label: 'Direct outreach', desc: 'Personal call or meeting with partner', phase: 'Engage' },
+      { day: 5, label: 'Value reinforcement', desc: 'Share success stories and new capabilities', phase: 'Engage' },
+      { day: 7, label: 'Follow-up commitment', desc: 'Secure next steps and renewed engagement plan', phase: 'Close' },
+    ]},
+    { id: 'onboarding', title: 'Onboarding', icon: '🚀', subtitle: 'Launch new partners', duration: '14 days', bgColor: 'bg-blue-50', borderColor: 'border-l-blue-400', color: '#2563eb', tagColor: 'bg-blue-100 text-blue-800', category: 'Activation', steps: [
+      { day: 1, label: 'Welcome & intro', desc: 'Initial meeting and expectation setting', phase: 'Setup' },
+      { day: 3, label: 'Training session', desc: 'Product and process training', phase: 'Setup' },
+      { day: 5, label: 'First deal support', desc: 'Guide through first opportunity', phase: 'Activate' },
+      { day: 10, label: 'Progress check-in', desc: 'Review early metrics and adjust', phase: 'Monitor' },
+      { day: 14, label: 'Graduation review', desc: 'Assess readiness for independent operation', phase: 'Close' },
+    ]},
+    { id: 'tier-upgrade', title: 'Tier Upgrade', icon: '⬆️', subtitle: 'Accelerate high-performers', duration: '30 days', bgColor: 'bg-amber-50', borderColor: 'border-l-amber-400', color: '#d97706', tagColor: 'bg-amber-100 text-amber-800', category: 'Growth', steps: [
+      { day: 1, label: 'Performance review', desc: 'Document growth trajectory and potential', phase: 'Assess' },
+      { day: 5, label: 'Expansion discussion', desc: 'Explore new product lines and territories', phase: 'Plan' },
+      { day: 10, label: 'Joint business plan', desc: 'Co-create growth targets and strategy', phase: 'Plan' },
+      { day: 20, label: 'Executive alignment', desc: 'Connect with partner leadership', phase: 'Engage' },
+      { day: 30, label: 'Tier promotion', desc: 'Formalize upgrade with new benefits', phase: 'Close' },
+    ]},
+    { id: 'qbr', title: 'QBR Prep', icon: '📊', subtitle: 'Quarterly business review', duration: '7 days', bgColor: 'bg-purple-50', borderColor: 'border-l-purple-400', color: '#7c3aed', tagColor: 'bg-purple-100 text-purple-800', category: 'Cadence', steps: [
+      { day: 1, label: 'Data compilation', desc: 'Pull performance metrics and trends', phase: 'Prepare' },
+      { day: 3, label: 'Deck preparation', desc: 'Build QBR presentation with insights', phase: 'Prepare' },
+      { day: 5, label: 'Internal pre-brief', desc: 'Align team on talking points and asks', phase: 'Align' },
+      { day: 6, label: 'QBR meeting', desc: 'Conduct review with partner', phase: 'Execute' },
+      { day: 7, label: 'Follow-up actions', desc: 'Document commitments and next steps', phase: 'Close' },
+    ]},
+  ];
+
   const setActiveView = (view: string) => {
     setActiveViewRaw(view);
     if (view !== 'relationships') {
@@ -182,6 +226,8 @@ export default function LiveLeaderDashboard() {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  useEffect(() => { saveToStorage('cc_launchedPlaybooks', launchedPlaybooks); }, [launchedPlaybooks]);
 
   const userName = 'Priya M.';
   const userInitials = 'PM';
@@ -439,6 +485,47 @@ export default function LiveLeaderDashboard() {
               );
             })}
           </div>
+        </div>
+
+        {/* Active Playbooks */}
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Active Playbooks</h3>
+            <button onClick={() => { setPlaybookModalAdvisor(null); setPlaybookModalMode('template'); setSelectedPlaybookTemplate(null); setShowPlaybookModal(true); }} className="text-[11px] text-[#157A6E] font-semibold hover:underline">+ New Playbook</button>
+          </div>
+          {launchedPlaybooks.length > 0 ? (
+            <div className="space-y-2">
+              {launchedPlaybooks.slice(0, 5).map((pb, idx) => {
+                const tmpl = playbookTemplates.find(t => t.id === pb.templateId);
+                const steps = pb.customSteps || tmpl?.steps || [];
+                const effective = steps.length - pb.skippedSteps.length;
+                const pct = effective > 0 ? Math.round((pb.completedSteps.length / effective) * 100) : 100;
+                return (
+                  <div key={idx} className="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer" onClick={() => { setEditingPlaybookIdx(idx); setActiveView('intelligence'); }}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[14px]">{tmpl?.icon || '📋'}</span>
+                      <div>
+                        <p className="text-[12px] font-semibold text-gray-800">{pb.playbookName || tmpl?.title || pb.templateId.replace('-', ' ')}</p>
+                        <p className="text-[10px] text-gray-500">{pb.advisorName}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#157A6E] rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-600">{pct}%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <PlayCircle className="w-6 h-6 text-gray-300 mx-auto mb-1" />
+              <p className="text-[11px] text-gray-400">No active playbooks</p>
+              <button onClick={() => { setShowPlaybookModal(true); setPlaybookModalAdvisor(null); }} className="text-[10px] text-[#157A6E] font-semibold mt-1 hover:underline">Create one →</button>
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
@@ -1019,6 +1106,63 @@ export default function LiveLeaderDashboard() {
 
     return (
       <div className="space-y-6">
+        {/* Playbook Management */}
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Playbooks</h3>
+            <button onClick={() => { setPlaybookModalAdvisor(null); setPlaybookModalMode('template'); setSelectedPlaybookTemplate(null); setShowPlaybookModal(true); }} className="px-3 py-1.5 text-[11px] font-semibold text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f] flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> New Playbook</button>
+          </div>
+          {launchedPlaybooks.length > 0 ? (
+            <div className="space-y-3">
+              {launchedPlaybooks.map((pb, idx) => {
+                const tmpl = playbookTemplates.find(t => t.id === pb.templateId);
+                const steps = pb.customSteps || tmpl?.steps || [];
+                const effective = steps.length - pb.skippedSteps.length;
+                const pct = effective > 0 ? Math.round((pb.completedSteps.length / effective) * 100) : 100;
+                const nextStepIdx = steps.findIndex((_, si) => !pb.completedSteps.includes(si) && !pb.skippedSteps.includes(si));
+                const nextStep = nextStepIdx >= 0 ? steps[nextStepIdx] : null;
+                return (
+                  <div key={idx} className={`border border-[#e8e5e1] rounded-lg p-4 border-l-4 ${tmpl?.borderColor || 'border-l-[#157A6E]'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[16px]">{tmpl?.icon || '📋'}</span>
+                        <div>
+                          <h4 className="text-[13px] font-semibold text-gray-800">{pb.playbookName || tmpl?.title || pb.templateId.replace('-', ' ')}</h4>
+                          <p className="text-[10px] text-gray-500">{pb.advisorName} · Started {new Date(pb.launchedAt).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${pb.priority === 'critical' ? 'bg-red-100 text-red-700' : pb.priority === 'high' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{pb.priority}</span>
+                        <span className="text-[12px] font-bold text-[#157A6E]">{pct}%</span>
+                      </div>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-100 rounded-full mb-2">
+                      <div className="h-full bg-[#157A6E] rounded-full transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                    {nextStep && (
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] text-gray-600">Next: <span className="font-medium">{nextStep.label}</span> (Day {nextStep.day})</p>
+                        <div className="flex gap-1.5">
+                          <button onClick={() => { setLaunchedPlaybooks(prev => prev.map((p, i) => i === idx ? { ...p, completedSteps: [...p.completedSteps, nextStepIdx] } : p)); }} className="px-2 py-1 text-[10px] font-semibold text-white bg-[#157A6E] rounded hover:bg-[#126a5f]">Complete</button>
+                          <button onClick={() => { setLaunchedPlaybooks(prev => prev.map((p, i) => i === idx ? { ...p, skippedSteps: [...p.skippedSteps, nextStepIdx] } : p)); }} className="px-2 py-1 text-[10px] font-semibold text-gray-500 bg-gray-100 rounded hover:bg-gray-200">Skip</button>
+                          <button onClick={() => { if (confirm('Remove this playbook?')) setLaunchedPlaybooks(prev => prev.filter((_, i) => i !== idx)); }} className="px-2 py-1 text-[10px] font-semibold text-red-500 bg-red-50 rounded hover:bg-red-100">Remove</button>
+                        </div>
+                      </div>
+                    )}
+                    {!nextStep && pct === 100 && <p className="text-[11px] text-green-600 font-semibold">✓ All steps completed</p>}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-6">
+              <PlayCircle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-[13px] font-semibold text-gray-600">No active playbooks</p>
+              <p className="text-[11px] text-gray-400 mt-1">Create a playbook to track engagement strategies for your partners.</p>
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-4 gap-4">
           {Object.entries(trajectories).map(([traj, list]) => (
             <KPICard
@@ -1408,6 +1552,130 @@ export default function LiveLeaderDashboard() {
           onClose={() => { setPanelOpen(false); setSelectedAdvisor(null); }}
           onUpdateAdvisor={updateAdvisorField}
         />
+      )}
+      {/* Playbook Modal */}
+      {showPlaybookModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowPlaybookModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-[700px] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="p-6 border-b border-[#e8e5e1] bg-gradient-to-r from-[#F7F5F2] to-white">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Assign Playbook</h2>
+                <button onClick={() => setShowPlaybookModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              </div>
+              {/* Advisor Picker */}
+              {!playbookModalAdvisor ? (
+                <div className="bg-white rounded-lg border border-[#e8e5e1] p-3">
+                  <button onClick={() => setShowPlaybookAdvisorPicker(!showPlaybookAdvisorPicker)} className="w-full text-left px-3 py-2 text-[13px] text-gray-400 bg-[#F7F5F2] rounded-lg border border-dashed border-gray-300 hover:border-[#157A6E] transition-colors">Select a partner to assign...</button>
+                  {showPlaybookAdvisorPicker && (
+                    <div className="mt-2 border border-[#e8e5e1] rounded-lg overflow-hidden">
+                      <input type="text" value={playbookAdvisorSearch} onChange={e => setPlaybookAdvisorSearch(e.target.value)} placeholder="Search partners..." className="w-full px-3 py-2 text-[12px] border-b border-[#e8e5e1] focus:outline-none focus:bg-teal-50" autoFocus />
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {advisors.filter(a => !playbookAdvisorSearch || a.name.toLowerCase().includes(playbookAdvisorSearch.toLowerCase()) || a.company.toLowerCase().includes(playbookAdvisorSearch.toLowerCase())).map(a => (
+                          <div key={a.id} onClick={() => { setPlaybookModalAdvisor(a); setShowPlaybookAdvisorPicker(false); setPlaybookAdvisorSearch(''); }} className="flex items-center justify-between px-3 py-2 hover:bg-[#F7F5F2] cursor-pointer border-b border-gray-50 last:border-b-0">
+                            <div>
+                              <p className="text-[12px] font-semibold text-gray-800">{a.name}</p>
+                              <p className="text-[10px] text-gray-500">{a.company}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <TierBadge tier={a.tier} />
+                              <span className="text-[11px] font-bold text-gray-700">{formatCurrency(a.mrr)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-white rounded-lg p-4 border border-[#e8e5e1]">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="text-[14px] font-semibold text-gray-800">{playbookModalAdvisor.name}</h3>
+                      <p className="text-[12px] text-gray-500 mt-0.5">{playbookModalAdvisor.company}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[16px] font-bold text-[#157A6E]">{formatCurrency(playbookModalAdvisor.mrr)}</span>
+                      <button onClick={() => { setPlaybookModalAdvisor(null); setShowPlaybookAdvisorPicker(true); }} className="text-[10px] text-[#157A6E] font-semibold hover:underline ml-2">Change</button>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <TierBadge tier={playbookModalAdvisor.tier} />
+                    <TrajectoryBadge trajectory={playbookModalAdvisor.trajectory} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-[#e8e5e1] px-6 bg-white">
+              <button onClick={() => setPlaybookModalMode('template')} className={`px-6 py-3 text-[13px] font-semibold border-b-2 transition-colors ${playbookModalMode === 'template' ? 'text-[#157A6E] border-[#157A6E]' : 'text-gray-500 border-transparent hover:text-gray-700'}`}>Choose Template</button>
+              <button onClick={() => setPlaybookModalMode('custom')} className={`px-6 py-3 text-[13px] font-semibold border-b-2 transition-colors ${playbookModalMode === 'custom' ? 'text-[#157A6E] border-[#157A6E]' : 'text-gray-500 border-transparent hover:text-gray-700'}`}>Create Custom</button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              {playbookModalMode === 'template' ? (
+                <div className="grid grid-cols-2 gap-4">
+                  {playbookTemplates.map(tmpl => (
+                    <div key={tmpl.id} onClick={() => { if (playbookModalAdvisor) { setLaunchedPlaybooks(prev => [...prev, { templateId: tmpl.id, advisorId: playbookModalAdvisor.id, advisorName: playbookModalAdvisor.name, launchedAt: new Date().toISOString(), priority: playbookPriority, completedSteps: [], skippedSteps: [] }]); setShowPlaybookModal(false); } }} className={`${tmpl.bgColor} rounded-lg border-2 border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-all border-l-4 ${tmpl.borderColor} ${!playbookModalAdvisor ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                      <div className="flex items-start gap-3 mb-3">
+                        <span className="text-[24px]">{tmpl.icon}</span>
+                        <div className="flex-1">
+                          <h4 className="text-[13px] font-semibold text-gray-800">{tmpl.title}</h4>
+                          <p className="text-[11px] text-gray-600">{tmpl.subtitle}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-gray-500 pt-2 border-t border-gray-200">
+                        <span>{tmpl.duration}</span>
+                        <span>{tmpl.steps.length} steps</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Playbook Name</label>
+                    <input type="text" value={customPlaybookName} onChange={e => setCustomPlaybookName(e.target.value)} placeholder="e.g., Strategic Engagement: Acme" className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-[13px] focus:outline-none focus:border-[#157A6E]" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Priority</label>
+                    <div className="flex gap-2 mt-1">
+                      {(['critical', 'high', 'medium'] as const).map(p => (
+                        <button key={p} onClick={() => setPlaybookPriority(p)} className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${playbookPriority === p ? p === 'critical' ? 'bg-red-100 text-red-800 border border-red-200' : p === 'high' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>{p.charAt(0).toUpperCase() + p.slice(1)}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Steps</label>
+                    <div className="space-y-2 mt-2">
+                      {customPlaybookSteps.map((step, i) => (
+                        <div key={i} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                          <div className="grid grid-cols-2 gap-2 mb-2">
+                            <input type="number" value={step.day} onChange={e => { const ns = [...customPlaybookSteps]; ns[i].day = parseInt(e.target.value) || 1; setCustomPlaybookSteps(ns); }} placeholder="Day" className="px-2 py-1 border border-gray-200 rounded text-[11px] focus:outline-none focus:border-[#157A6E]" />
+                          </div>
+                          <input type="text" value={step.label} onChange={e => { const ns = [...customPlaybookSteps]; ns[i].label = e.target.value; setCustomPlaybookSteps(ns); }} placeholder="Step label" className="w-full px-2 py-1 border border-gray-200 rounded text-[11px] mb-1 focus:outline-none focus:border-[#157A6E]" />
+                          <textarea value={step.desc} onChange={e => { const ns = [...customPlaybookSteps]; ns[i].desc = e.target.value; setCustomPlaybookSteps(ns); }} placeholder="Step description" className="w-full px-2 py-1 border border-gray-200 rounded text-[10px] focus:outline-none focus:border-[#157A6E]" rows={2} />
+                          {customPlaybookSteps.length > 1 && <button onClick={() => setCustomPlaybookSteps(customPlaybookSteps.filter((_, j) => j !== i))} className="mt-2 text-[10px] text-red-500 font-semibold hover:text-red-700">Remove Step</button>}
+                        </div>
+                      ))}
+                      <button onClick={() => setCustomPlaybookSteps([...customPlaybookSteps, { label: '', desc: '', day: Math.max(...customPlaybookSteps.map(s => s.day), 0) + 1 }])} className="text-[11px] text-[#157A6E] font-semibold hover:underline">+ Add Step</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-[#e8e5e1] flex justify-end gap-2">
+              <button onClick={() => setShowPlaybookModal(false)} className="px-4 py-2 text-[12px] font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+              {playbookModalMode === 'custom' && customPlaybookName && playbookModalAdvisor && (
+                <button onClick={() => { setLaunchedPlaybooks(prev => [...prev, { templateId: 'custom', advisorId: playbookModalAdvisor.id, advisorName: playbookModalAdvisor.name, launchedAt: new Date().toISOString(), priority: playbookPriority, completedSteps: [], skippedSteps: [], customSteps: customPlaybookSteps.map(s => ({ ...s, phase: 'Action' })), playbookName: customPlaybookName }]); setShowPlaybookModal(false); setCustomPlaybookName(''); setCustomPlaybookSteps([{ label: '', desc: '', day: 1 }]); }} className="px-4 py-2 text-[12px] font-semibold text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f]">Assign to {playbookModalAdvisor.name}</button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
       <AIChat role="leader" selectedAdvisor={selectedAdvisor} live={true} />
     </div>

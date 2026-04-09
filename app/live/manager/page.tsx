@@ -122,6 +122,8 @@ export default function LiveManagerPage() {
   const [showAllPriority, setShowAllPriority] = useState(false);
   const [showAllDeadlines, setShowAllDeadlines] = useState(false);
   const [playbookModalAdvisor, setPlaybookModalAdvisor] = useState<Advisor | null>(null);
+  const [showPlaybookAdvisorPicker, setShowPlaybookAdvisorPicker] = useState(false);
+  const [playbookAdvisorSearch, setPlaybookAdvisorSearch] = useState('');
   const [playbookModalMode, setPlaybookModalMode] = useState<'template' | 'custom' | 'ai'>('template');
   const [aiPlaybookMessages, setAiPlaybookMessages] = useState<Array<{type: 'user' | 'assistant'; text: string}>>([]);
   const [aiPlaybookInput, setAiPlaybookInput] = useState('');
@@ -5744,6 +5746,19 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
           <div className="flex items-center gap-3">
             <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-gray-500 whitespace-nowrap">Active Playbooks</span>
             <div className="flex-1 h-px bg-[#e8e5e1]" />
+            <button
+              onClick={() => {
+                setPlaybookModalAdvisor(null);
+                setPlaybookModalMode('template');
+                setSelectedPlaybookTemplate(null);
+                setPlaybookAdvisorSearch('');
+                setShowPlaybookAdvisorPicker(false);
+                setShowPlaybookModal(true);
+              }}
+              className="bg-[#157A6E] text-white text-[11px] font-semibold rounded-lg px-3 py-1.5 hover:bg-[#126a5f] transition-colors"
+            >
+              + New Playbook
+            </button>
           </div>
 
           <div className="grid grid-cols-[1fr_280px] gap-4">
@@ -6306,14 +6321,73 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                 <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Assign Playbook</h2>
                 <button onClick={() => setShowPlaybookModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
               </div>
-              {playbookModalAdvisor && (
+
+              {!playbookModalAdvisor ? (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowPlaybookAdvisorPicker(!showPlaybookAdvisorPicker)}
+                    className="w-full bg-white rounded-lg p-4 border border-[#e8e5e1] text-left hover:border-[#157A6E] transition-colors"
+                  >
+                    <p className="text-[12px] text-gray-500">Select a partner to assign...</p>
+                  </button>
+
+                  {showPlaybookAdvisorPicker && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg border border-[#e8e5e1] shadow-lg z-10 max-h-64 overflow-y-auto">
+                      <div className="p-3 border-b border-[#e8e5e1] sticky top-0 bg-white">
+                        <input
+                          type="text"
+                          placeholder="Search advisors..."
+                          value={playbookAdvisorSearch}
+                          onChange={(e) => setPlaybookAdvisorSearch(e.target.value)}
+                          className="w-full text-[12px] px-3 py-2 border border-[#e8e5e1] rounded-lg focus:outline-none focus:border-[#157A6E]"
+                        />
+                      </div>
+                      <div className="max-h-56 overflow-y-auto">
+                        {advisors
+                          .filter(a =>
+                            a.name.toLowerCase().includes(playbookAdvisorSearch.toLowerCase()) ||
+                            a.company.toLowerCase().includes(playbookAdvisorSearch.toLowerCase())
+                          )
+                          .map((advisor) => (
+                            <button
+                              key={advisor.id}
+                              onClick={() => {
+                                setPlaybookModalAdvisor(advisor);
+                                setShowPlaybookAdvisorPicker(false);
+                                setPlaybookAdvisorSearch('');
+                              }}
+                              className="w-full px-4 py-3 text-left hover:bg-[#F7F5F2] border-b border-[#e8e5e1] last:border-b-0 transition-colors"
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <h4 className="text-[13px] font-semibold text-gray-800">{advisor.name}</h4>
+                                  <p className="text-[11px] text-gray-500">{advisor.company}</p>
+                                </div>
+                                <div className="text-right ml-2">
+                                  <div className="text-[12px] font-bold text-[#157A6E]">{formatCurrency(advisor.mrr)}</div>
+                                  <div className="text-[9px] text-gray-400">MRR</div>
+                                </div>
+                              </div>
+                              <div className="flex gap-2 mt-2">
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-semibold ${advisor.tier === 'anchor' ? 'bg-purple-100 text-purple-800' : advisor.tier === 'scaling' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                                  {advisor.tier.charAt(0).toUpperCase() + advisor.tier.slice(1)}
+                                </span>
+                                {advisor.trajectory && <TrajectoryBadge trajectory={advisor.trajectory} />}
+                              </div>
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
                 <div className="bg-white rounded-lg p-4 border border-[#e8e5e1]">
                   <div className="flex items-start justify-between">
-                    <div>
+                    <div className="flex-1">
                       <h3 className="text-[14px] font-semibold text-gray-800">{playbookModalAdvisor.name}</h3>
                       <p className="text-[12px] text-gray-500 mt-0.5">{playbookModalAdvisor.company}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right ml-4">
                       <div className="text-[16px] font-bold text-[#157A6E]">{formatCurrency(playbookModalAdvisor.mrr)}</div>
                       <div className="text-[10px] text-gray-400">Monthly MRR</div>
                     </div>
@@ -6324,6 +6398,12 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
                     </span>
                     <TrajectoryBadge trajectory={playbookModalAdvisor.trajectory} />
                   </div>
+                  <button
+                    onClick={() => setShowPlaybookAdvisorPicker(true)}
+                    className="mt-3 text-[11px] text-[#157A6E] font-semibold hover:text-[#126a5f] transition-colors"
+                  >
+                    Change Partner
+                  </button>
                 </div>
               )}
             </div>
