@@ -99,13 +99,50 @@ export default function LiveLeaderDashboard() {
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
 
   // Team view
-  const [teamSubTab, setTeamSubTab] = useState<'overview' | 'prep' | 'risks'>('overview');
+  const [teamSubTab, setTeamSubTab] = useState<'overview' | 'prep' | 'risks' | 'geography'>('overview');
   const [riskSubTab, setRiskSubTab] = useState<'deals' | 'partners' | 'tsds'>('deals');
   const [expandedRepId, setExpandedRepId] = useState<string | null>(null);
   const [oneOnOneSchedule, setOneOnOneSchedule] = useState<Record<string, {day: string; time: string}>>(() => loadFromStorage('leader_1on1_schedule', {}));
 
+  // Feature 1: Time-frame filtering on funnels
+  const [forecastTimeFrame, setForecastTimeFrame] = useState<'30d' | 'quarter' | '6m' | 'ytd' | 'custom'>('quarter');
+  const [customDays, setCustomDays] = useState(45);
+
+  // Feature 2: Meeting type breakdown
+  const [repMeetingBreakdown, setRepMeetingBreakdown] = useState<Record<string, {customer: number; agent: number; byNature: Record<string, number>}>>(() => loadFromStorage('leader_repMeetingBreakdown', {}));
+
+  // Feature 4: Leader interaction logging
+  const [leaderInteractions, setLeaderInteractions] = useState<Array<{id: string; advisorId: string; date: string; note: string; dealId?: string}>>(() => loadFromStorage('leader_interactions', []));
+  const [showLogInteractionModal, setShowLogInteractionModal] = useState(false);
+  const [logInteractionAdvisor, setLogInteractionAdvisor] = useState<string | null>(null);
+  const [logInteractionNote, setLogInteractionNote] = useState('');
+
+  // Feature 5: Historical trend reports
+  const [showTrendsTab, setShowTrendsTab] = useState(false);
+
+  // Feature 6: Forecast accuracy reporting
+  const [forecastHistory, setForecastHistory] = useState<Record<string, Array<{period: string; forecasted: number; actual: number}>>>(() => loadFromStorage('leader_forecastHistory', {}));
+
+  // Feature 7: Event playbooks with ROI tracking
+  const [eventPlaybooks, setEventPlaybooks] = useState<Array<{id: string; name: string; date: string; budget: number; assignedCMs: string[]; targetMeetings: number; targetSignups: number; actualMeetings?: number; actualSignups?: number; roi?: number; status: 'planning' | 'active' | 'completed'}>>(() => loadFromStorage('leader_eventPlaybooks', [
+    { id: 'e1', name: 'Q2 Partner Summit', date: '2026-04-20', budget: 50000, assignedCMs: ['Jordan R.', 'Sarah K.'], targetMeetings: 30, targetSignups: 45, actualMeetings: 28, actualSignups: 42, status: 'active' },
+    { id: 'e2', name: 'Executive Roundtable', date: '2026-05-15', budget: 30000, assignedCMs: ['Marcus T.'], targetMeetings: 15, targetSignups: 20, status: 'planning' },
+  ]));
+
+  // Feature 8: Supplier collaboration tracking
+  const [supplierCollabs, setSupplierCollabs] = useState<Array<{id: string; repId: string; supplierName: string; type: 'co-event' | 'joint-selling' | 'referral'; status: 'proposed' | 'active' | 'completed'; partnerIds: string[]; notes: string}>>(() => loadFromStorage('leader_supplierCollabs', [
+    { id: 'sc1', repId: 'r1', supplierName: 'Acme Tech', type: 'joint-selling', status: 'active', partnerIds: ['a1', 'a2'], notes: 'Sales collaboration on enterprise deals' },
+    { id: 'sc2', repId: 'r2', supplierName: 'NextGen Solutions', type: 'co-event', status: 'proposed', partnerIds: ['a3'], notes: 'Proposed webinar series' },
+  ]));
+
+  // Feature 9: Sentiment escalation alerts
+  const [sentimentAlertThreshold, setSentimentAlertThreshold] = useState<'high' | 'moderate'>('moderate');
+
+  // Feature 10: Overdue tasks report
+  const [overdueThresholdDays, setOverdueThresholdDays] = useState(7);
+
   // Relationships view
-  const [relSubTab, setRelSubTab] = useState<'partners' | 'groups' | 'tsds' | 'contacts' | 'flatlined'>('partners');
+  const [relSubTab, setRelSubTab] = useState<'partners' | 'groups' | 'tsds' | 'contacts' | 'flatlined' | 'trends' | 'supplierCollabs'>('partners');
   const [myPartnersOnly, setMyPartnersOnly] = useState(false);
   const [showCreatePartner, setShowCreatePartner] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -246,6 +283,11 @@ export default function LiveLeaderDashboard() {
   useEffect(() => { saveToStorage('leader_1on1_schedule', oneOnOneSchedule); }, [oneOnOneSchedule]);
   useEffect(() => { saveToStorage('leader_partnerGroups', partnerGroups); }, [partnerGroups]);
   useEffect(() => { saveToStorage('leader_perCMCadence', perCMCadence); }, [perCMCadence]);
+  useEffect(() => { saveToStorage('leader_repMeetingBreakdown', repMeetingBreakdown); }, [repMeetingBreakdown]);
+  useEffect(() => { saveToStorage('leader_interactions', leaderInteractions); }, [leaderInteractions]);
+  useEffect(() => { saveToStorage('leader_forecastHistory', forecastHistory); }, [forecastHistory]);
+  useEffect(() => { saveToStorage('leader_eventPlaybooks', eventPlaybooks); }, [eventPlaybooks]);
+  useEffect(() => { saveToStorage('leader_supplierCollabs', supplierCollabs); }, [supplierCollabs]);
 
   // ═══════════════════ COMPUTED DATA ═══════════════════
   const formatCurrency = (num: number): string => {
@@ -302,6 +344,76 @@ export default function LiveLeaderDashboard() {
     };
   };
 
+  // Feature 1: Filter deals by timeframe
+  const getFilteredDealsByTimeframe = (dealsToFilter: Deal[]): Deal[] => {
+    const now = new Date();
+    const cutoffDate = new Date();
+    const lastModifiedOrCloseDate = (d: Deal) => new Date(d.lastModified || d.closeDate);
+
+    if (forecastTimeFrame === '30d') {
+      cutoffDate.setDate(now.getDate() - 30);
+    } else if (forecastTimeFrame === 'quarter') {
+      cutoffDate.setMonth(now.getMonth() - 3);
+    } else if (forecastTimeFrame === '6m') {
+      cutoffDate.setMonth(now.getMonth() - 6);
+    } else if (forecastTimeFrame === 'ytd') {
+      cutoffDate.setFullYear(now.getFullYear(), 0, 1);
+    } else if (forecastTimeFrame === 'custom') {
+      cutoffDate.setDate(now.getDate() - customDays);
+    }
+
+    return dealsToFilter.filter(d => lastModifiedOrCloseDate(d) >= cutoffDate);
+  };
+
+  // Feature 2: Compute meeting breakdown for each rep
+  const getRepMeetingBreakdownData = (repId: string) => {
+    if (repMeetingBreakdown[repId]) return repMeetingBreakdown[repId];
+    const repAdvisors = getRepAdvisors(reps.find(r => r.id === repId)!);
+    let customer = 0, agent = 0;
+    const byNature: Record<string, number> = { discovery: 0, 'needs-analysis': 0, 'solutions-presentation': 0, 'relationship-building': 0, 'QBR': 0, event: 0, other: 0 };
+    repAdvisors.forEach(a => {
+      a.activity.filter(act => act.type === 'meeting').forEach(act => {
+        if (act.meetingType === 'customer') customer++;
+        else if (act.meetingType === 'agent') agent++;
+        if (act.meetingNature && act.meetingNature in byNature) byNature[act.meetingNature]++;
+      });
+    });
+    return { customer: customer || Math.floor(seededRandom(repId + 'cm', 3, 10)), agent: agent || Math.floor(seededRandom(repId + 'ag', 2, 8)), byNature: Object.keys(byNature).length === 0 ? { discovery: 3, 'needs-analysis': 2, 'solutions-presentation': 1, 'relationship-building': 1, 'QBR': 0, event: 0, other: 0 } : byNature };
+  };
+
+  // Feature 4: Compute leader touch impact on deal cycles
+  const getLeaderTouchImpact = () => {
+    const touchedDeals = allDeals.filter(d => d.leaderTouchedAt && d.leaderTouchedAt.length > 0);
+    const untouchedDeals = allDeals.filter(d => !d.leaderTouchedAt || d.leaderTouchedAt.length === 0);
+    const avgCycleTouched = touchedDeals.length > 0 ? Math.round(touchedDeals.reduce((s, d) => s + d.daysInStage, 0) / touchedDeals.length) : 0;
+    const avgCycleUntouched = untouchedDeals.length > 0 ? Math.round(untouchedDeals.reduce((s, d) => s + d.daysInStage, 0) / untouchedDeals.length) : 0;
+    return { avgCycleTouched, avgCycleUntouched, touchedCount: touchedDeals.length };
+  };
+
+  // Feature 6: Generate default forecast history if not available
+  const getForecastHistoryData = (repId: string) => {
+    if (forecastHistory[repId]) return forecastHistory[repId];
+    const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
+    return quarters.map(q => ({
+      period: q,
+      forecasted: Math.floor(seededRandom(repId + q + 'f', 50000, 300000)),
+      actual: Math.floor(seededRandom(repId + q + 'a', 45000, 280000)),
+    }));
+  };
+
+  // Feature 10: Compute overdue tasks
+  const getOverdueTasks = () => {
+    const now = new Date();
+    const overdueTasks: Array<{text: string; daysOverdue: number; repName: string; dealName: string}> = [];
+    allDeals.forEach(d => {
+      d.actionItems?.filter(ai => ai.status === 'overdue' || ai.daysOld > overdueThresholdDays).forEach(ai => {
+        const rep = reps.find(r => r.id === d.repId);
+        overdueTasks.push({ text: ai.text, daysOverdue: ai.daysOld, repName: rep?.name || 'Unknown', dealName: d.name });
+      });
+    });
+    return overdueTasks;
+  };
+
   const timeAgo = (date: Date | string): string => {
     const now = new Date();
     const d = typeof date === 'string' ? new Date(date) : date;
@@ -356,11 +468,20 @@ export default function LiveLeaderDashboard() {
         sigs.push({ type: 'expansion', text: `${a.name} is ${a.trajectory}. Strong growth potential — cross-sell opportunity.`, severity: 'medium', repName: 'Account Team', advisorName: a.name, mrr: a.mrr, time: timeAgo(signalDate) });
       }
     });
+    // Feature 9: Sentiment escalation alerts
+    advisors.forEach(a => {
+      if (a.tone === 'Cool' && (a.friction === 'High' || a.friction === 'Critical')) {
+        const daysSinceContact = a.lastContact ? Math.floor((now.getTime() - new Date(a.lastContact).getTime()) / 86400000) : 5;
+        const signalDate = new Date(now.getTime() - Math.min(daysSinceContact, 10) * 86400000);
+        const severity = a.friction === 'Critical' ? 'critical' : 'high';
+        sigs.push({ type: 'sentiment_alert', text: `${a.name} showing negative sentiment. ${a.friction} friction detected — immediate engagement needed.`, severity, repName: 'Account Team', advisorName: a.name, mrr: a.mrr, time: timeAgo(signalDate) });
+      }
+    });
     return sigs.sort((a, b) => {
       const severityOrder = { critical: 0, high: 1, medium: 2 };
       return severityOrder[a.severity] - severityOrder[b.severity];
     });
-  }, [deals, advisors, reps, overrideActions]);
+  }, [deals, advisors, reps, overrideActions, sentimentAlertThreshold]);
 
   const frictionInsights = useMemo(() => {
     const insights: FrictionInsight[] = [];
@@ -590,23 +711,59 @@ export default function LiveLeaderDashboard() {
 
   // ═══════════════════ VIEW 2: FORECAST PIPELINE ═══════════════════
   const renderForecastPipeline = () => {
+    // Feature 1: Apply timeframe filter
+    const filteredDeals = getFilteredDealsByTimeframe(allDeals);
     const dealsByRep = reps.map(rep => ({
       rep,
-      deals: allDeals.filter(d => d.repId === rep.id),
+      deals: filteredDeals.filter(d => d.repId === rep.id),
       commit: rep.currentCommit,
       target: rep.quotaTarget,
-      committed: allDeals.filter(d => d.repId === rep.id && d.committed).reduce((s, d) => s + d.mrr, 0),
+      committed: filteredDeals.filter(d => d.repId === rep.id && d.committed).reduce((s, d) => s + d.mrr, 0),
     }));
 
-    const closingThisQuarter = allDeals.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost' && d.stage !== 'Stalled');
-    const stallingDeals = allDeals.filter(d => d.daysInStage > 14 || d.health === 'At Risk' || d.health === 'Critical');
-    const quoteDeals = allDeals.filter(d => d.stage === 'Proposal');
+    const closingThisQuarter = filteredDeals.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost' && d.stage !== 'Stalled');
+    const stallingDeals = filteredDeals.filter(d => d.daysInStage > 14 || d.health === 'At Risk' || d.health === 'Critical');
+    const quoteDeals = filteredDeals.filter(d => d.stage === 'Proposal');
+    const teamPipelineFiltered = filteredDeals.reduce((sum, deal) => sum + deal.mrr, 0);
+    const weightedPipelineFiltered = filteredDeals.reduce((sum, deal) => {
+      const stageWeight = STAGE_WEIGHTS.find(sw => sw.stage === deal.stage)?.weight || 0;
+      return sum + (deal.mrr * stageWeight);
+    }, 0);
 
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-[24px] font-semibold font-['Newsreader'] text-gray-900">Forecast & Pipeline</h1>
           <p className="text-12px text-gray-500 mt-1">Snapshot of deal progress and team performance</p>
+        </div>
+
+        {/* Feature 1: Timeframe Selector */}
+        <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-[#e8e5e1]">
+          <span className="text-[10px] font-bold text-gray-600 uppercase">Timeframe:</span>
+          <div className="flex gap-1.5">
+            {(['30d', 'quarter', '6m', 'ytd', 'custom'] as const).map(tf => (
+              <button
+                key={tf}
+                onClick={() => setForecastTimeFrame(tf)}
+                className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-colors ${
+                  forecastTimeFrame === tf
+                    ? 'bg-[#157A6E] text-white'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:border-[#157A6E]'
+                }`}
+              >
+                {tf === '30d' ? '30 Days' : tf === 'quarter' ? 'Quarter' : tf === '6m' ? '6 Months' : tf === 'ytd' ? 'YTD' : 'Custom'}
+              </button>
+            ))}
+          </div>
+          {forecastTimeFrame === 'custom' && (
+            <input
+              type="number"
+              value={customDays}
+              onChange={(e) => setCustomDays(parseInt(e.target.value) || 45)}
+              className="ml-2 w-16 px-2 py-1 border border-gray-200 rounded text-11px font-bold text-[#157A6E] text-center focus:outline-none focus:border-[#157A6E]"
+              placeholder="Days"
+            />
+          )}
         </div>
 
         {/* SNAPSHOT METRICS */}
@@ -618,11 +775,11 @@ export default function LiveLeaderDashboard() {
         <div className="grid grid-cols-5 gap-3">
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
             <p className="text-[10px] text-gray-500 uppercase font-bold">Total Pipeline</p>
-            <p className="text-[20px] font-bold text-gray-800 mt-2">{formatCurrency(teamPipeline)}</p>
+            <p className="text-[20px] font-bold text-gray-800 mt-2">{formatCurrency(teamPipelineFiltered)}</p>
           </div>
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
             <p className="text-[10px] text-gray-500 uppercase font-bold">Weighted</p>
-            <p className="text-[20px] font-bold text-[#157A6E] mt-2">{formatCurrency(weightedPipeline)}</p>
+            <p className="text-[20px] font-bold text-[#157A6E] mt-2">{formatCurrency(weightedPipelineFiltered)}</p>
           </div>
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
             <p className="text-[10px] text-gray-500 uppercase font-bold">Commit/Target</p>
@@ -826,7 +983,7 @@ export default function LiveLeaderDashboard() {
 
         {/* TABS */}
         <div className="flex border-b border-[#e8e5e1]">
-          {(['overview', 'prep', 'risks'] as const).map(tab => (
+          {(['overview', 'prep', 'risks', 'geography'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setTeamSubTab(tab)}
@@ -834,7 +991,7 @@ export default function LiveLeaderDashboard() {
                 teamSubTab === tab ? 'text-[#157A6E] border-[#157A6E]' : 'text-gray-500 border-transparent'
               }`}
             >
-              {tab === 'overview' ? 'Overview' : tab === 'prep' ? '1:1 Prep' : 'Risks'}
+              {tab === 'overview' ? 'Overview' : tab === 'prep' ? '1:1 Prep' : tab === 'risks' ? 'Risks' : 'Geography'}
             </button>
           ))}
         </div>
@@ -963,9 +1120,9 @@ export default function LiveLeaderDashboard() {
                             </div>
                           </div>
 
-                          {/* Weekly Activity */}
+                          {/* Weekly Activity + Meeting Breakdown (Feature 2) */}
                           <div className="p-4">
-                            <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500 mb-2">This Week</p>
+                            <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500 mb-2">Activity Breakdown</p>
                             <div className="flex items-center justify-between py-1">
                               <span className="text-[10px] text-gray-600">Meetings</span>
                               <span className="text-[10px] font-bold text-gray-800">{activity.meetings}</span>
@@ -978,6 +1135,24 @@ export default function LiveLeaderDashboard() {
                               <span className="text-[10px] text-gray-600">Emails</span>
                               <span className="text-[10px] font-bold text-gray-800">{activity.emails}</span>
                             </div>
+                            {(() => {
+                              const mtg = getRepMeetingBreakdownData(rep.id);
+                              return (
+                                <>
+                                  <div className="border-t border-gray-100 mt-2 pt-2">
+                                    <p className="text-[8px] font-bold text-gray-400 mb-1">Meeting Types</p>
+                                    <div className="flex items-center justify-between py-0.5">
+                                      <span className="text-[9px] text-gray-600">Customer</span>
+                                      <span className="text-[9px] font-bold text-[#157A6E]">{mtg.customer}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between py-0.5">
+                                      <span className="text-[9px] text-gray-600">Agent</span>
+                                      <span className="text-[9px] font-bold text-gray-700">{mtg.agent}</span>
+                                    </div>
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -1089,6 +1264,127 @@ export default function LiveLeaderDashboard() {
             )}
           </div>
         )}
+
+        {/* Feature 10: Overdue Tasks Report */}
+        {teamSubTab === 'risks' && (
+          <div className="mt-6 space-y-4">
+            <div className="flex items-center gap-3 justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-red-600 whitespace-nowrap">Overdue Tasks</span>
+                <div className="flex-1 h-px bg-[#e8e5e1]" />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] text-gray-600">Threshold (days):</label>
+                <input
+                  type="number"
+                  value={overdueThresholdDays}
+                  onChange={(e) => setOverdueThresholdDays(parseInt(e.target.value) || 7)}
+                  className="w-16 px-2 py-1 border border-gray-200 rounded text-11px font-bold text-[#157A6E] text-center focus:outline-none focus:border-[#157A6E]"
+                />
+              </div>
+            </div>
+
+            {(() => {
+              const overdue = getOverdueTasks();
+              return overdue.length > 0 ? (
+                <div className="bg-white rounded-[10px] border border-red-300 overflow-hidden">
+                  <table className="w-full text-11px">
+                    <thead>
+                      <tr className="bg-red-50 border-b border-red-100">
+                        <th className="px-4 py-2 text-left font-bold text-red-800">Task</th>
+                        <th className="px-4 py-2 text-center font-bold text-red-800">Days Overdue</th>
+                        <th className="px-4 py-2 text-left font-bold text-red-800">Rep</th>
+                        <th className="px-4 py-2 text-left font-bold text-red-800">Deal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overdue.slice(0, 10).map((t, i) => (
+                        <tr key={i} className="border-b border-red-100 hover:bg-red-50">
+                          <td className="px-4 py-2 font-semibold text-gray-800">{t.text}</td>
+                          <td className="px-4 py-2 text-center"><span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-100 text-red-800">{t.daysOverdue}d</span></td>
+                          <td className="px-4 py-2 text-gray-600">{t.repName}</td>
+                          <td className="px-4 py-2 text-gray-600">{t.dealName}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-6 text-gray-500">
+                  <p className="text-12px">No overdue tasks</p>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Feature 3: Geography tab */}
+        {teamSubTab === 'geography' && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Geographic Performance</span>
+              <div className="flex-1 h-px bg-[#e8e5e1]" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              {reps.map(rep => {
+                const repAdvisors = getRepAdvisors(rep);
+                const repDeals = allDeals.filter(d => d.repId === rep.id);
+                const stateMap: Record<string, {deals: number; pipeline: number; partners: number; activity: number}> = {};
+
+                repAdvisors.forEach(a => {
+                  const state = a.location?.split(',').pop()?.trim() || 'Unknown';
+                  if (!stateMap[state]) stateMap[state] = { deals: 0, pipeline: 0, partners: 0, activity: a.activity.length };
+                  stateMap[state].partners++;
+                  stateMap[state].activity += a.activity.length;
+                });
+
+                repDeals.forEach(d => {
+                  const advId = getDealAdvisorIds(d)[0];
+                  const adv = advisors.find(a => a.id === advId);
+                  const state = adv?.location?.split(',').pop()?.trim() || 'Unknown';
+                  if (!stateMap[state]) stateMap[state] = { deals: 0, pipeline: 0, partners: 0, activity: 0 };
+                  if (d.stage === 'Closed Won') stateMap[state].deals++;
+                  stateMap[state].pipeline += d.mrr;
+                });
+
+                const states = Object.entries(stateMap);
+                const maxPipeline = Math.max(...states.map(s => s[1].pipeline), 1);
+
+                return (
+                  <div key={rep.id} className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                    <p className="text-13px font-semibold text-gray-800 mb-4">{rep.name}</p>
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {states.length > 0 ? states.sort((a, b) => b[1].pipeline - a[1].pipeline).map(([state, data]) => {
+                        const health = data.pipeline >= maxPipeline * 0.6 ? 'strong' : data.pipeline >= maxPipeline * 0.3 ? 'moderate' : 'struggling';
+                        const healthColor = health === 'strong' ? '#157A6E' : health === 'moderate' ? '#f59e0b' : '#ef4444';
+                        const healthBg = health === 'strong' ? 'bg-green-50' : health === 'moderate' ? 'bg-amber-50' : 'bg-red-50';
+                        return (
+                          <div key={state} className={`p-2 rounded-lg border ${healthBg}`}>
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-11px font-bold text-gray-800">{state}</p>
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold" style={{ color: healthColor, backgroundColor: healthColor + '20' }}>
+                                {health === 'strong' ? '↑ Strong' : health === 'moderate' ? '→ Moderate' : '↓ Struggling'}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-2 text-[10px]">
+                              <div><span className="text-gray-600">Deals Won:</span><br/><span className="font-bold">{data.deals}</span></div>
+                              <div><span className="text-gray-600">Pipeline:</span><br/><span className="font-bold">{formatCurrency(data.pipeline)}</span></div>
+                              <div><span className="text-gray-600">Partners:</span><br/><span className="font-bold">{data.partners}</span></div>
+                              <div><span className="text-gray-600">Activity:</span><br/><span className="font-bold">{data.activity}</span></div>
+                            </div>
+                          </div>
+                        );
+                      }) : (
+                        <p className="text-[10px] text-gray-400 py-4">No geographic data available</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -1109,15 +1405,15 @@ export default function LiveLeaderDashboard() {
 
         {/* TABS */}
         <div className="flex border-b border-[#e8e5e1]">
-          {(['partners', 'groups', 'tsds', 'contacts', 'flatlined'] as const).map(tab => (
+          {(['partners', 'groups', 'tsds', 'contacts', 'flatlined', 'trends', 'supplierCollabs'] as const).map(tab => (
             <button
               key={tab}
-              onClick={() => setRelSubTab(tab)}
+              onClick={() => setRelSubTab(tab as any)}
               className={`px-6 py-3 text-13px font-semibold border-b-2 transition-colors ${
                 relSubTab === tab ? 'text-[#157A6E] border-[#157A6E]' : 'text-gray-500 border-transparent'
               }`}
             >
-              {tab === 'partners' ? 'Partners' : tab === 'groups' ? 'Groups' : tab === 'tsds' ? 'TSDs' : tab === 'contacts' ? 'Contacts' : 'Flatlined'}
+              {tab === 'partners' ? 'Partners' : tab === 'groups' ? 'Groups' : tab === 'tsds' ? 'TSDs' : tab === 'contacts' ? 'Contacts' : tab === 'flatlined' ? 'Flatlined' : tab === 'trends' ? 'Trends' : 'Supplier Collabs'}
             </button>
           ))}
         </div>
@@ -1213,6 +1509,107 @@ export default function LiveLeaderDashboard() {
             </div>
           </div>
         )}
+
+        {/* Feature 5: Historical Trend Reports (Trends tab) */}
+        {relSubTab === 'trends' && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Trailing 12-Month Trends</span>
+              <div className="flex-1 h-px bg-[#e8e5e1]" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {advisors.slice(0, 6).map(a => {
+                const snapshots = a.monthlySnapshots || [
+                  { month: 'Jan', pulse: 'Strong', trajectory: 'Climbing', tier: 'anchor', mrr: Math.floor(seededRandom(a.id + 'jan', 8000, 15000)) },
+                  { month: 'Feb', pulse: 'Strong', trajectory: 'Climbing', tier: 'anchor', mrr: Math.floor(seededRandom(a.id + 'feb', 8200, 15200)) },
+                  { month: 'Mar', pulse: 'Steady', trajectory: 'Stable', tier: 'anchor', mrr: Math.floor(seededRandom(a.id + 'mar', 8100, 15100)) },
+                  { month: 'Apr', pulse: 'Steady', trajectory: 'Stable', tier: 'anchor', mrr: Math.floor(seededRandom(a.id + 'apr', 8300, 15300)) },
+                  { month: 'May', pulse: 'Strong', trajectory: 'Climbing', tier: 'anchor', mrr: Math.floor(seededRandom(a.id + 'may', 8500, 15500)) },
+                  { month: 'Jun', pulse: 'Strong', trajectory: 'Climbing', tier: 'anchor', mrr: Math.floor(seededRandom(a.id + 'jun', 8700, 15700)) },
+                ];
+                const maxMRR = Math.max(...snapshots.map(s => s.mrr));
+                return (
+                  <div key={a.id} className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                    <p className="text-12px font-semibold text-gray-800 mb-3">{a.name}</p>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-[9px] font-bold text-gray-600 mb-2">MRR Trend</p>
+                        <div className="flex items-end justify-between gap-1 h-12">
+                          {snapshots.map((s, i) => (
+                            <div key={i} className="flex-1 flex flex-col items-center">
+                              <div className="w-full bg-[#157A6E] rounded-t" style={{ height: `${(s.mrr / maxMRR) * 40}px` }} title={`${s.mrr}`} />
+                              <p className="text-[8px] text-gray-500 mt-1">{s.month.substring(0, 1)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-gray-600 mb-2">Pulse Trend</p>
+                        <div className="flex gap-1">
+                          {snapshots.map((s, i) => {
+                            const pulseColors = { Strong: '#157A6E', Steady: '#f59e0b', Rising: '#10b981', Fading: '#ef4444', Flatline: '#6b7280' };
+                            return (
+                              <div
+                                key={i}
+                                className="flex-1 h-6 rounded"
+                                style={{ backgroundColor: pulseColors[s.pulse] || '#ccc' }}
+                                title={s.pulse}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Feature 8: Supplier Collaboration Tracking */}
+        {relSubTab === 'supplierCollabs' && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Supplier Collaborations</span>
+                <div className="flex-1 h-px bg-[#e8e5e1]" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {reps.map(rep => {
+                const repCollabs = supplierCollabs.filter(sc => sc.repId === rep.id);
+                return (
+                  <div key={rep.id} className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                    <p className="text-13px font-semibold text-gray-800 mb-3">{rep.name}</p>
+                    {repCollabs.length > 0 ? (
+                      <div className="space-y-2">
+                        {repCollabs.map(sc => {
+                          const statusColors = { proposed: 'bg-blue-50 text-blue-800 border-blue-200', active: 'bg-green-50 text-green-800 border-green-200', completed: 'bg-gray-50 text-gray-800 border-gray-200' };
+                          const typeLabels = { 'co-event': 'Co-Event', 'joint-selling': 'Joint Selling', referral: 'Referral' };
+                          return (
+                            <div key={sc.id} className={`p-2 rounded border text-[10px] ${statusColors[sc.status]}`}>
+                              <p className="font-bold">{sc.supplierName}</p>
+                              <div className="flex gap-1 mt-1">
+                                <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-white bg-opacity-60">{typeLabels[sc.type]}</span>
+                                <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-white bg-opacity-60 capitalize">{sc.status}</span>
+                              </div>
+                              <p className="text-[9px] mt-1 opacity-75">{sc.notes}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-gray-400">No active collaborations</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -1301,6 +1698,93 @@ export default function LiveLeaderDashboard() {
           </div>
         )}
 
+        {/* Feature 6: Forecast Accuracy Reporting */}
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Forecast Accuracy</span>
+          <div className="flex-1 h-px bg-[#e8e5e1]" />
+        </div>
+
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
+          <table className="w-full text-11px">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="px-4 py-2 text-left font-bold text-gray-700">Rep</th>
+                <th className="px-4 py-2 text-right font-bold text-gray-700">Q1 Forecast</th>
+                <th className="px-4 py-2 text-right font-bold text-gray-700">Q1 Actual</th>
+                <th className="px-4 py-2 text-center font-bold text-gray-700">Accuracy</th>
+                <th className="px-4 py-2 text-right font-bold text-gray-700">Trend</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reps.map((rep, i) => {
+                const history = getForecastHistoryData(rep.id);
+                const q1 = history[0];
+                const accuracy = q1 ? Math.round((q1.actual / q1.forecasted) * 100) : 0;
+                const trend = accuracy >= 90 ? '+' : accuracy >= 75 ? '→' : '−';
+                const trendColor = accuracy >= 90 ? 'text-green-600' : accuracy >= 75 ? 'text-amber-600' : 'text-red-600';
+                return (
+                  <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="px-4 py-2 font-semibold text-gray-800">{rep.name}</td>
+                    <td className="px-4 py-2 text-right text-gray-600">{formatCurrency(q1?.forecasted || 0)}</td>
+                    <td className="px-4 py-2 text-right font-bold text-gray-800">{formatCurrency(q1?.actual || 0)}</td>
+                    <td className="px-4 py-2 text-center"><span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${accuracy >= 90 ? 'bg-green-100 text-green-800' : accuracy >= 75 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>{accuracy}%</span></td>
+                    <td className={`px-4 py-2 text-right font-bold ${trendColor}`}>{trend}</td>
+                  </tr>
+                );
+              })}
+              <tr className="bg-[#F7F5F2] font-bold">
+                <td className="px-4 py-2 text-gray-800">TEAM AVG</td>
+                <td className="px-4 py-2 text-right text-gray-800">{formatCurrency(reps.reduce((s, r) => s + (getForecastHistoryData(r.id)[0]?.forecasted || 0), 0) / reps.length)}</td>
+                <td className="px-4 py-2 text-right text-gray-800">{formatCurrency(reps.reduce((s, r) => s + (getForecastHistoryData(r.id)[0]?.actual || 0), 0) / reps.length)}</td>
+                <td className="px-4 py-2 text-center text-gray-800">{Math.round(reps.reduce((s, r) => s + (getForecastHistoryData(r.id)[0]?.actual || 0) / (getForecastHistoryData(r.id)[0]?.forecasted || 1), 0) / reps.length * 100)}%</td>
+                <td />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Feature 7: Event Playbooks with ROI Tracking */}
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Event Playbooks</span>
+          <div className="flex-1 h-px bg-[#e8e5e1]" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {eventPlaybooks.map(event => {
+            const roiCalc = event.actualMeetings && event.budget ? ((event.actualMeetings / event.targetMeetings) * (event.actualSignups ? event.actualSignups / event.targetSignups : 0.5)) * 100 : 0;
+            const statusColors = { planning: 'bg-blue-50 border-blue-200', active: 'bg-green-50 border-green-200', completed: 'bg-gray-50 border-gray-200' };
+            return (
+              <div key={event.id} className={`border border-[#e8e5e1] rounded-[10px] p-4 ${statusColors[event.status]}`}>
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="text-12px font-semibold text-gray-800">{event.name}</p>
+                    <p className="text-[10px] text-gray-600">{event.date}</p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${event.status === 'planning' ? 'bg-blue-100 text-blue-800' : event.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                    {event.status.toUpperCase()}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[10px] mb-3">
+                  <div>
+                    <p className="text-gray-600">Budget</p>
+                    <p className="font-bold text-gray-800">{formatCurrency(event.budget)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Meetings</p>
+                    <p className="font-bold text-gray-800">{event.actualMeetings || 0} / {event.targetMeetings}</p>
+                  </div>
+                </div>
+                {event.actualMeetings && (
+                  <div className="pt-2 border-t border-gray-200">
+                    <p className="text-[9px] text-gray-600">Est. ROI</p>
+                    <p className="text-[14px] font-bold text-[#157A6E]">{roiCalc.toFixed(0)}%</p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
         {/* PLAYBOOKS */}
         <div className="flex items-center gap-3">
           <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Launch Playbook</span>
@@ -1309,6 +1793,69 @@ export default function LiveLeaderDashboard() {
 
         <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
           <button onClick={() => setShowPlaybookModal(true)} className="w-full px-4 py-3 text-13px font-semibold text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f]">+ Launch New Playbook</button>
+        </div>
+
+        {/* Feature 4: Leader Interaction Logging and Impact */}
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Leader Touch Impact</span>
+          <div className="flex-1 h-px bg-[#e8e5e1]" />
+        </div>
+
+        {(() => {
+          const impact = getLeaderTouchImpact();
+          return (
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-[10px] border border-green-200 p-4 text-center">
+                <p className="text-[10px] text-gray-600 uppercase font-bold">Avg Cycle (Leader Touched)</p>
+                <p className="text-[24px] font-bold text-gray-800 mt-2">{impact.avgCycleTouched}d</p>
+                <p className="text-[9px] text-gray-500 mt-1">{impact.touchedCount} deals</p>
+              </div>
+              <div className="bg-gray-50 rounded-[10px] border border-gray-200 p-4 text-center">
+                <p className="text-[10px] text-gray-600 uppercase font-bold">Avg Cycle (No Touch)</p>
+                <p className="text-[24px] font-bold text-gray-800 mt-2">{impact.avgCycleUntouched}d</p>
+              </div>
+              <div className={`rounded-[10px] border p-4 text-center ${impact.avgCycleTouched < impact.avgCycleUntouched ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                <p className="text-[10px] text-gray-600 uppercase font-bold">Impact</p>
+                <p className={`text-[24px] font-bold mt-2 ${impact.avgCycleTouched < impact.avgCycleUntouched ? 'text-green-700' : 'text-red-700'}`}>
+                  {impact.avgCycleUntouched - impact.avgCycleTouched > 0 ? '−' : '+'}{Math.abs(impact.avgCycleUntouched - impact.avgCycleTouched)}d
+                </p>
+              </div>
+            </div>
+          );
+        })()}
+
+        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-12px font-bold text-gray-800">Recent Leader Notes</p>
+            <button
+              onClick={() => setShowLogInteractionModal(true)}
+              className="px-2 py-1 text-[10px] font-bold text-white bg-[#157A6E] rounded hover:bg-[#126a5f]"
+            >
+              + Log Interaction
+            </button>
+          </div>
+          {leaderInteractions.length > 0 ? (
+            <div className="space-y-2 max-h-[200px] overflow-y-auto">
+              {leaderInteractions.slice(-5).reverse().map(interaction => {
+                const advisor = advisors.find(a => a.id === interaction.advisorId);
+                const deal = allDeals.find(d => d.id === interaction.dealId);
+                return (
+                  <div key={interaction.id} className="p-2 bg-gray-50 rounded text-[10px] border border-gray-100">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-bold text-gray-800">{advisor?.name || 'Unknown'}</p>
+                        <p className="text-gray-600 mt-0.5">{interaction.note}</p>
+                        {deal && <p className="text-[9px] text-gray-500 mt-1">Deal: {deal.name}</p>}
+                      </div>
+                      <p className="text-[9px] text-gray-500 whitespace-nowrap">{new Date(interaction.date).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-[10px] text-gray-400 py-2">No interactions logged yet</p>
+          )}
         </div>
 
         {/* DIAGNOSTICS */}
@@ -1580,6 +2127,65 @@ export default function LiveLeaderDashboard() {
           onClose={() => { setPanelOpen(false); setSelectedAdvisor(null); }}
           onUpdateAdvisor={updateAdvisorField}
         />
+      )}
+
+      {/* ═══════════════════ LOG INTERACTION MODAL (Feature 4) ═══════════════════ */}
+      {showLogInteractionModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowLogInteractionModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-[500px]" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-[#e8e5e1]">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Log Leader Interaction</h2>
+                <button onClick={() => setShowLogInteractionModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-11px font-bold uppercase text-gray-600">Partner</label>
+                <select
+                  value={logInteractionAdvisor || ''}
+                  onChange={(e) => setLogInteractionAdvisor(e.target.value)}
+                  className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]"
+                >
+                  <option value="">Select partner...</option>
+                  {advisors.map(a => (
+                    <option key={a.id} value={a.id}>{a.name} ({a.company})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-11px font-bold uppercase text-gray-600">Interaction Note</label>
+                <textarea
+                  value={logInteractionNote}
+                  onChange={(e) => setLogInteractionNote(e.target.value)}
+                  placeholder="Describe the interaction and its impact..."
+                  rows={4}
+                  className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]"
+                />
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-[#e8e5e1] flex justify-end gap-2">
+              <button onClick={() => setShowLogInteractionModal(false)} className="px-4 py-2 text-12px font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+              <button
+                onClick={() => {
+                  if (logInteractionAdvisor && logInteractionNote) {
+                    const newId = `li_${Date.now()}`;
+                    setLeaderInteractions(prev => [...prev, { id: newId, advisorId: logInteractionAdvisor, date: new Date().toISOString(), note: logInteractionNote }]);
+                    setLogInteractionNote('');
+                    setLogInteractionAdvisor(null);
+                    setShowLogInteractionModal(false);
+                  }
+                }}
+                className="px-4 py-2 text-12px font-medium text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f]"
+              >
+                Log Interaction
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ═══════════════════ PLAYBOOK MODAL ═══════════════════ */}
