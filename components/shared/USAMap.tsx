@@ -190,29 +190,32 @@ const STATE_NAME_TO_ABBR: Record<string, string> = {
 };
 
 // Region zoom configurations
-const REGION_CONFIGS: Record<string, { center: [number, number]; scale: number }> = {
-  'new-england': { center: [-71.5, 43.0], scale: 4500 },
-  'mid-atlantic': { center: [-75.5, 41.0], scale: 4000 },
-  'south-atlantic': { center: [-80.0, 34.0], scale: 2600 },
-  'east-south-central': { center: [-86.5, 34.5], scale: 3200 },
-  'west-south-central': { center: [-95.0, 32.0], scale: 2600 },
-  'east-north-central': { center: [-86.0, 42.0], scale: 3000 },
-  'west-north-central': { center: [-96.0, 44.0], scale: 2400 },
-  'mountain': { center: [-110.0, 42.0], scale: 2000 },
-  'pacific': { center: [-120.0, 42.0], scale: 2000 },
-};
+// Compute center + scale for a set of states using their known center coordinates
+const computeRegionView = (stateAbbrs: string[]): { center: [number, number]; scale: number } => {
+  const coords = stateAbbrs
+    .filter(s => STATE_CENTERS[s] && s !== 'AK' && s !== 'HI')
+    .map(s => STATE_CENTERS[s].coords);
+  if (coords.length === 0) return { center: [-96, 38], scale: 800 };
 
-// CSS transforms for region zooming (9 Census Divisions)
-const regionTransforms: Record<string, string> = {
-  'new-england': 'scale(4.0) translate(10%, 10%)',
-  'mid-atlantic': 'scale(3.5) translate(8%, 5%)',
-  'south-atlantic': 'scale(2.6) translate(8%, -8%)',
-  'east-south-central': 'scale(3.2) translate(5%, -5%)',
-  'west-south-central': 'scale(2.6) translate(12%, -8%)',
-  'east-north-central': 'scale(3.0) translate(5%, 5%)',
-  'west-north-central': 'scale(2.4) translate(8%, 5%)',
-  'mountain': 'scale(2.2) translate(18%, 2%)',
-  'pacific': 'scale(2.2) translate(25%, 2%)',
+  const lngs = coords.map(c => c[0]);
+  const lats = coords.map(c => c[1]);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+
+  const centerLng = (minLng + maxLng) / 2;
+  const centerLat = (minLat + maxLat) / 2;
+
+  // Compute scale based on bounding box span — add padding
+  const lngSpan = Math.max(maxLng - minLng, 3) + 4; // min 3 degrees + 4 padding
+  const latSpan = Math.max(maxLat - minLat, 2) + 3; // min 2 degrees + 3 padding
+  // Rough mercator scale: 800px wide map, ~360 degrees = scale ~140 per degree
+  const scaleByLng = 800 / lngSpan * 90;
+  const scaleByLat = 500 / latSpan * 60;
+  const scale = Math.min(scaleByLng, scaleByLat);
+
+  return { center: [centerLng, centerLat], scale: Math.min(Math.max(scale, 600), 12000) };
 };
 
 // Weather-map style heat color interpolation
@@ -323,6 +326,82 @@ const HeatMapGeographies = memo(({
 ));
 HeatMapGeographies.displayName = 'HeatMapGeographies';
 
+// Region-only map: renders just the selected states with geoMercator projection, centered and scaled to fit
+const RegionMapView = memo(({
+  visibleStates,
+  heatData,
+  onStateClick,
+  selectedState,
+  onHover,
+  regionCenter,
+  regionScale,
+}: {
+  visibleStates: string[];
+  heatData?: Record<string, HeatData>;
+  onStateClick?: (abbr: string) => void;
+  selectedState?: string | null;
+  onHover: (abbr: string | null) => void;
+  regionCenter: [number, number];
+  regionScale: number;
+}) => (
+  <ComposableMap
+    projection="geoMercator"
+    projectionConfig={{
+      center: [regionCenter[0], regionCenter[1]],
+      scale: regionScale,
+    }}
+    width={800}
+    height={500}
+    style={{ width: '100%', height: 'auto' }}
+  >
+    <Geographies geography={GEO_URL}>
+      {({ geographies }) =>
+        geographies.map((geo) => {
+          const stateName = geo.properties?.name;
+          const abbr = STATE_NAME_TO_ABBR[stateName] || '';
+          const isVisible = visibleStates.includes(abbr);
+
+          if (!isVisible) return null;
+
+          const data = heatData?.[abbr];
+          const hasData = !!data && data.partners > 0;
+          const fillColor = heatData ? getHeatColor(data?.score || 0, hasData) : '#e8e5e1';
+          const isSelected = selectedState === abbr;
+
+          return (
+            <Geography
+              key={geo.rpid || geo.id || stateName}
+              geography={geo}
+              fill={fillColor}
+              stroke={isSelected ? '#0d5a51' : '#157A6E'}
+              strokeWidth={isSelected ? 2.5 : 1}
+              onClick={() => abbr && onStateClick?.(abbr)}
+              onMouseEnter={() => onHover(abbr)}
+              onMouseLeave={() => onHover(null)}
+              style={{
+                default: {
+                  outline: 'none',
+                  fill: fillColor,
+                  filter: isSelected ? 'brightness(0.85) drop-shadow(0 0 4px rgba(21,122,110,0.5))' : 'none',
+                  transition: 'all 0.2s ease',
+                },
+                hover: {
+                  outline: 'none',
+                  fill: fillColor,
+                  filter: 'brightness(0.9)',
+                  cursor: hasData ? 'pointer' : 'default',
+                },
+                pressed: { outline: 'none' },
+              }}
+            />
+          );
+        })
+      }
+    </Geographies>
+  </ComposableMap>
+));
+RegionMapView.displayName = 'RegionMapView';
+
 export const USAMap: React.FC<USAMapProps> = ({
   advisorsByCity,
   onCityClick,
@@ -387,6 +466,22 @@ export const USAMap: React.FC<USAMapProps> = ({
     if (partners >= 1) return 4.5;
     return 3;
   };
+
+  // Compute region view: combine region states + exception states, compute center/scale
+  const allTerritoryStates = useMemo(() => {
+    const states = [...(regionStates || [])];
+    if (exceptionStates) {
+      exceptionStates.forEach(s => { if (!states.includes(s)) states.push(s); });
+    }
+    return states;
+  }, [regionStates, exceptionStates]);
+
+  const isRegionView = !!activeRegion && !showFullUSA && allTerritoryStates.length > 0;
+
+  const regionView = useMemo(() => {
+    if (!isRegionView) return { center: [-96, 38] as [number, number], scale: 800 };
+    return computeRegionView(allTerritoryStates);
+  }, [isRegionView, allTerritoryStates]);
 
   return (
     <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
@@ -456,13 +551,20 @@ export const USAMap: React.FC<USAMapProps> = ({
 
       {/* Map */}
       <div className="relative rounded-lg overflow-hidden bg-[#f9f7f5]">
-        <div
-          style={{
-            transform: activeRegion && !showFullUSA && regionTransforms[activeRegion] ? regionTransforms[activeRegion] : 'none',
-            transformOrigin: 'center center',
-            transition: 'transform 0.5s ease',
-          }}
-        >
+        {/* ── REGION VIEW: dynamically generated map from selected states ── */}
+        {isRegionView ? (
+          <RegionMapView
+            visibleStates={allTerritoryStates}
+            heatData={heatData}
+            onStateClick={onStateClick}
+            selectedState={selectedState}
+            onHover={setHoveredState}
+            regionCenter={regionView.center}
+            regionScale={regionView.scale}
+          />
+        ) : (
+        /* ── FULL USA VIEW ── */
+        <>
           <ComposableMap
             projection="geoAlbersUsa"
             projectionConfig={{ scale: 1000 }}
@@ -487,7 +589,7 @@ export const USAMap: React.FC<USAMapProps> = ({
 
           {/* State-level markers (all 50 states) */}
           {showAllStates && Object.entries(STATE_CENTERS).map(([abbr, { coords, name }]) => {
-            if (abbr === 'AK' || abbr === 'HI') return null; // Skip non-contiguous for AlbersUSA
+            if (abbr === 'AK' || abbr === 'HI') return null;
             const isSelected = selectedState === abbr;
             const isHovered = hoveredState === abbr;
             const radius = getStateMarkerRadius(abbr);
@@ -550,7 +652,6 @@ export const USAMap: React.FC<USAMapProps> = ({
 
             return (
               <Marker key={city} coordinates={coords}>
-                {/* Pulse ring for selected */}
                 {isSelected && (
                   <>
                     <circle r={radius + 6} fill="none" stroke="#157A6E" strokeWidth="1.5" opacity="0.2">
@@ -560,7 +661,6 @@ export const USAMap: React.FC<USAMapProps> = ({
                     <circle r={radius + 3} fill="none" stroke="#157A6E" strokeWidth="2" opacity="0.35" />
                   </>
                 )}
-                {/* Main dot */}
                 <circle
                   r={isHovered ? radius + 1.5 : radius}
                   fill={getDotColor(data.mrr)}
@@ -579,7 +679,6 @@ export const USAMap: React.FC<USAMapProps> = ({
                     transition: 'all 0.15s ease',
                   }}
                 />
-                {/* Count label */}
                 {data.count >= 2 && (
                   <text
                     textAnchor="middle"
@@ -599,7 +698,8 @@ export const USAMap: React.FC<USAMapProps> = ({
             );
           })}
           </ComposableMap>
-        </div>
+        </>
+        )}
 
         {/* Hover Tooltip for cities */}
         {hoveredCity && advisorsByCity[hoveredCity] && !showAllStates && (
