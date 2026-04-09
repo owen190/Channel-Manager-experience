@@ -6,11 +6,15 @@ import { TopBar } from '@/components/layout/TopBar';
 import { NAV_ITEMS_MANAGER } from '@/lib/constants';
 
 const US_REGIONS: Record<string, { label: string; states: string[] }> = {
-  northeast: { label: 'Northeast', states: ['CT', 'ME', 'MA', 'NH', 'RI', 'VT', 'NJ', 'NY', 'PA'] },
-  southeast: { label: 'Southeast', states: ['AL', 'AR', 'DE', 'FL', 'GA', 'KY', 'LA', 'MD', 'MS', 'NC', 'SC', 'TN', 'VA', 'WV', 'DC'] },
-  midwest: { label: 'Midwest', states: ['IL', 'IN', 'IA', 'KS', 'MI', 'MN', 'MO', 'NE', 'ND', 'OH', 'SD', 'WI'] },
-  southwest: { label: 'Southwest', states: ['AZ', 'NM', 'OK', 'TX'] },
-  west: { label: 'West', states: ['AK', 'CA', 'CO', 'HI', 'ID', 'MT', 'NV', 'OR', 'UT', 'WA', 'WY'] },
+  'new-england': { label: 'New England', states: ['CT', 'ME', 'MA', 'NH', 'RI', 'VT'] },
+  'mid-atlantic': { label: 'Mid-Atlantic', states: ['NJ', 'NY', 'PA'] },
+  'south-atlantic': { label: 'South Atlantic', states: ['DE', 'FL', 'GA', 'MD', 'NC', 'SC', 'VA', 'WV', 'DC'] },
+  'east-south-central': { label: 'East South Central', states: ['AL', 'KY', 'MS', 'TN'] },
+  'west-south-central': { label: 'West South Central', states: ['AR', 'LA', 'OK', 'TX'] },
+  'east-north-central': { label: 'East North Central', states: ['IL', 'IN', 'MI', 'OH', 'WI'] },
+  'west-north-central': { label: 'West North Central', states: ['IA', 'KS', 'MN', 'MO', 'NE', 'ND', 'SD'] },
+  'mountain': { label: 'Mountain', states: ['AZ', 'CO', 'ID', 'MT', 'NV', 'NM', 'UT', 'WY'] },
+  'pacific': { label: 'Pacific', states: ['AK', 'CA', 'HI', 'OR', 'WA'] },
 };
 
 const ALL_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'];
@@ -30,10 +34,15 @@ export default function SettingsPage() {
     if (typeof window === 'undefined') return [];
     try { return JSON.parse(localStorage.getItem('cc_territory_exceptions') || '[]'); } catch { return []; }
   });
+  const [removedStates, setRemovedStates] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try { return JSON.parse(localStorage.getItem('cc_territory_removed') || '[]'); } catch { return []; }
+  });
 
   const handleSave = () => {
     localStorage.setItem('cc_territory_region', selectedRegion);
     localStorage.setItem('cc_territory_exceptions', JSON.stringify(exceptionStates));
+    localStorage.setItem('cc_territory_removed', JSON.stringify(removedStates));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -129,13 +138,14 @@ export default function SettingsPage() {
                 <p className="text-11px text-gray-500 mb-4">Set your primary region and any additional states. The Relationships map will default to your region.</p>
 
                 {/* Region Picker */}
-                <div className="mb-6">
+                <div className="mb-4">
+                  <label className="block text-11px font-semibold text-gray-700 mb-2">Primary Region</label>
                   <div className="flex flex-wrap gap-2">
                     {Object.entries(US_REGIONS).map(([key, region]) => (
                       <button
                         key={key}
-                        onClick={() => setSelectedRegion(key)}
-                        className={`px-4 py-2 text-12px font-semibold rounded-full transition-colors ${
+                        onClick={() => { setSelectedRegion(key); setRemovedStates([]); }}
+                        className={`px-3 py-1.5 text-11px font-semibold rounded-full transition-colors ${
                           selectedRegion === key
                             ? 'bg-[#157A6E] text-white'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -147,16 +157,34 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Selected Region States */}
-                {selectedRegion && (
-                  <div className="mb-6">
+                {/* Region States — clickable to deselect */}
+                {selectedRegion && US_REGIONS[selectedRegion] && (
+                  <div className="mb-4">
+                    <label className="block text-11px font-semibold text-gray-700 mb-1">Region States</label>
+                    <p className="text-10px text-gray-500 mb-2">Click a state to remove it from your territory</p>
                     <div className="flex flex-wrap gap-2">
-                      {US_REGIONS[selectedRegion].states.map(state => (
-                        <span key={state} className="px-3 py-1 text-11px font-semibold rounded-full bg-[#157A6E] text-white">
-                          {state}
-                        </span>
-                      ))}
+                      {US_REGIONS[selectedRegion].states.map(state => {
+                        const isRemoved = removedStates.includes(state);
+                        return (
+                          <button
+                            key={state}
+                            onClick={() => setRemovedStates(prev => isRemoved ? prev.filter(s => s !== state) : [...prev, state])}
+                            className={`px-3 py-1 text-11px font-semibold rounded-full transition-colors ${
+                              isRemoved
+                                ? 'bg-gray-100 text-gray-400 line-through'
+                                : 'bg-[#157A6E] text-white hover:bg-[#126a5f]'
+                            }`}
+                          >
+                            {state}
+                          </button>
+                        );
+                      })}
                     </div>
+                    {removedStates.length > 0 && (
+                      <button onClick={() => setRemovedStates([])} className="mt-2 text-10px text-[#157A6E] hover:underline">
+                        Reset all
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -166,24 +194,29 @@ export default function SettingsPage() {
                   <p className="text-10px text-gray-500 mb-3">Add states outside your region that you also cover</p>
                   <div className="grid grid-cols-6 sm:grid-cols-8 gap-2">
                     {ALL_STATES.map(state => {
-                      const isInRegion = selectedRegion ? US_REGIONS[selectedRegion].states.includes(state) : false;
-                      const isSelected = exceptionStates.includes(state);
+                      const isInRegion = selectedRegion && US_REGIONS[selectedRegion] ? US_REGIONS[selectedRegion].states.includes(state) : false;
+                      const isRemoved = removedStates.includes(state);
+                      const isException = exceptionStates.includes(state);
+
+                      // If it's in the region and not removed, show as locked
+                      if (isInRegion && !isRemoved) {
+                        return (
+                          <span key={state} className="px-2.5 py-1.5 text-11px font-semibold rounded bg-[#157A6E]/20 text-[#157A6E] text-center">
+                            {state}
+                          </span>
+                        );
+                      }
 
                       return (
                         <button
                           key={state}
                           onClick={() => {
-                            if (!isInRegion) {
-                              setExceptionStates(prev =>
-                                isSelected ? prev.filter(s => s !== state) : [...prev, state]
-                              );
-                            }
+                            setExceptionStates(prev =>
+                              isException ? prev.filter(s => s !== state) : [...prev, state]
+                            );
                           }}
-                          disabled={isInRegion}
                           className={`px-2.5 py-1.5 text-11px font-semibold rounded transition-colors ${
-                            isInRegion
-                              ? 'bg-[#157A6E] text-white cursor-not-allowed'
-                              : isSelected
+                            isException
                               ? 'bg-teal-100 text-[#157A6E] border border-[#157A6E]'
                               : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
                           }`}

@@ -33,11 +33,15 @@ import { adaptAdvisor, adaptDeal } from '@/lib/db/adapter';
 type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Closed Lost' | 'Stalled';
 
 const US_REGIONS: Record<string, { label: string; states: string[] }> = {
-  northeast: { label: 'Northeast', states: ['CT', 'ME', 'MA', 'NH', 'RI', 'VT', 'NJ', 'NY', 'PA'] },
-  southeast: { label: 'Southeast', states: ['AL', 'AR', 'DE', 'FL', 'GA', 'KY', 'LA', 'MD', 'MS', 'NC', 'SC', 'TN', 'VA', 'WV', 'DC'] },
-  midwest: { label: 'Midwest', states: ['IL', 'IN', 'IA', 'KS', 'MI', 'MN', 'MO', 'NE', 'ND', 'OH', 'SD', 'WI'] },
-  southwest: { label: 'Southwest', states: ['AZ', 'NM', 'OK', 'TX'] },
-  west: { label: 'West', states: ['AK', 'CA', 'CO', 'HI', 'ID', 'MT', 'NV', 'OR', 'UT', 'WA', 'WY'] },
+  'new-england': { label: 'New England', states: ['CT', 'ME', 'MA', 'NH', 'RI', 'VT'] },
+  'mid-atlantic': { label: 'Mid-Atlantic', states: ['NJ', 'NY', 'PA'] },
+  'south-atlantic': { label: 'South Atlantic', states: ['DE', 'FL', 'GA', 'MD', 'NC', 'SC', 'VA', 'WV', 'DC'] },
+  'east-south-central': { label: 'East South Central', states: ['AL', 'KY', 'MS', 'TN'] },
+  'west-south-central': { label: 'West South Central', states: ['AR', 'LA', 'OK', 'TX'] },
+  'east-north-central': { label: 'East North Central', states: ['IL', 'IN', 'MI', 'OH', 'WI'] },
+  'west-north-central': { label: 'West North Central', states: ['IA', 'KS', 'MN', 'MO', 'NE', 'ND', 'SD'] },
+  'mountain': { label: 'Mountain', states: ['AZ', 'CO', 'ID', 'MT', 'NV', 'NM', 'UT', 'WY'] },
+  'pacific': { label: 'Pacific', states: ['AK', 'CA', 'HI', 'OR', 'WA'] },
 };
 
 // localStorage helpers
@@ -159,6 +163,10 @@ export default function LiveManagerPage() {
   const [territoryExceptions, setTerritoryExceptions] = useState<string[]>(() => {
     if (typeof window === 'undefined') return [];
     try { return JSON.parse(localStorage.getItem('cc_territory_exceptions') || '[]'); } catch { return []; }
+  });
+  const [territoryRemoved, setTerritoryRemoved] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try { return JSON.parse(localStorage.getItem('cc_territory_removed') || '[]'); } catch { return []; }
   });
   const [showFullUSA, setShowFullUSA] = useState(false);
 
@@ -2530,7 +2538,7 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
             title="Partner Performance Heat Map"
             subtitle="States colored by partner engagement, trajectory & revenue · Click for details"
             activeRegion={territoryRegion || null}
-            regionStates={territoryRegion ? US_REGIONS[territoryRegion]?.states : undefined}
+            regionStates={territoryRegion && US_REGIONS[territoryRegion] ? US_REGIONS[territoryRegion].states.filter(s => !territoryRemoved.includes(s)) : undefined}
             exceptionStates={territoryExceptions.length > 0 ? territoryExceptions : undefined}
             showRegionToggle={!!territoryRegion}
             onRegionToggle={(full) => setShowFullUSA(full)}

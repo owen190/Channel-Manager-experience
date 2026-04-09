@@ -191,20 +191,28 @@ const STATE_NAME_TO_ABBR: Record<string, string> = {
 
 // Region zoom configurations
 const REGION_CONFIGS: Record<string, { center: [number, number]; scale: number }> = {
-  northeast: { center: [-73.5, 42.0], scale: 3200 },
-  southeast: { center: [-82.0, 33.0], scale: 2200 },
-  midwest: { center: [-89.0, 42.0], scale: 2200 },
-  southwest: { center: [-101.0, 32.5], scale: 2400 },
-  west: { center: [-116.0, 42.0], scale: 1600 },
+  'new-england': { center: [-71.5, 43.0], scale: 4500 },
+  'mid-atlantic': { center: [-75.5, 41.0], scale: 4000 },
+  'south-atlantic': { center: [-80.0, 34.0], scale: 2600 },
+  'east-south-central': { center: [-86.5, 34.5], scale: 3200 },
+  'west-south-central': { center: [-95.0, 32.0], scale: 2600 },
+  'east-north-central': { center: [-86.0, 42.0], scale: 3000 },
+  'west-north-central': { center: [-96.0, 44.0], scale: 2400 },
+  'mountain': { center: [-110.0, 42.0], scale: 2000 },
+  'pacific': { center: [-120.0, 42.0], scale: 2000 },
 };
 
-// CSS transforms for region zooming
+// CSS transforms for region zooming (9 Census Divisions)
 const regionTransforms: Record<string, string> = {
-  northeast: 'scale(2.8) translate(5%, 8%)',
-  southeast: 'scale(2.2) translate(12%, -12%)',
-  midwest: 'scale(2.2) translate(10%, 8%)',
-  southwest: 'scale(2.4) translate(12%, -8%)',
-  west: 'scale(2.0) translate(22%, 5%)',
+  'new-england': 'scale(4.0) translate(10%, 10%)',
+  'mid-atlantic': 'scale(3.5) translate(8%, 5%)',
+  'south-atlantic': 'scale(2.6) translate(8%, -8%)',
+  'east-south-central': 'scale(3.2) translate(5%, -5%)',
+  'west-south-central': 'scale(2.6) translate(12%, -8%)',
+  'east-north-central': 'scale(3.0) translate(5%, 5%)',
+  'west-north-central': 'scale(2.4) translate(8%, 5%)',
+  'mountain': 'scale(2.2) translate(18%, 2%)',
+  'pacific': 'scale(2.2) translate(25%, 2%)',
 };
 
 // Weather-map style heat color interpolation
