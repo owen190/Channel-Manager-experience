@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Clock, AlertTriangle, ChevronDown, ChevronRight, ArrowLeft,
   MapPin, Cake, GraduationCap, Briefcase, Phone, CalendarDays,
@@ -128,15 +128,28 @@ export default function LiveLeaderDashboard() {
 
   // Team management state
   const [teamMgmtSubTab, setTeamMgmtSubTab] = useState<'roster' | 'cadence' | 'alerts' | 'notifications' | 'goals'>('roster');
-  const [cadenceRules, setCadenceRules] = useState<Record<string, number>>({
+  const [cadenceRules, setCadenceRules] = useState<Record<string, number>>(() => loadFromStorage('leader_cadenceRules', {
     anchor: 7, scaling: 10, building: 14, launching: 21,
-  });
-  const [alertThresholds, setAlertThresholds] = useState({
+  }));
+  const [alertThresholds, setAlertThresholds] = useState(() => loadFromStorage('leader_alertThresholds', {
     dealPushThreshold: 50000, dealPushCount: 2, cadenceComplianceThreshold: 80, frictionCountThreshold: 3,
-  });
-  const [notifSettings, setNotifSettings] = useState({
+  }));
+  const [notifSettings, setNotifSettings] = useState(() => loadFromStorage('leader_notifSettings', {
     dailyDigest: true, criticalSignals: true, forecastOverrides: true, cadenceViolations: false, weeklyReport: true, newPartnerAlerts: true,
-  });
+  }));
+  const [teamGoals, setTeamGoals] = useState(() => loadFromStorage('leader_teamGoals', {
+    partnerActivationTarget: 35, winRateTarget: 35, pipelineCoverageTarget: 3.0,
+  }));
+
+  // Per-rep editable cadence compliance data (persisted)
+  const [repCadenceData, setRepCadenceData] = useState<Record<string, { overall: number; anchor: number; scaling: number; building: number; launching: number }>>(() => loadFromStorage('leader_repCadence', {}));
+
+  // Per-rep editable activity data (persisted)
+  const [repActivityData, setRepActivityData] = useState<Record<string, { meetings: number; calls: number; emails: number }>>(() => loadFromStorage('leader_repActivity', {}));
+
+  // Editable meetings (persisted)
+  const [storedMeetings, setStoredMeetings] = useState<Array<{ time: string; title: string; detail: string; stake: string; stakeColor: string; borderColor: string }>>(() => loadFromStorage('leader_meetings', []));
+  const [editingMeetings, setEditingMeetings] = useState(false);
 
   // Deal actions
   const [overrideActions, setOverrideActions] = useState<Record<string, 'approved' | 'denied'>>({});
@@ -230,6 +243,13 @@ export default function LiveLeaderDashboard() {
 
   useEffect(() => { fetchData(); }, []);
   useEffect(() => { saveToStorage('cc_launchedPlaybooks', launchedPlaybooks); }, [launchedPlaybooks]);
+  useEffect(() => { saveToStorage('leader_cadenceRules', cadenceRules); }, [cadenceRules]);
+  useEffect(() => { saveToStorage('leader_alertThresholds', alertThresholds); }, [alertThresholds]);
+  useEffect(() => { saveToStorage('leader_notifSettings', notifSettings); }, [notifSettings]);
+  useEffect(() => { saveToStorage('leader_teamGoals', teamGoals); }, [teamGoals]);
+  useEffect(() => { saveToStorage('leader_repCadence', repCadenceData); }, [repCadenceData]);
+  useEffect(() => { saveToStorage('leader_repActivity', repActivityData); }, [repActivityData]);
+  useEffect(() => { saveToStorage('leader_meetings', storedMeetings); }, [storedMeetings]);
 
   // ═══════════════════ COMPUTED DATA ═══════════════════
   const formatCurrency = (num: number): string => {
@@ -258,36 +278,92 @@ export default function LiveLeaderDashboard() {
     return deal.advisorId ? [deal.advisorId] : [];
   };
 
-  // Signals — generated from real data
+  // Get all advisors linked to a rep — via rep.advisorIds, exceptionAdvisors, AND deals
+  const getRepAdvisors = (rep: Rep): Advisor[] => {
+    const ids = new Set<string>();
+    if (rep.advisorIds) rep.advisorIds.forEach(id => ids.add(id));
+    if (rep.exceptionAdvisors) rep.exceptionAdvisors.forEach(id => ids.add(id));
+    deals.filter(d => d.repId === rep.id).forEach(d => getDealAdvisorIds(d).forEach(id => ids.add(id)));
+    return advisors.filter(a => ids.has(a.id));
+  };
+
+  // Get cadence data for a rep, initializing from seededRandom if not stored
+  const getRepCadence = (repId: string) => {
+    if (repCadenceData[repId]) return repCadenceData[repId];
+    return {
+      overall: Math.floor(seededRandom(repId + 'cadence', 60, 95)),
+      anchor: Math.floor(seededRandom(repId + 'ca', 80, 100)),
+      scaling: Math.floor(seededRandom(repId + 'cs', 70, 95)),
+      building: Math.floor(seededRandom(repId + 'cb', 55, 90)),
+      launching: Math.floor(seededRandom(repId + 'cl', 40, 85)),
+    };
+  };
+
+  // Get activity data for a rep, initializing from seededRandom if not stored
+  const getRepActivity = (repId: string) => {
+    if (repActivityData[repId]) return repActivityData[repId];
+    return {
+      meetings: Math.floor(seededRandom(repId + 'meetings', 5, 25)),
+      calls: Math.floor(seededRandom(repId + 'calls', 10, 35)),
+      emails: Math.floor(seededRandom(repId + 'emails', 40, 80)),
+    };
+  };
+
+  // Time-ago helper based on real dates
+  const timeAgo = (date: Date | string): string => {
+    const now = new Date();
+    const d = typeof date === 'string' ? new Date(date) : date;
+    const diffMs = now.getTime() - d.getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    const weeks = Math.floor(days / 7);
+    return `${weeks}w ago`;
+  };
+
+  // Signals — generated from real data with real timestamps
   const signals = useMemo(() => {
     const sigs: Signal[] = [];
+    const now = new Date();
     deals.forEach(d => {
       if (d.health === 'At Risk' || d.health === 'Critical') {
         const rep = reps.find(r => r.id === d.repId);
         const advisorIds = d.advisorIds?.length ? d.advisorIds : [d.advisorId];
         const advisorName = advisors.find(a => a.id === advisorIds[0])?.name || 'Unknown';
-        sigs.push({ type: 'deal_at_risk', text: `${d.name} is ${d.health}. Immediate action needed.`, severity: 'critical', repName: rep?.name || 'Unknown', advisorName, mrr: d.mrr, time: '2h ago' });
+        // Time based on daysInStage — the longer it's been stuck, the longer ago the signal
+        const signalDate = new Date(now.getTime() - Math.min(d.daysInStage, 7) * 86400000 * 0.3);
+        sigs.push({ type: 'deal_at_risk', text: `${d.name} is ${d.health}. Immediate action needed.`, severity: 'critical', repName: rep?.name || 'Unknown', advisorName, mrr: d.mrr, time: timeAgo(signalDate) });
       }
     });
     deals.forEach(d => {
       if (d.overrideRequested && !overrideActions[d.id]) {
         const rep = reps.find(r => r.id === d.repId);
-        sigs.push({ type: 'override_pending', text: `${d.name} has a pending forecast override request.`, severity: 'medium', repName: rep?.name || 'Unknown', mrr: d.mrr, time: '4h ago' });
+        const signalDate = new Date(now.getTime() - d.daysInStage * 86400000 * 0.5);
+        sigs.push({ type: 'override_pending', text: `${d.name} has a pending forecast override request.`, severity: 'medium', repName: rep?.name || 'Unknown', mrr: d.mrr, time: timeAgo(signalDate) });
       }
     });
     advisors.forEach(a => {
       if (a.tier === 'anchor' && (a.pulse === 'Fading' || a.pulse === 'Flatline')) {
-        sigs.push({ type: 'partner_fading', text: `${a.name} is ${a.pulse}. May need engagement intervention.`, severity: 'high', repName: 'Account Team', advisorName: a.name, mrr: a.mrr, time: '1d ago' });
+        const daysSinceContact = a.lastContact ? Math.floor((now.getTime() - new Date(a.lastContact).getTime()) / 86400000) : 7;
+        const signalDate = new Date(now.getTime() - Math.min(daysSinceContact, 14) * 86400000);
+        sigs.push({ type: 'partner_fading', text: `${a.name} is ${a.pulse}. May need engagement intervention.`, severity: 'high', repName: 'Account Team', advisorName: a.name, mrr: a.mrr, time: timeAgo(signalDate) });
       }
     });
     advisors.forEach(a => {
       if (a.trajectory === 'Freefall') {
-        sigs.push({ type: 'trajectory_freefall', text: `${a.name} in freefall. Risk of complete disengagement.`, severity: 'critical', repName: 'Account Team', advisorName: a.name, mrr: a.mrr, time: '3d ago' });
+        const daysSinceContact = a.lastContact ? Math.floor((now.getTime() - new Date(a.lastContact).getTime()) / 86400000) : 10;
+        const signalDate = new Date(now.getTime() - Math.min(daysSinceContact, 21) * 86400000);
+        sigs.push({ type: 'trajectory_freefall', text: `${a.name} in freefall. Risk of complete disengagement.`, severity: 'critical', repName: 'Account Team', advisorName: a.name, mrr: a.mrr, time: timeAgo(signalDate) });
       }
     });
     advisors.forEach(a => {
       if (a.trajectory === 'Accelerating' || a.trajectory === 'Climbing') {
-        sigs.push({ type: 'expansion', text: `${a.name} is ${a.trajectory}. Strong growth potential — cross-sell opportunity.`, severity: 'medium', repName: 'Account Team', advisorName: a.name, mrr: a.mrr, time: 'This week' });
+        const connectedDays = a.connectedSince ? Math.floor((now.getTime() - new Date(a.connectedSince).getTime()) / 86400000) : 30;
+        const signalDate = new Date(now.getTime() - Math.min(connectedDays * 0.1, 7) * 86400000);
+        sigs.push({ type: 'expansion', text: `${a.name} is ${a.trajectory}. Strong growth potential — cross-sell opportunity.`, severity: 'medium', repName: 'Account Team', advisorName: a.name, mrr: a.mrr, time: timeAgo(signalDate) });
       }
     });
     return sigs.sort((a, b) => {
@@ -405,7 +481,7 @@ export default function LiveLeaderDashboard() {
       const rep = reps.find(r => r.id === d.repId);
       actionItems.push({ priority: 'high', title: `Review ${d.name} — ${d.stage} for ${d.daysInStage}d`, meta: `${rep?.name || '?'} · ${formatCurrency(d.mrr)} MRR`, onClick: () => setSelectedDeal(d) });
     });
-    const lowCadenceReps = reps.filter(r => Math.floor(seededRandom(r.id + 'cadence', 60, 95)) < alertThresholds.cadenceComplianceThreshold);
+    const lowCadenceReps = reps.filter(r => getRepCadence(r.id).overall < alertThresholds.cadenceComplianceThreshold);
     if (lowCadenceReps.length > 0) actionItems.push({ priority: 'medium', title: `Review cadence compliance — ${lowCadenceReps.length} CM${lowCadenceReps.length > 1 ? 's' : ''} below ${alertThresholds.cadenceComplianceThreshold}%`, meta: 'This week', onClick: () => { setActiveView('team-accountability'); setTeamSubTab('cadence'); } });
     launchedPlaybooks.filter(p => { const s = p.customSteps || playbookTemplates.find(t => t.id === p.templateId)?.steps || []; const eff = s.length - p.skippedSteps.length; return eff > 0 && p.completedSteps.length < eff; }).slice(0, 2).forEach(pb => {
       actionItems.push({ priority: 'low', title: `Continue playbook: ${pb.playbookName || pb.templateId.replace('-', ' ')} (${pb.advisorName})`, meta: 'In progress', onClick: () => { setActiveView('intelligence'); setIntelligenceSubTab('playbooks'); } });
@@ -492,23 +568,48 @@ export default function LiveLeaderDashboard() {
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Today&apos;s Key Meetings</h3>
-              <span className="text-[10px] text-[#157A6E] font-semibold cursor-pointer">View calendar →</span>
+              <button onClick={() => setEditingMeetings(!editingMeetings)} className="text-[10px] text-[#157A6E] font-semibold cursor-pointer hover:underline">{editingMeetings ? 'Done editing' : 'Edit meetings →'}</button>
             </div>
             <div className="space-y-2">
-              {/* Generate meetings from real data */}
+              {/* Meetings — from localStorage or generated from data */}
               {(() => {
-                const meetings: Array<{time: string; title: string; detail: string; stake: string; stakeColor: string; borderColor: string}> = [];
-                // High-value deal meeting
-                const topDeal = allDeals.filter(d => d.stage === 'Negotiating' || d.stage === 'Proposal').sort((a, b) => b.mrr - a.mrr)[0];
-                if (topDeal) {
-                  const rep = reps.find(r => r.id === topDeal.repId);
-                  const adv = advisors.find(a => a.id === getDealAdvisorIds(topDeal)[0]);
-                  meetings.push({ time: '9:00 AM', title: `Deal Review — ${adv?.company || topDeal.name}`, detail: `${rep?.name} · ${formatCurrency(topDeal.mrr)} MRR · ${topDeal.stage}`, stake: 'High Stakes', stakeColor: 'bg-red-100 text-red-800', borderColor: '#ef4444' });
+                const meetings = storedMeetings.length > 0 ? storedMeetings : (() => {
+                  const generated: typeof storedMeetings = [];
+                  const topDeal = allDeals.filter(d => d.stage === 'Negotiating' || d.stage === 'Proposal').sort((a, b) => b.mrr - a.mrr)[0];
+                  if (topDeal) {
+                    const rep = reps.find(r => r.id === topDeal.repId);
+                    const adv = advisors.find(a => a.id === getDealAdvisorIds(topDeal)[0]);
+                    generated.push({ time: '9:00 AM', title: `Deal Review — ${adv?.company || topDeal.name}`, detail: `${rep?.name} · ${formatCurrency(topDeal.mrr)} MRR · ${topDeal.stage}`, stake: 'High Stakes', stakeColor: 'bg-red-100 text-red-800', borderColor: '#ef4444' });
+                  }
+                  if (reps[0]) generated.push({ time: '11:30 AM', title: `Pipeline Review — ${reps[0].name}`, detail: `1:1 weekly · ${reps[0].activeDeals} active deals · ${formatCurrency(reps[0].currentCommit)} commit`, stake: 'Review', stakeColor: 'bg-amber-100 text-amber-800', borderColor: '#f59e0b' });
+                  generated.push({ time: '4:00 PM', title: 'Channel Team Standup', detail: `All CMs · Weekly sync · Commit updates due`, stake: 'Recurring', stakeColor: 'bg-gray-100 text-gray-600', borderColor: '#9ca3af' });
+                  return generated;
+                })();
+
+                if (editingMeetings) {
+                  const editableMeetings = storedMeetings.length > 0 ? [...storedMeetings] : [...meetings];
+                  return (
+                    <div className="space-y-2">
+                      {editableMeetings.map((m, i) => (
+                        <div key={i} className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-1.5">
+                          <div className="flex gap-2">
+                            <input type="text" value={m.time} onChange={e => { const up = [...editableMeetings]; up[i] = { ...up[i], time: e.target.value }; setStoredMeetings(up); }} className="w-20 px-2 py-1 border border-gray-200 rounded text-11px font-bold" placeholder="9:00 AM" />
+                            <input type="text" value={m.title} onChange={e => { const up = [...editableMeetings]; up[i] = { ...up[i], title: e.target.value }; setStoredMeetings(up); }} className="flex-1 px-2 py-1 border border-gray-200 rounded text-11px" placeholder="Meeting title" />
+                            <button onClick={() => { const up = editableMeetings.filter((_, j) => j !== i); setStoredMeetings(up); }} className="text-red-400 hover:text-red-600 text-[10px] px-1">✕</button>
+                          </div>
+                          <input type="text" value={m.detail} onChange={e => { const up = [...editableMeetings]; up[i] = { ...up[i], detail: e.target.value }; setStoredMeetings(up); }} className="w-full px-2 py-1 border border-gray-200 rounded text-[10px]" placeholder="Details" />
+                          <select value={m.stake} onChange={e => { const up = [...editableMeetings]; const stakeMap: Record<string, {stakeColor: string; borderColor: string}> = { 'High Stakes': { stakeColor: 'bg-red-100 text-red-800', borderColor: '#ef4444' }, 'Review': { stakeColor: 'bg-amber-100 text-amber-800', borderColor: '#f59e0b' }, 'Recurring': { stakeColor: 'bg-gray-100 text-gray-600', borderColor: '#9ca3af' }, 'Prep': { stakeColor: 'bg-blue-100 text-blue-800', borderColor: '#3b82f6' } }; up[i] = { ...up[i], stake: e.target.value, ...stakeMap[e.target.value] }; setStoredMeetings(up); }} className="px-2 py-1 border border-gray-200 rounded text-[10px]">
+                            <option value="High Stakes">High Stakes</option>
+                            <option value="Review">Review</option>
+                            <option value="Recurring">Recurring</option>
+                            <option value="Prep">Prep</option>
+                          </select>
+                        </div>
+                      ))}
+                      <button onClick={() => setStoredMeetings([...editableMeetings, { time: '12:00 PM', title: 'New Meeting', detail: '', stake: 'Review', stakeColor: 'bg-amber-100 text-amber-800', borderColor: '#f59e0b' }])} className="text-[10px] text-[#157A6E] font-semibold hover:underline">+ Add Meeting</button>
+                    </div>
+                  );
                 }
-                // Pipeline review with a rep
-                if (reps[0]) meetings.push({ time: '11:30 AM', title: `Pipeline Review — ${reps[0].name}`, detail: `1:1 weekly · ${reps[0].activeDeals} active deals · ${formatCurrency(reps[0].currentCommit)} commit`, stake: 'Review', stakeColor: 'bg-amber-100 text-amber-800', borderColor: '#f59e0b' });
-                // Team standup
-                meetings.push({ time: '4:00 PM', title: 'Channel Team Standup', detail: `All CMs · Weekly sync · Commit updates due`, stake: 'Recurring', stakeColor: 'bg-gray-100 text-gray-600', borderColor: '#9ca3af' });
 
                 return meetings.map((m, i) => (
                   <div key={i} className="flex items-center gap-3 px-3 py-3 rounded-lg border border-[#e8e5e1]" style={{ borderLeft: `3px solid ${m.borderColor}` }}>
@@ -693,9 +794,10 @@ export default function LiveLeaderDashboard() {
                       const gap = rep.quotaTarget - rep.closedWon;
                       const expanded = expandedForecastRep === rep.id;
                       return (
-                        <tr key={rep.id} className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${expanded ? 'bg-[#f0faf8]' : ''}`} onClick={() => setExpandedForecastRep(expanded ? null : rep.id)}>
+                        <React.Fragment key={rep.id}>
+                        <tr className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${expanded ? 'bg-[#f0faf8]' : ''}`} onClick={() => setExpandedForecastRep(expanded ? null : rep.id)}>
                           <td className="px-3 py-2 font-semibold text-gray-800">
-                            <div className="flex items-center gap-2">{rep.name} <EngLabel score={rep.engagementScore} /></div>
+                            <div className="flex items-center gap-2"><ChevronRight className={`w-3 h-3 text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />{rep.name} <EngLabel score={rep.engagementScore} /></div>
                           </td>
                           <td className="px-2 py-2 text-right">{formatCurrency(rep.quotaTarget)}</td>
                           <td className="px-2 py-2 text-right font-bold" style={{ color: qp >= 85 ? '#157A6E' : qp >= 60 ? '#f59e0b' : '#ef4444' }}>{formatCurrency(rep.currentCommit)}</td>
@@ -708,6 +810,39 @@ export default function LiveLeaderDashboard() {
                           <td className="px-2 py-2 text-center">{rep.winRate}%</td>
                           <td className="px-2 py-2 text-right font-bold text-red-600">{gap > 0 ? `-${formatCurrency(gap)}` : formatCurrency(Math.abs(gap))}</td>
                         </tr>
+                        {expanded && (
+                          <tr className="bg-[#fafaf8]">
+                            <td colSpan={9} className="px-4 py-3">
+                              <div className="space-y-2">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-2">Active Deals for {rep.name}</p>
+                                {rd.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost').length === 0 ? (
+                                  <p className="text-11px text-gray-500 italic">No active deals</p>
+                                ) : rd.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost').sort((a, b) => b.mrr - a.mrr).map(d => {
+                                  const advName = advisors.find(a => a.id === getDealAdvisorIds(d)[0])?.name || '?';
+                                  return (
+                                    <div key={d.id} className="flex items-center justify-between px-3 py-2 bg-white rounded border border-gray-100 cursor-pointer hover:border-[#157A6E]" onClick={(e) => { e.stopPropagation(); setSelectedDeal(d); }}>
+                                      <div className="flex items-center gap-3">
+                                        <DealHealthBadge health={d.health} />
+                                        <div>
+                                          <span className="text-11px font-semibold text-gray-800">{d.name}</span>
+                                          <span className="text-[10px] text-gray-500 ml-2">{advName}</span>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-4 text-11px">
+                                        <span className="text-gray-600">{d.stage} · {d.daysInStage}d</span>
+                                        <span className="text-gray-500">{d.probability}%</span>
+                                        <span className="font-bold text-gray-800">{formatCurrency(d.mrr)}</span>
+                                        {d.overrideRequested && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-100 text-amber-700">OVERRIDE</span>}
+                                        {leaderInvolved.has(d.id) && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-[#f0faf8] text-[#157A6E]">MINE</span>}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
                       );
                     })}
                     <tr className="bg-[#f0faf8] font-bold">
@@ -963,12 +1098,9 @@ export default function LiveLeaderDashboard() {
         {teamSubTab === 'overview' && (
           <div className="grid grid-cols-2 gap-4">
             {reps.map(rep => {
-              const repAdvisors = advisors.filter(a => {
-                const repDeals = allDeals.filter(d => d.repId === rep.id);
-                return repDeals.some(d => getDealAdvisorIds(d).includes(a.id));
-              });
+              const repAdvisors = getRepAdvisors(rep);
               const rhf = repAdvisors.filter(a => a.friction === 'High' || a.friction === 'Critical');
-              const cadenceCompliance = Math.floor(seededRandom(rep.id + 'cadence', 60, 95));
+              const cadenceCompliance = getRepCadence(rep.id).overall;
               const util = rep.partnerCapacity > 0 ? Math.round((rep.partnerCount / rep.partnerCapacity) * 100) : 0;
               const isAttention = rep.engagementScore === 'Fading' || rep.winRate < avgWinRate - 10;
               const cp = rep.quotaTarget > 0 ? Math.round((rep.currentCommit / rep.quotaTarget) * 100) : 0;
@@ -1018,7 +1150,7 @@ export default function LiveLeaderDashboard() {
                     <div className="border-t border-gray-200 mt-3 pt-3 space-y-2 text-11px">
                       <div className="p-2 bg-blue-50 rounded">
                         <p className="font-semibold text-gray-800">Activity (30d)</p>
-                        <p className="text-gray-600">Meetings: {Math.floor(seededRandom(rep.id + 'meetings', 5, 25))}, Calls: {Math.floor(seededRandom(rep.id + 'calls', 10, 35))}, Emails: {Math.floor(seededRandom(rep.id + 'emails', 40, 80))}</p>
+                        <p className="text-gray-600">Meetings: {getRepActivity(rep.id).meetings}, Calls: {getRepActivity(rep.id).calls}, Emails: {getRepActivity(rep.id).emails}</p>
                       </div>
                       {rhf.length > 0 && (
                         <div className="p-2 bg-red-50 rounded">
@@ -1072,10 +1204,7 @@ export default function LiveLeaderDashboard() {
                   </thead>
                   <tbody>
                     {reps.map(rep => {
-                      const repAdvisors = advisors.filter(a => {
-                        const repDeals = allDeals.filter(d => d.repId === rep.id);
-                        return repDeals.some(d => getDealAdvisorIds(d).includes(a.id));
-                      });
+                      const repAdvisors = getRepAdvisors(rep);
                       return (
                         <tr key={rep.id} className="border-b border-gray-100">
                           <td className="px-3 py-2 font-semibold text-gray-800">{rep.name}</td>
@@ -1107,11 +1236,17 @@ export default function LiveLeaderDashboard() {
         {/* CADENCE COMPLIANCE */}
         {teamSubTab === 'cadence' && (
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-            <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Cadence Compliance by CM</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">Cadence Compliance by CM</h3>
+              <p className="text-[10px] text-gray-400">Click any value to edit</p>
+            </div>
             <div className="space-y-4">
               {reps.map(rep => {
-                const cadence = Math.floor(seededRandom(rep.id + 'cadence', 60, 95));
-                const ok = cadence >= alertThresholds.cadenceComplianceThreshold;
+                const cd = getRepCadence(rep.id);
+                const ok = cd.overall >= alertThresholds.cadenceComplianceThreshold;
+                const updateCadence = (field: string, value: number) => {
+                  setRepCadenceData(prev => ({ ...prev, [rep.id]: { ...cd, [field]: Math.max(0, Math.min(100, value)) } }));
+                };
                 return (
                   <div key={rep.id} className={`p-4 rounded-lg border ${ok ? 'border-gray-200' : 'border-red-200 bg-red-50'}`}>
                     <div className="flex items-center justify-between mb-2">
@@ -1119,16 +1254,20 @@ export default function LiveLeaderDashboard() {
                         <span className="text-13px font-bold text-gray-800">{rep.name}</span>
                         {!ok && <span className="text-[9px] bg-red-600 text-white px-2 py-0.5 rounded-full font-bold">BELOW THRESHOLD</span>}
                       </div>
-                      <span className={`text-14px font-bold ${ok ? 'text-[#157A6E]' : 'text-red-600'}`}>{cadence}%</span>
+                      <div className="flex items-center gap-1">
+                        <input type="number" value={cd.overall} onChange={e => updateCadence('overall', parseInt(e.target.value) || 0)} className={`w-12 text-right text-14px font-bold bg-transparent border-b border-dashed border-gray-300 focus:border-[#157A6E] focus:outline-none ${ok ? 'text-[#157A6E]' : 'text-red-600'}`} />
+                        <span className={`text-14px font-bold ${ok ? 'text-[#157A6E]' : 'text-red-600'}`}>%</span>
+                      </div>
                     </div>
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${ok ? 'bg-[#157A6E]' : 'bg-red-500'}`} style={{ width: `${cadence}%` }} />
+                      <div className={`h-full rounded-full ${ok ? 'bg-[#157A6E]' : 'bg-red-500'}`} style={{ width: `${cd.overall}%` }} />
                     </div>
                     <div className="flex gap-4 mt-2 text-[10px] text-gray-500">
-                      <span>Anchor: {Math.floor(seededRandom(rep.id + 'ca', 80, 100))}%</span>
-                      <span>Scaling: {Math.floor(seededRandom(rep.id + 'cs', 70, 95))}%</span>
-                      <span>Building: {Math.floor(seededRandom(rep.id + 'cb', 55, 90))}%</span>
-                      <span>Launching: {Math.floor(seededRandom(rep.id + 'cl', 40, 85))}%</span>
+                      {(['anchor', 'scaling', 'building', 'launching'] as const).map(tier => (
+                        <span key={tier} className="flex items-center gap-0.5 capitalize">
+                          {tier}: <input type="number" value={cd[tier]} onChange={e => updateCadence(tier, parseInt(e.target.value) || 0)} className="w-8 text-center bg-transparent border-b border-dashed border-gray-300 focus:border-[#157A6E] focus:outline-none text-[10px]" />%
+                        </span>
+                      ))}
                     </div>
                   </div>
                 );
@@ -1141,7 +1280,7 @@ export default function LiveLeaderDashboard() {
         {teamSubTab === 'coaching' && (
           <div className="space-y-4">
             {reps.map(rep => {
-              const repAdvisors = advisors.filter(a => allDeals.some(d => d.repId === rep.id && getDealAdvisorIds(d).includes(a.id)));
+              const repAdvisors = getRepAdvisors(rep);
               const staleAnchors = repAdvisors.filter(a => a.tier === 'anchor' && (a.pulse === 'Fading' || a.pulse === 'Flatline'));
               const stalledDeals = allDeals.filter(d => d.repId === rep.id && (d.stage === 'Stalled' || d.daysInStage > 25));
               const flags: string[] = [];
@@ -1648,7 +1787,8 @@ export default function LiveLeaderDashboard() {
     const churnSignals = signals.filter(s => s.type === 'deal_at_risk' || s.type === 'partner_fading' || s.type === 'trajectory_freefall');
     const growthSignals = signals.filter(s => s.type === 'expansion');
     const stallSignals = signals.filter(s => s.type === 'override_pending');
-    const filteredSignals = signalFilter === 'all' ? signals : signalFilter === 'churn' ? churnSignals : signalFilter === 'growth' ? growthSignals : signalFilter === 'stall' ? stallSignals : signals;
+    const intelSignals = signals.filter(s => s.type === 'expansion' || s.type === 'override_pending');
+    const filteredSignals = signalFilter === 'all' ? signals : signalFilter === 'churn' ? churnSignals : signalFilter === 'growth' ? growthSignals : signalFilter === 'stall' ? stallSignals : signalFilter === 'intel' ? intelSignals : signals;
 
     const trajectories = {
       Accelerating: advisors.filter(a => a.trajectory === 'Accelerating'),
@@ -1762,6 +1902,7 @@ export default function LiveLeaderDashboard() {
                 { key: 'churn' as const, label: `🔴 Churn (${churnSignals.length})` },
                 { key: 'growth' as const, label: `🟢 Growth (${growthSignals.length})` },
                 { key: 'stall' as const, label: `🟡 Stall (${stallSignals.length})` },
+                { key: 'intel' as const, label: `🔵 Intel (${intelSignals.length})` },
               ].map(f => (
                 <button key={f.key} onClick={() => setSignalFilter(f.key)}
                   className={`px-3 py-1.5 rounded-full text-11px font-medium border transition-colors ${signalFilter === f.key ? 'bg-[#157A6E] text-white border-[#157A6E]' : 'bg-white text-gray-600 border-[#e8e5e1]'}`}>
@@ -1868,8 +2009,8 @@ export default function LiveLeaderDashboard() {
                 { label: 'Critical', count: advisors.filter(a => a.friction === 'Critical').length, mrr: advisors.filter(a => a.friction === 'Critical').reduce((s, a) => s + a.mrr, 0), bg: 'bg-red-50', color: '#ef4444' },
                 { label: 'High Risk', count: advisors.filter(a => a.friction === 'High').length, mrr: advisors.filter(a => a.friction === 'High').reduce((s, a) => s + a.mrr, 0), bg: 'bg-orange-50', color: '#ea580c' },
                 { label: 'Watch', count: advisors.filter(a => a.friction === 'Moderate').length, mrr: advisors.filter(a => a.friction === 'Moderate').reduce((s, a) => s + a.mrr, 0), bg: 'bg-amber-50', color: '#ca8a04' },
-                { label: 'Stable', count: advisors.filter(a => a.pulse === 'Steady' && a.friction === 'Low').length, mrr: advisors.filter(a => a.pulse === 'Steady' && a.friction === 'Low').reduce((s, a) => s + a.mrr, 0), bg: 'bg-green-50', color: '#16a34a' },
-                { label: 'Healthy', count: advisors.filter(a => a.pulse === 'Strong' && a.friction === 'Low').length, mrr: advisors.filter(a => a.pulse === 'Strong' && a.friction === 'Low').reduce((s, a) => s + a.mrr, 0), bg: 'bg-[#f0faf8]', color: '#157A6E' },
+                { label: 'Stable', count: advisors.filter(a => a.friction === 'Low' && a.pulse !== 'Strong').length, mrr: advisors.filter(a => a.friction === 'Low' && a.pulse !== 'Strong').reduce((s, a) => s + a.mrr, 0), bg: 'bg-green-50', color: '#16a34a' },
+                { label: 'Healthy', count: advisors.filter(a => a.friction === 'Low' && a.pulse === 'Strong').length, mrr: advisors.filter(a => a.friction === 'Low' && a.pulse === 'Strong').reduce((s, a) => s + a.mrr, 0), bg: 'bg-[#f0faf8]', color: '#157A6E' },
               ].map(cat => (
                 <div key={cat.label} className={`p-4 rounded-lg text-center ${cat.bg}`}>
                   <p className="text-[24px] font-bold" style={{ color: cat.color }}>{cat.count}</p>
@@ -2126,18 +2267,34 @@ export default function LiveLeaderDashboard() {
             <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
               <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-4">Q2 2026 Team Targets</h3>
               <div className="space-y-3">
-                {[
-                  { label: 'Team Quota', value: formatCurrency(teamTarget) },
-                  { label: 'Per-CM Default Quota', value: formatCurrency(reps.length > 0 ? teamTarget / reps.length : 0) },
-                  { label: 'Partner Activation Target', value: '35' },
-                  { label: 'Win Rate Target', value: '35%' },
-                  { label: 'Pipeline Coverage Target', value: '3.0×' },
-                ].map(item => (
-                  <div key={item.label} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
-                    <span className="text-12px font-medium text-gray-700">{item.label}</span>
-                    <span className="text-14px font-bold text-gray-800">{item.value}</span>
+                <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                  <span className="text-12px font-medium text-gray-700">Team Quota</span>
+                  <span className="text-14px font-bold text-gray-800">{formatCurrency(teamTarget)}</span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                  <span className="text-12px font-medium text-gray-700">Per-CM Default Quota</span>
+                  <span className="text-14px font-bold text-gray-800">{formatCurrency(reps.length > 0 ? teamTarget / reps.length : 0)}</span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                  <span className="text-12px font-medium text-gray-700">Partner Activation Target</span>
+                  <div className="flex items-center gap-1">
+                    <input type="number" value={teamGoals.partnerActivationTarget} onChange={e => setTeamGoals(p => ({ ...p, partnerActivationTarget: parseInt(e.target.value) || 0 }))} className="w-14 text-right text-14px font-bold text-gray-800 bg-transparent border-b border-dashed border-gray-300 focus:border-[#157A6E] focus:outline-none" />
                   </div>
-                ))}
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                  <span className="text-12px font-medium text-gray-700">Win Rate Target</span>
+                  <div className="flex items-center gap-0.5">
+                    <input type="number" value={teamGoals.winRateTarget} onChange={e => setTeamGoals(p => ({ ...p, winRateTarget: parseInt(e.target.value) || 0 }))} className="w-12 text-right text-14px font-bold text-gray-800 bg-transparent border-b border-dashed border-gray-300 focus:border-[#157A6E] focus:outline-none" />
+                    <span className="text-14px font-bold text-gray-800">%</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-12px font-medium text-gray-700">Pipeline Coverage Target</span>
+                  <div className="flex items-center gap-0.5">
+                    <input type="number" step="0.1" value={teamGoals.pipelineCoverageTarget} onChange={e => setTeamGoals(p => ({ ...p, pipelineCoverageTarget: parseFloat(e.target.value) || 0 }))} className="w-12 text-right text-14px font-bold text-gray-800 bg-transparent border-b border-dashed border-gray-300 focus:border-[#157A6E] focus:outline-none" />
+                    <span className="text-14px font-bold text-gray-800">×</span>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
@@ -2145,8 +2302,9 @@ export default function LiveLeaderDashboard() {
               <div className="space-y-4">
                 {[
                   { label: 'Team Revenue', pct: commitPercentage, detail: `${formatCurrency(teamCommit)} of ${formatCurrency(teamTarget)}` },
-                  { label: 'Partners Activated', pct: Math.round((advisors.filter(a => a.mrr > 0).length / 35) * 100), detail: `${advisors.filter(a => a.mrr > 0).length} of 35` },
-                  { label: 'Win Rate', pct: Math.round((avgWinRate / 35) * 100), detail: `${avgWinRate}% of 35% target` },
+                  { label: 'Partners Activated', pct: teamGoals.partnerActivationTarget > 0 ? Math.round((advisors.filter(a => a.mrr > 0).length / teamGoals.partnerActivationTarget) * 100) : 0, detail: `${advisors.filter(a => a.mrr > 0).length} of ${teamGoals.partnerActivationTarget}` },
+                  { label: 'Win Rate', pct: teamGoals.winRateTarget > 0 ? Math.round((avgWinRate / teamGoals.winRateTarget) * 100) : 0, detail: `${avgWinRate}% of ${teamGoals.winRateTarget}% target` },
+                  { label: 'Pipeline Coverage', pct: teamGoals.pipelineCoverageTarget > 0 ? Math.round(((teamTarget > 0 ? weightedPipeline / teamTarget : 0) / teamGoals.pipelineCoverageTarget) * 100) : 0, detail: `${teamTarget > 0 ? (weightedPipeline / teamTarget).toFixed(1) : '0'}× of ${teamGoals.pipelineCoverageTarget}× target` },
                 ].map(g => (
                   <div key={g.label}>
                     <div className="flex justify-between mb-1">
@@ -2159,6 +2317,40 @@ export default function LiveLeaderDashboard() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Per-Rep Activity Data Editor */}
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5 col-span-2">
+              <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800 mb-2">CM Activity Data (30d)</h3>
+              <p className="text-[10px] text-gray-400 mb-4">Edit activity metrics per channel manager — changes reflect across the dashboard</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-11px">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700">Channel Manager</th>
+                      <th className="text-center px-2 py-2 font-semibold text-gray-700">Meetings</th>
+                      <th className="text-center px-2 py-2 font-semibold text-gray-700">Calls</th>
+                      <th className="text-center px-2 py-2 font-semibold text-gray-700">Emails</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reps.map(rep => {
+                      const act = getRepActivity(rep.id);
+                      const updateActivity = (field: string, value: number) => {
+                        setRepActivityData(prev => ({ ...prev, [rep.id]: { ...act, [field]: Math.max(0, value) } }));
+                      };
+                      return (
+                        <tr key={rep.id} className="border-b border-gray-100">
+                          <td className="px-3 py-2 font-semibold text-gray-800">{rep.name}</td>
+                          <td className="px-2 py-2 text-center"><input type="number" value={act.meetings} onChange={e => updateActivity('meetings', parseInt(e.target.value) || 0)} className="w-12 text-center bg-transparent border-b border-dashed border-gray-300 focus:border-[#157A6E] focus:outline-none" /></td>
+                          <td className="px-2 py-2 text-center"><input type="number" value={act.calls} onChange={e => updateActivity('calls', parseInt(e.target.value) || 0)} className="w-12 text-center bg-transparent border-b border-dashed border-gray-300 focus:border-[#157A6E] focus:outline-none" /></td>
+                          <td className="px-2 py-2 text-center"><input type="number" value={act.emails} onChange={e => updateActivity('emails', parseInt(e.target.value) || 0)} className="w-12 text-center bg-transparent border-b border-dashed border-gray-300 focus:border-[#157A6E] focus:outline-none" /></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
