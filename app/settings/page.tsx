@@ -1,9 +1,19 @@
 'use client';
 import { useState } from 'react';
-import { ArrowLeft, Save, CheckCircle, Settings as SettingsIcon, Users, Zap, Bell, Link2, GraduationCap } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle, Settings as SettingsIcon, Users, Zap, Bell, Link2, GraduationCap, MapPin } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { NAV_ITEMS_MANAGER } from '@/lib/constants';
+
+const US_REGIONS: Record<string, { label: string; states: string[] }> = {
+  northeast: { label: 'Northeast', states: ['CT', 'ME', 'MA', 'NH', 'RI', 'VT', 'NJ', 'NY', 'PA'] },
+  southeast: { label: 'Southeast', states: ['AL', 'AR', 'DE', 'FL', 'GA', 'KY', 'LA', 'MD', 'MS', 'NC', 'SC', 'TN', 'VA', 'WV', 'DC'] },
+  midwest: { label: 'Midwest', states: ['IL', 'IN', 'IA', 'KS', 'MI', 'MN', 'MO', 'NE', 'ND', 'OH', 'SD', 'WI'] },
+  southwest: { label: 'Southwest', states: ['AZ', 'NM', 'OK', 'TX'] },
+  west: { label: 'West', states: ['AK', 'CA', 'CO', 'HI', 'ID', 'MT', 'NV', 'OR', 'UT', 'WA', 'WY'] },
+};
+
+const ALL_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'];
 
 export default function SettingsPage() {
   const [cadence, setCadence] = useState({ anchor: 7, scaling: 14, building: 21, launching: 10 });
@@ -12,8 +22,18 @@ export default function SettingsPage() {
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [inAppNotifs, setInAppNotifs] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [selectedRegion, setSelectedRegion] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem('cc_territory_region') || '';
+  });
+  const [exceptionStates, setExceptionStates] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try { return JSON.parse(localStorage.getItem('cc_territory_exceptions') || '[]'); } catch { return []; }
+  });
 
   const handleSave = () => {
+    localStorage.setItem('cc_territory_region', selectedRegion);
+    localStorage.setItem('cc_territory_exceptions', JSON.stringify(exceptionStates));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -97,6 +117,82 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* My Territory */}
+              <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <MapPin className="w-4 h-4 text-[#157A6E]" />
+                  <h2 className="text-[15px] font-semibold font-['Newsreader'] text-gray-900">My Territory</h2>
+                </div>
+                <p className="text-11px text-gray-500 mb-4">Set your primary region and any additional states. The Relationships map will default to your region.</p>
+
+                {/* Region Picker */}
+                <div className="mb-6">
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(US_REGIONS).map(([key, region]) => (
+                      <button
+                        key={key}
+                        onClick={() => setSelectedRegion(key)}
+                        className={`px-4 py-2 text-12px font-semibold rounded-full transition-colors ${
+                          selectedRegion === key
+                            ? 'bg-[#157A6E] text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {region.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Selected Region States */}
+                {selectedRegion && (
+                  <div className="mb-6">
+                    <div className="flex flex-wrap gap-2">
+                      {US_REGIONS[selectedRegion].states.map(state => (
+                        <span key={state} className="px-3 py-1 text-11px font-semibold rounded-full bg-[#157A6E] text-white">
+                          {state}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Exception States */}
+                <div>
+                  <label className="block text-11px font-semibold text-gray-700 mb-1">Additional States</label>
+                  <p className="text-10px text-gray-500 mb-3">Add states outside your region that you also cover</p>
+                  <div className="grid grid-cols-6 sm:grid-cols-8 gap-2">
+                    {ALL_STATES.map(state => {
+                      const isInRegion = selectedRegion ? US_REGIONS[selectedRegion].states.includes(state) : false;
+                      const isSelected = exceptionStates.includes(state);
+
+                      return (
+                        <button
+                          key={state}
+                          onClick={() => {
+                            if (!isInRegion) {
+                              setExceptionStates(prev =>
+                                isSelected ? prev.filter(s => s !== state) : [...prev, state]
+                              );
+                            }
+                          }}
+                          disabled={isInRegion}
+                          className={`px-2.5 py-1.5 text-11px font-semibold rounded transition-colors ${
+                            isInRegion
+                              ? 'bg-[#157A6E] text-white cursor-not-allowed'
+                              : isSelected
+                              ? 'bg-teal-100 text-[#157A6E] border border-[#157A6E]'
+                              : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                          }`}
+                        >
+                          {state}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 

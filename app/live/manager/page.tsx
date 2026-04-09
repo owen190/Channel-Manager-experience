@@ -32,6 +32,14 @@ import { adaptAdvisor, adaptDeal } from '@/lib/db/adapter';
 
 type DealStage = 'Discovery' | 'Qualifying' | 'Proposal' | 'Negotiating' | 'Closed Won' | 'Closed Lost' | 'Stalled';
 
+const US_REGIONS: Record<string, { label: string; states: string[] }> = {
+  northeast: { label: 'Northeast', states: ['CT', 'ME', 'MA', 'NH', 'RI', 'VT', 'NJ', 'NY', 'PA'] },
+  southeast: { label: 'Southeast', states: ['AL', 'AR', 'DE', 'FL', 'GA', 'KY', 'LA', 'MD', 'MS', 'NC', 'SC', 'TN', 'VA', 'WV', 'DC'] },
+  midwest: { label: 'Midwest', states: ['IL', 'IN', 'IA', 'KS', 'MI', 'MN', 'MO', 'NE', 'ND', 'OH', 'SD', 'WI'] },
+  southwest: { label: 'Southwest', states: ['AZ', 'NM', 'OK', 'TX'] },
+  west: { label: 'West', states: ['AK', 'CA', 'CO', 'HI', 'ID', 'MT', 'NV', 'OR', 'UT', 'WA', 'WY'] },
+};
+
 // localStorage helpers
 function loadFromStorage<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
@@ -144,6 +152,15 @@ export default function LiveManagerPage() {
   const [logMeetingNature, setLogMeetingNature] = useState<MeetingNature | ''>('');
   const [pipelineTimeframe, setPipelineTimeframe] = useState<'all' | '30d' | '45d' | 'quarter' | 'ytd'>('all');
   const [overdueThreshold, setOverdueThreshold] = useState(7);
+  const [territoryRegion, setTerritoryRegion] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem('cc_territory_region') || '';
+  });
+  const [territoryExceptions, setTerritoryExceptions] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try { return JSON.parse(localStorage.getItem('cc_territory_exceptions') || '[]'); } catch { return []; }
+  });
+  const [showFullUSA, setShowFullUSA] = useState(false);
 
   // Persisted TSD contact edits (overrides for static TSD data)
   const [tsdContactOverrides, setTsdContactOverrides] = useState<Record<string, Record<string, string>>>(() => loadFromStorage('cc_tsdContactOverrides', {}));
@@ -2512,6 +2529,12 @@ If the user's request is vague or you don't have enough context, ask ONE clarify
             selectedState={selectedState}
             title="Partner Performance Heat Map"
             subtitle="States colored by partner engagement, trajectory & revenue · Click for details"
+            activeRegion={territoryRegion || null}
+            regionStates={territoryRegion ? US_REGIONS[territoryRegion]?.states : undefined}
+            exceptionStates={territoryExceptions.length > 0 ? territoryExceptions : undefined}
+            showRegionToggle={!!territoryRegion}
+            onRegionToggle={(full) => setShowFullUSA(full)}
+            showFullUSA={showFullUSA}
           />
 
           {/* State Detail (when clicked on heat map) */}

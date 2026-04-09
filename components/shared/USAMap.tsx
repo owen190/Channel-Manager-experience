@@ -46,6 +46,18 @@ interface USAMapProps {
   title?: string;
   /** Subtitle override */
   subtitle?: string;
+  /** Active region for zoom (e.g., 'northeast', 'southeast') */
+  activeRegion?: string | null;
+  /** States included in the active region */
+  regionStates?: string[];
+  /** Exception states outside the region that should also be highlighted */
+  exceptionStates?: string[];
+  /** Whether to show the "View Full USA" / "View My Region" toggle */
+  showRegionToggle?: boolean;
+  /** Callback when region view is toggled */
+  onRegionToggle?: (showFull: boolean) => void;
+  /** Whether currently showing full USA (vs zoomed region) */
+  showFullUSA?: boolean;
 }
 
 const formatMRR = (value: number): string => {
@@ -177,6 +189,24 @@ const STATE_NAME_TO_ABBR: Record<string, string> = {
   'District of Columbia': 'DC',
 };
 
+// Region zoom configurations
+const REGION_CONFIGS: Record<string, { center: [number, number]; scale: number }> = {
+  northeast: { center: [-73.5, 42.0], scale: 3200 },
+  southeast: { center: [-82.0, 33.0], scale: 2200 },
+  midwest: { center: [-89.0, 42.0], scale: 2200 },
+  southwest: { center: [-101.0, 32.5], scale: 2400 },
+  west: { center: [-116.0, 42.0], scale: 1600 },
+};
+
+// CSS transforms for region zooming
+const regionTransforms: Record<string, string> = {
+  northeast: 'scale(2.8) translate(5%, 8%)',
+  southeast: 'scale(2.2) translate(12%, -12%)',
+  midwest: 'scale(2.2) translate(10%, 8%)',
+  southwest: 'scale(2.4) translate(12%, -8%)',
+  west: 'scale(2.0) translate(22%, 5%)',
+};
+
 // Weather-map style heat color interpolation
 // 0 = no data (gray), then gradient: blue → green → yellow → orange → red for intensity
 const getHeatColor = (score: number, hasData: boolean): string => {
@@ -193,23 +223,31 @@ const getHeatColor = (score: number, hasData: boolean): string => {
 };
 
 // Memoize the map background to avoid re-rendering on every state change
-const MapBackground = memo(({ solidOutline }: { solidOutline?: boolean }) => (
+const MapBackground = memo(({ solidOutline, regionStates, exceptionStates }: { solidOutline?: boolean; regionStates?: string[]; exceptionStates?: string[] }) => (
   <Geographies geography={GEO_URL}>
     {({ geographies }) =>
-      geographies.map((geo) => (
-        <Geography
-          key={geo.rpid || geo.id || geo.properties?.name}
-          geography={geo}
-          fill={solidOutline ? '#e8e5e1' : '#e8e5e1'}
-          stroke={solidOutline ? '#999' : '#d1cdc8'}
-          strokeWidth={solidOutline ? 1 : 0.5}
-          style={{
-            default: { outline: 'none', fill: '#e8e5e1' },
-            hover: { outline: 'none', fill: '#ddd9d4' },
-            pressed: { outline: 'none' },
-          }}
-        />
-      ))
+      geographies.map((geo) => {
+        const stateName = geo.properties?.name;
+        const abbr = STATE_NAME_TO_ABBR[stateName] || '';
+        const isRegionState = regionStates?.includes(abbr);
+        const isExceptionState = exceptionStates?.includes(abbr);
+
+        return (
+          <Geography
+            key={geo.rpid || geo.id || geo.properties?.name}
+            geography={geo}
+            fill={solidOutline ? '#e8e5e1' : '#e8e5e1'}
+            stroke={isRegionState ? '#157A6E' : isExceptionState ? '#157A6E' : solidOutline ? '#999' : '#d1cdc8'}
+            strokeWidth={isRegionState ? 2 : isExceptionState ? 1.5 : solidOutline ? 1 : 0.5}
+            strokeDasharray={isExceptionState ? '4 2' : 'none'}
+            style={{
+              default: { outline: 'none', fill: '#e8e5e1' },
+              hover: { outline: 'none', fill: '#ddd9d4' },
+              pressed: { outline: 'none' },
+            }}
+          />
+        );
+      })
     }
   </Geographies>
 ));
@@ -221,11 +259,15 @@ const HeatMapGeographies = memo(({
   onStateClick,
   selectedState,
   onHover,
+  regionStates,
+  exceptionStates,
 }: {
   heatData: Record<string, HeatData>;
   onStateClick?: (abbr: string) => void;
   selectedState?: string | null;
   onHover: (abbr: string | null) => void;
+  regionStates?: string[];
+  exceptionStates?: string[];
 }) => (
   <Geographies geography={GEO_URL}>
     {({ geographies }) =>
@@ -236,14 +278,17 @@ const HeatMapGeographies = memo(({
         const hasData = !!data && data.partners > 0;
         const fillColor = getHeatColor(data?.score || 0, hasData);
         const isSelected = selectedState === abbr;
+        const isRegionState = regionStates?.includes(abbr);
+        const isExceptionState = exceptionStates?.includes(abbr);
 
         return (
           <Geography
             key={geo.rpid || geo.id || stateName}
             geography={geo}
             fill={fillColor}
-            stroke={isSelected ? '#0d5a51' : '#ffffff'}
-            strokeWidth={isSelected ? 2 : 0.8}
+            stroke={isSelected ? '#0d5a51' : isRegionState ? '#157A6E' : isExceptionState ? '#157A6E' : '#ffffff'}
+            strokeWidth={isSelected ? 2 : isRegionState ? 2 : isExceptionState ? 1.5 : 0.8}
+            strokeDasharray={isExceptionState ? '4 2' : 'none'}
             onClick={() => abbr && onStateClick?.(abbr)}
             onMouseEnter={() => onHover(abbr)}
             onMouseLeave={() => onHover(null)}
@@ -282,6 +327,12 @@ export const USAMap: React.FC<USAMapProps> = ({
   heatData,
   title,
   subtitle,
+  activeRegion = null,
+  regionStates,
+  exceptionStates,
+  showRegionToggle = false,
+  onRegionToggle,
+  showFullUSA = true,
 }) => {
   const [hoveredCity, setHoveredCity] = useState<string | null>(null);
   const [hoveredState, setHoveredState] = useState<string | null>(null);
@@ -334,6 +385,24 @@ export const USAMap: React.FC<USAMapProps> = ({
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-[15px] font-semibold font-['Newsreader'] text-gray-800">{title || (heatMode ? 'Performance Heat Map' : 'Territory Map')}</h3>
         <div className="flex items-center gap-3">
+          {showRegionToggle && activeRegion && (
+            <button
+              onClick={() => onRegionToggle?.(!showFullUSA)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-full bg-[#157A6E]/10 text-[#157A6E] hover:bg-[#157A6E]/20 transition-colors"
+            >
+              {showFullUSA ? (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6"/><path d="M8 11h6"/></svg>
+                  View My Region
+                </>
+              ) : (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M8 11h6"/></svg>
+                  View Full USA
+                </>
+              )}
+            </button>
+          )}
           {selectedCity && !heatMode && (
             <button
               onClick={() => onCityClick(selectedCity)}
@@ -379,13 +448,20 @@ export const USAMap: React.FC<USAMapProps> = ({
 
       {/* Map */}
       <div className="relative rounded-lg overflow-hidden bg-[#f9f7f5]">
-        <ComposableMap
-          projection="geoAlbersUsa"
-          projectionConfig={{ scale: 1000 }}
-          width={800}
-          height={500}
-          style={{ width: '100%', height: 'auto' }}
+        <div
+          style={{
+            transform: activeRegion && !showFullUSA && regionTransforms[activeRegion] ? regionTransforms[activeRegion] : 'none',
+            transformOrigin: 'center center',
+            transition: 'transform 0.5s ease',
+          }}
         >
+          <ComposableMap
+            projection="geoAlbersUsa"
+            projectionConfig={{ scale: 1000 }}
+            width={800}
+            height={500}
+            style={{ width: '100%', height: 'auto' }}
+          >
           {/* Heat mode: colored state fills */}
           {heatMode && heatData && (
             <HeatMapGeographies
@@ -393,11 +469,13 @@ export const USAMap: React.FC<USAMapProps> = ({
               onStateClick={onStateClick}
               selectedState={selectedState}
               onHover={setHoveredState}
+              regionStates={regionStates}
+              exceptionStates={exceptionStates}
             />
           )}
 
           {/* Normal mode: State boundaries with solid outline */}
-          {!heatMode && <MapBackground solidOutline={showAllStates} />}
+          {!heatMode && <MapBackground solidOutline={showAllStates} regionStates={regionStates} exceptionStates={exceptionStates} />}
 
           {/* State-level markers (all 50 states) */}
           {showAllStates && Object.entries(STATE_CENTERS).map(([abbr, { coords, name }]) => {
@@ -512,7 +590,8 @@ export const USAMap: React.FC<USAMapProps> = ({
               </Marker>
             );
           })}
-        </ComposableMap>
+          </ComposableMap>
+        </div>
 
         {/* Hover Tooltip for cities */}
         {hoveredCity && advisorsByCity[hoveredCity] && !showAllStates && (
