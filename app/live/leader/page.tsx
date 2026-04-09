@@ -876,13 +876,113 @@ export default function LiveLeaderDashboard() {
                       </div>
                     </div>
                   </div>
-                  {isExpanded && (
-                    <div className="border-t border-gray-100 p-4 bg-gray-50 text-[10px] text-gray-600 space-y-2">
-                      <p><strong>Cadence Compliance:</strong> {cadence.overall}%</p>
-                      <p><strong>Active Deals:</strong> {rep.activeDeals}</p>
-                      <p><strong>Win Rate:</strong> {Math.round(rep.winRate)}%</p>
-                    </div>
-                  )}
+                  {isExpanded && (() => {
+                    const repDeals = allDeals.filter(d => d.repId === rep.id);
+                    const topDeals = repDeals.filter(d => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost').sort((a, b) => b.mrr - a.mrr).slice(0, 5);
+                    const activity = getRepActivity(rep.id);
+                    const upsideCount = repDeals.filter(d => d.isUpside).length;
+                    const upsideMRR = repDeals.filter(d => d.isUpside).reduce((s, d) => s + d.mrr, 0);
+                    const healthyPartners = repAdvisors.filter(a => a.pulse === 'Strong' || a.pulse === 'Steady').length;
+                    const atRiskPartners = repAdvisors.filter(a => a.pulse === 'Fading' || a.pulse === 'Flatline').length;
+                    return (
+                      <div className="border-t border-gray-100 bg-[#fafaf8]">
+                        {/* Quick Metrics Row */}
+                        <div className="grid grid-cols-4 gap-3 p-4 border-b border-gray-100">
+                          <div className="text-center">
+                            <p className="text-[16px] font-bold text-gray-800">{Math.round(rep.winRate)}%</p>
+                            <p className="text-[9px] text-gray-500 uppercase font-bold tracking-wide">Win Rate</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[16px] font-bold text-gray-800">{cadence.overall}%</p>
+                            <p className="text-[9px] text-gray-500 uppercase font-bold tracking-wide">Cadence</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[16px] font-bold text-[#157A6E]">{formatCurrency(upsideMRR)}</p>
+                            <p className="text-[9px] text-gray-500 uppercase font-bold tracking-wide">Upside ({upsideCount})</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[16px] font-bold text-gray-800">{rep.avgCycle}d</p>
+                            <p className="text-[9px] text-gray-500 uppercase font-bold tracking-wide">Avg Cycle</p>
+                          </div>
+                        </div>
+
+                        {/* Top Deals */}
+                        <div className="p-4 border-b border-gray-100">
+                          <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500 mb-2">Top Deals</p>
+                          {topDeals.length > 0 ? topDeals.map(d => {
+                            const healthColor = d.health === 'At Risk' || d.health === 'Critical' ? 'text-red-600' : d.health === 'Stalled' ? 'text-purple-600' : 'text-green-600';
+                            return (
+                              <div key={d.id} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-11px font-semibold text-gray-800">{d.name}</span>
+                                  {d.isUpside && <span className="text-[8px] font-bold text-[#157A6E] bg-teal-50 px-1 rounded">UPSIDE</span>}
+                                </div>
+                                <div className="flex items-center gap-3 text-[10px]">
+                                  <span className="font-bold text-gray-700">{formatCurrency(d.mrr)}</span>
+                                  <span className="text-gray-500">{d.stage}</span>
+                                  <span className="text-gray-400">{d.daysInStage}d</span>
+                                  <span className={`font-semibold ${healthColor}`}>{d.health}</span>
+                                </div>
+                              </div>
+                            );
+                          }) : <p className="text-[10px] text-gray-400">No active deals</p>}
+                        </div>
+
+                        {/* Cadence Breakdown + Partner Health + Activity */}
+                        <div className="grid grid-cols-3 gap-0 divide-x divide-gray-100">
+                          {/* Cadence by Tier */}
+                          <div className="p-4">
+                            <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500 mb-2">Cadence by Tier</p>
+                            {(['anchor', 'scaling', 'building', 'launching'] as const).map(tier => {
+                              const val = cadence[tier];
+                              const color = val >= 85 ? 'text-green-600' : val >= 70 ? 'text-amber-600' : 'text-red-600';
+                              const count = repAdvisors.filter(a => a.tier === tier).length;
+                              return (
+                                <div key={tier} className="flex items-center justify-between py-1">
+                                  <span className="text-[10px] text-gray-600 capitalize">{tier} ({count})</span>
+                                  <span className={`text-[10px] font-bold ${color}`}>{val}%</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Partner Health */}
+                          <div className="p-4">
+                            <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500 mb-2">Partner Health</p>
+                            <div className="flex items-center justify-between py-1">
+                              <span className="text-[10px] text-gray-600">Healthy/Steady</span>
+                              <span className="text-[10px] font-bold text-green-600">{healthyPartners}</span>
+                            </div>
+                            <div className="flex items-center justify-between py-1">
+                              <span className="text-[10px] text-gray-600">Fading/Flatline</span>
+                              <span className="text-[10px] font-bold text-red-600">{atRiskPartners}</span>
+                            </div>
+                            <div className="flex items-center justify-between py-1">
+                              <span className="text-[10px] text-gray-600">Total Partners</span>
+                              <span className="text-[10px] font-bold text-gray-800">{repAdvisors.length}</span>
+                            </div>
+                          </div>
+
+                          {/* Weekly Activity */}
+                          <div className="p-4">
+                            <p className="text-[9px] font-bold uppercase tracking-wide text-gray-500 mb-2">This Week</p>
+                            <div className="flex items-center justify-between py-1">
+                              <span className="text-[10px] text-gray-600">Meetings</span>
+                              <span className="text-[10px] font-bold text-gray-800">{activity.meetings}</span>
+                            </div>
+                            <div className="flex items-center justify-between py-1">
+                              <span className="text-[10px] text-gray-600">Calls</span>
+                              <span className="text-[10px] font-bold text-gray-800">{activity.calls}</span>
+                            </div>
+                            <div className="flex items-center justify-between py-1">
+                              <span className="text-[10px] text-gray-600">Emails</span>
+                              <span className="text-[10px] font-bold text-gray-800">{activity.emails}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
