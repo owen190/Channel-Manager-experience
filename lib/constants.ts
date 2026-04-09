@@ -33,12 +33,10 @@ export const NAV_ITEMS_MANAGER = [
 
 export const NAV_ITEMS_LEADER = [
   { id: 'command-center', label: 'Command Center', icon: 'Zap' },
-  { id: 'forecast', label: 'Forecast', icon: 'BarChart3' },
-  { id: 'team', label: 'Team', icon: 'Users' },
+  { id: 'forecast-pipeline', label: 'Forecast & Pipeline', icon: 'BarChart3' },
+  { id: 'team-accountability', label: 'Team & Accountability', icon: 'Users' },
   { id: 'relationships', label: 'Relationships', icon: 'Handshake' },
-  { id: 'pipeline', label: 'Pipeline', icon: 'DollarSign' },
   { id: 'intelligence', label: 'Intelligence', icon: 'Brain' },
-  { id: 'supplier-accountability', label: 'Supplier Accountability', icon: 'Shield' },
   { id: 'team-management', label: 'Team Management', icon: 'Settings' },
 ];
 
