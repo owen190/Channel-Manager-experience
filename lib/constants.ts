@@ -39,6 +39,7 @@ export const NAV_ITEMS_LEADER = [
   { id: 'pipeline', label: 'Pipeline', icon: 'DollarSign' },
   { id: 'intelligence', label: 'Intelligence', icon: 'Brain' },
   { id: 'supplier-accountability', label: 'Supplier Accountability', icon: 'Shield' },
+  { id: 'team-management', label: 'Team Management', icon: 'Settings' },
 ];
 
 export const SERVICE_CATALOG = [
