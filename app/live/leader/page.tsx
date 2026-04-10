@@ -154,6 +154,38 @@ export default function LiveLeaderDashboard() {
   const [relationshipFilter, setRelationshipFilter] = useState('All');
   const [partnerSearch, setPartnerSearch] = useState('');
 
+  // PIECE 1: Create Partner Modal state
+  const [createPartnerForm, setCreatePartnerForm] = useState({ name: '', company: '', email: '', phone: '', tier: 'launching', state: '', notes: '' });
+
+  // PIECE 2: Create Group Modal state
+  const [createGroupForm, setCreateGroupForm] = useState({ name: '', rules: [{ field: 'tier', operator: 'equals', value: '' }], assignedCMs: [] as string[], startDate: '', endDate: '' });
+
+  // PIECE 4: 1:1 Schedule Editor state
+  const [editingScheduleRepId, setEditingScheduleRepId] = useState<string | null>(null);
+  const [editScheduleForm, setEditScheduleForm] = useState({ day: 'Monday', time: '10:00 AM' });
+
+  // PIECE 3: Meeting form state
+  const [newMeetingForm, setNewMeetingForm] = useState({ time: '', title: '', detail: '', stake: 'Medium' });
+
+  // Supplier modal state
+  const [showAddSupplierModal, setShowAddSupplierModal] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState('');
+  const [newSupplierCM, setNewSupplierCM] = useState('');
+  const [newSupplierType, setNewSupplierType] = useState<'co-event' | 'joint-selling' | 'referral'>('co-event');
+  const [newSupplierStatus, setNewSupplierStatus] = useState<'proposed' | 'active' | 'completed'>('proposed');
+  const [newSupplierPartners, setNewSupplierPartners] = useState<string[]>([]);
+  const [newSupplierNotes, setNewSupplierNotes] = useState('');
+
+  // Event modal state
+  const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const [newEventName, setNewEventName] = useState('');
+  const [newEventDate, setNewEventDate] = useState('');
+  const [newEventBudget, setNewEventBudget] = useState(0);
+  const [newEventTargetMeetings, setNewEventTargetMeetings] = useState(0);
+  const [newEventTargetSignups, setNewEventTargetSignups] = useState(0);
+  const [newEventStatus, setNewEventStatus] = useState<'planning' | 'active' | 'completed'>('planning');
+  const [newEventCMs, setNewEventCMs] = useState<string[]>([]);
+
   // Intelligence view
   const [signalSubTab, setSignalSubTab] = useState<'deal' | 'partner'>('deal');
   const [playbookAssignTo, setPlaybookAssignTo] = useState<'self' | 'one' | 'multiple' | 'team'>('self');
@@ -645,16 +677,29 @@ export default function LiveLeaderDashboard() {
                 desc: `${biggest.name} — wants upside override. Probability: ${biggest.probability}%.`,
               });
             }
-            return actionCards.slice(0, 3).map((action, i) => (
-              <div key={i} className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-all" style={{ borderLeft: `3px solid ${action.color}` }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[16px]">{action.icon}</span>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.5px]" style={{ color: action.color }}>{action.level}</span>
+            return actionCards.slice(0, 3).map((action, i) => {
+              const handleActionClick = () => {
+                if (i === 0) {
+                  const biggestStalled = stalledHighValue.sort((a, b) => b.mrr - a.mrr)[0];
+                  if (biggestStalled) setActiveView('forecast-pipeline');
+                } else if (i === 1) {
+                  setActiveView('relationships');
+                } else if (i === 2) {
+                  // Scroll to overrides in action items
+                  document.querySelector('[data-action="overrides"]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+              };
+              return (
+                <div key={i} className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-all" style={{ borderLeft: `3px solid ${action.color}` }} onClick={handleActionClick}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[16px]">{action.icon}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.5px]" style={{ color: action.color }}>{action.level}</span>
+                  </div>
+                  <p className="text-13px font-semibold text-gray-800 mb-1">{action.title}</p>
+                  <p className="text-11px text-gray-500">{action.desc}</p>
                 </div>
-                <p className="text-13px font-semibold text-gray-800 mb-1">{action.title}</p>
-                <p className="text-11px text-gray-500">{action.desc}</p>
-              </div>
-            ));
+              );
+            });
           })()}
         </div>
 
@@ -665,12 +710,16 @@ export default function LiveLeaderDashboard() {
               <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Your Action Items</h3>
             </div>
             <div className="space-y-2">
-              {pendingOverrides.map((d, i) => (
-                <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-[#fafaf8] cursor-pointer hover:bg-gray-100">
+              {pendingOverrides.filter(d => !overrideActions[d.id]).map((d, i) => (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-[#fafaf8] hover:bg-gray-100">
                   <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 bg-red-500" />
-                  <div>
+                  <div className="flex-1">
                     <p className="text-12px font-semibold text-gray-800">Approve forecast override: {d.name}</p>
                     <p className="text-[10px] text-gray-500 mt-0.5">{reps.find(r => r.id === d.repId)?.name} · {formatCurrency(d.mrr)}</p>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button onClick={() => { setOverrideActions(prev => ({...prev, [d.id]: 'approved'})); setTimeout(() => setOverrideActions(prev => {const {[d.id]: _, ...rest} = prev; return rest;}), 2000); }} className="px-2 py-1 text-[9px] font-bold bg-green-100 text-green-800 rounded hover:bg-green-200">Approve</button>
+                    <button onClick={() => { setOverrideActions(prev => ({...prev, [d.id]: 'denied'})); setTimeout(() => setOverrideActions(prev => {const {[d.id]: _, ...rest} = prev; return rest;}), 2000); }} className="px-2 py-1 text-[9px] font-bold bg-red-100 text-red-800 rounded hover:bg-red-200">Deny</button>
                   </div>
                 </div>
               ))}
@@ -700,8 +749,35 @@ export default function LiveLeaderDashboard() {
                     <p className="text-[10px] text-gray-500">{m.detail}</p>
                   </div>
                   <span className={`px-2 py-1 rounded text-[9px] font-semibold ${m.stakeColor} whitespace-nowrap`}>{m.stake}</span>
+                  {editingMeetings && <button onClick={() => { setStoredMeetings(prev => prev.filter((_, idx) => idx !== i)); saveToStorage('leader_meetings', storedMeetings.filter((_, idx) => idx !== i)); }} className="text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>}
                 </div>
               ))}
+
+              {editingMeetings && (
+                <div className="bg-gray-50 rounded-lg p-3 border border-[#e8e5e1] space-y-3">
+                  <p className="text-[10px] font-bold uppercase text-gray-600">Add New Meeting</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="time" value={newMeetingForm.time} onChange={(e) => setNewMeetingForm(prev => ({...prev, time: e.target.value}))} className="px-2 py-1 border border-[#e8e5e1] rounded text-[11px] focus:outline-none focus:border-[#157A6E]" placeholder="Time" />
+                    <input type="text" value={newMeetingForm.title} onChange={(e) => setNewMeetingForm(prev => ({...prev, title: e.target.value}))} className="px-2 py-1 border border-[#e8e5e1] rounded text-[11px] focus:outline-none focus:border-[#157A6E]" placeholder="Title" />
+                    <input type="text" value={newMeetingForm.detail} onChange={(e) => setNewMeetingForm(prev => ({...prev, detail: e.target.value}))} className="col-span-2 px-2 py-1 border border-[#e8e5e1] rounded text-[11px] focus:outline-none focus:border-[#157A6E]" placeholder="Detail" />
+                    <select value={newMeetingForm.stake} onChange={(e) => setNewMeetingForm(prev => ({...prev, stake: e.target.value}))} className="col-span-2 px-2 py-1 border border-[#e8e5e1] rounded text-[11px] focus:outline-none focus:border-[#157A6E]">
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Low">Low</option>
+                    </select>
+                  </div>
+                  <button onClick={() => {
+                    if (newMeetingForm.time && newMeetingForm.title) {
+                      const stakeColorMap: Record<string, string> = {High: 'bg-red-100 text-red-800', Medium: 'bg-amber-100 text-amber-800', Low: 'bg-green-100 text-green-800'};
+                      const borderColorMap: Record<string, string> = {High: '#ef4444', Medium: '#f59e0b', Low: '#157A6E'};
+                      const updated = [...storedMeetings, {time: newMeetingForm.time, title: newMeetingForm.title, detail: newMeetingForm.detail, stake: newMeetingForm.stake, stakeColor: stakeColorMap[newMeetingForm.stake] || 'bg-gray-100 text-gray-800', borderColor: borderColorMap[newMeetingForm.stake] || '#999'}];
+                      setStoredMeetings(updated);
+                      saveToStorage('leader_meetings', updated);
+                      setNewMeetingForm({time: '', title: '', detail: '', stake: 'Medium'});
+                    }
+                  }} className="w-full px-2 py-1 text-[10px] font-bold text-white bg-[#157A6E] rounded hover:bg-[#126a5f]">Save Meeting</button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1168,14 +1244,33 @@ export default function LiveLeaderDashboard() {
           <div className="space-y-4">
             {reps.map(rep => {
               const schedule = oneOnOneSchedule[rep.id] || { day: 'Monday', time: '10:00 AM' };
+              const isEditing = editingScheduleRepId === rep.id;
               return (
                 <div key={rep.id} className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
                   <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <p className="text-13px font-semibold text-gray-800">{rep.name}</p>
-                      <p className="text-[10px] text-gray-500 mt-1">{schedule.day} at {schedule.time}</p>
-                    </div>
-                    <button className="text-[10px] text-[#157A6E] font-semibold hover:underline">Edit schedule</button>
+                    {isEditing ? (
+                      <div className="flex-1">
+                        <p className="text-13px font-semibold text-gray-800 mb-2">{rep.name}</p>
+                        <div className="space-y-2">
+                          <select value={editScheduleForm.day} onChange={(e) => setEditScheduleForm(prev => ({...prev, day: e.target.value}))} className="w-full px-2 py-1 border border-[#e8e5e1] rounded text-[11px] focus:outline-none focus:border-[#157A6E]">
+                            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(d => <option key={d} value={d}>{d}</option>)}
+                          </select>
+                          <input type="time" value={editScheduleForm.time} onChange={(e) => setEditScheduleForm(prev => ({...prev, time: e.target.value}))} className="w-full px-2 py-1 border border-[#e8e5e1] rounded text-[11px] focus:outline-none focus:border-[#157A6E]" />
+                        </div>
+                        <div className="flex gap-2 mt-3">
+                          <button onClick={() => { setOneOnOneSchedule(prev => ({...prev, [rep.id]: editScheduleForm})); saveToStorage('leader_1on1_schedule', {...oneOnOneSchedule, [rep.id]: editScheduleForm}); setEditingScheduleRepId(null); }} className="flex-1 px-2 py-1 text-[10px] font-bold text-white bg-[#157A6E] rounded hover:bg-[#126a5f]">Save</button>
+                          <button onClick={() => setEditingScheduleRepId(null)} className="flex-1 px-2 py-1 text-[10px] font-bold text-gray-600 bg-gray-100 rounded hover:bg-gray-200">Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <p className="text-13px font-semibold text-gray-800">{rep.name}</p>
+                          <p className="text-[10px] text-gray-500 mt-1">{schedule.day} at {schedule.time}</p>
+                        </div>
+                        <button onClick={() => { setEditScheduleForm(schedule); setEditingScheduleRepId(rep.id); }} className="text-[10px] text-[#157A6E] font-semibold hover:underline">Edit schedule</button>
+                      </>
+                    )}
                   </div>
                   <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                     <p className="text-[10px] font-bold uppercase text-gray-600">Top 3 Discussion Topics</p>
@@ -1491,22 +1586,155 @@ export default function LiveLeaderDashboard() {
         )}
 
         {relSubTab === 'tsds' && (
-          <div className="text-center py-8 text-gray-500">
-            <p className="text-12px">TSD relationships coming soon</p>
+          <div className="space-y-4">
+            {(() => {
+              const tsds = ['TechFlow Dist', 'Prime Channel Partners', 'Solutions Aggregators Inc'].map((name, i) => {
+                const seed = name;
+                const stateList = ['CA', 'TX', 'NY', 'FL', 'IL', 'PA', 'WA', 'MA', 'CO', 'AZ'];
+                const stateCount = Math.floor(seededRandom(seed + 'statecount', 1, 4)) + 1;
+                const states = stateList.slice(i * 3, i * 3 + stateCount);
+                const partnerCount = Math.floor(seededRandom(seed + 'pc', 8, 35));
+                const dealVolume = Math.floor(seededRandom(seed + 'dv', 150000, 850000));
+                const commission = parseFloat((seededRandom(seed + 'comm', 2, 8)).toFixed(1));
+                const statusOptions = ['active', 'pending', 'inactive'];
+                const status = statusOptions[Math.floor(seededRandom(seed + 'stat') * statusOptions.length)];
+                return { id: `tsd${i}`, name, territory: states, partnerCount, dealVolume, commission, primaryContact: `Contact ${i + 1}`, status };
+              });
+              return (
+                <div className="grid grid-cols-2 gap-4">
+                  {tsds.map(tsd => (
+                    <div key={tsd.id} className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 cursor-pointer hover:shadow-md transition-all">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="text-13px font-semibold text-gray-800">{tsd.name}</p>
+                          <p className="text-[11px] text-gray-500 mt-0.5">{tsd.territory.join(', ')}</p>
+                        </div>
+                        <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full whitespace-nowrap ${tsd.status === 'active' ? 'bg-green-100 text-green-800' : tsd.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-800'}`}>
+                          {tsd.status.charAt(0).toUpperCase() + tsd.status.slice(1)}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-[11px] mb-3">
+                        <div>
+                          <p className="text-gray-500">Partners</p>
+                          <p className="font-semibold text-gray-800">{tsd.partnerCount}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Deal Volume</p>
+                          <p className="font-semibold text-gray-800">{formatCurrency(tsd.dealVolume)}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Commission</p>
+                          <p className="font-semibold text-gray-800">{tsd.commission}%</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Contact</p>
+                          <p className="font-semibold text-gray-800 text-[10px]">{tsd.primaryContact}</p>
+                        </div>
+                      </div>
+                      <button className="w-full px-3 py-1.5 text-[10px] font-bold text-white bg-[#157A6E] rounded-full hover:bg-[#126a5f] transition-colors">
+                        View Details
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         )}
 
         {relSubTab === 'contacts' && (
-          <div className="text-center py-8 text-gray-500">
-            <p className="text-12px">Contact management coming soon</p>
+          <div className="space-y-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
+              <div className="flex items-center gap-3 p-4 border-b border-[#e8e5e1]">
+                <Search className="w-4 h-4 text-gray-400" />
+                <input placeholder="Search contacts by name, company, role..." className="flex-1 text-12px outline-none bg-transparent" onChange={(e) => setPartnerSearch(e.target.value)} />
+              </div>
+              <table className="w-full text-11px">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-4 py-2 text-left font-bold text-gray-700">Name</th>
+                    <th className="px-4 py-2 text-left font-bold text-gray-700">Company</th>
+                    <th className="px-4 py-2 text-left font-bold text-gray-700">Role</th>
+                    <th className="px-4 py-2 text-left font-bold text-gray-700">Email</th>
+                    <th className="px-4 py-2 text-center font-bold text-gray-700">Tier</th>
+                    <th className="px-4 py-2 text-center font-bold text-gray-700">Last Contact</th>
+                    <th className="px-4 py-2 text-center font-bold text-gray-700">Pulse</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {advisors.filter(a => a.name.toLowerCase().includes(partnerSearch.toLowerCase()) || a.company.toLowerCase().includes(partnerSearch.toLowerCase())).map((a, i) => (
+                    <tr key={i} className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer" onClick={() => handleAdvisorClick(a.id)}>
+                      <td className="px-4 py-2 font-semibold text-gray-800">{a.name}</td>
+                      <td className="px-4 py-2 text-gray-600">{a.company}</td>
+                      <td className="px-4 py-2 text-gray-600">{a.title || 'Partner'}</td>
+                      <td className="px-4 py-2 text-gray-600 text-[10px]">{a.email || '–'}</td>
+                      <td className="px-4 py-2 text-center"><TierBadge tier={a.tier} /></td>
+                      <td className="px-4 py-2 text-center text-gray-600 text-[10px]">{a.lastContact ? timeAgo(a.lastContact) : '–'}</td>
+                      <td className="px-4 py-2 text-center"><PulseBadge pulse={a.pulse} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
         {relSubTab === 'flatlined' && (
           <div className="space-y-4">
-            <div className="text-center py-8 bg-white rounded-[10px] border border-[#e8e5e1]">
-              <p className="text-12px text-gray-600">No flatlined partners currently</p>
-            </div>
+            {(() => {
+              const flatlinedAdvisors = advisors.filter(a => {
+                const daysSinceContact = a.lastContact ? Math.floor((new Date().getTime() - new Date(a.lastContact).getTime()) / 86400000) : 0;
+                return a.pulse === 'Flatline' || (a.pulse === 'Fading' && daysSinceContact > 30);
+              });
+              if (flatlinedAdvisors.length === 0) {
+                return (
+                  <div className="text-center py-8 bg-white rounded-[10px] border border-[#e8e5e1]">
+                    <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
+                    <p className="text-12px text-gray-600">All partners are active — no flatlined relationships</p>
+                  </div>
+                );
+              }
+              return (
+                <div className="grid grid-cols-2 gap-4">
+                  {flatlinedAdvisors.map((a, i) => {
+                    const daysSinceContact = a.lastContact ? Math.floor((new Date().getTime() - new Date(a.lastContact).getTime()) / 86400000) : 0;
+                    return (
+                      <div key={i} className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <p className="text-13px font-semibold text-gray-800">{a.name}</p>
+                            <p className="text-[11px] text-gray-500 mt-0.5">{a.company}</p>
+                          </div>
+                          <TierBadge tier={a.tier} />
+                        </div>
+                        <div className="flex items-center gap-2 mb-3 text-[11px]">
+                          <Clock className="w-3 h-3 text-gray-400" />
+                          <span className="text-gray-600">Last contact: {daysSinceContact}d ago</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mb-3 text-[11px]">
+                          <div>
+                            <p className="text-gray-500">MRR</p>
+                            <p className="font-semibold text-gray-800">{formatCurrency(a.mrr)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">Trajectory</p>
+                            <TrajectoryBadge trajectory={a.trajectory} />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => { setPlaybookModalAdvisor(a); setShowPlaybookModal(true); }} className="flex-1 px-2 py-1.5 text-[9px] font-bold text-white bg-[#157A6E] rounded-full hover:bg-[#126a5f] transition-colors">
+                            Launch Win-Back
+                          </button>
+                          <button onClick={() => { setLogInteractionAdvisor(a.id); setShowLogInteractionModal(true); }} className="flex-1 px-2 py-1.5 text-[9px] font-bold text-[#157A6E] border border-[#157A6E] rounded-full hover:bg-[#f7f5f2] transition-colors">
+                            Log Interaction
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -1571,11 +1799,12 @@ export default function LiveLeaderDashboard() {
         {/* Feature 8: Supplier Collaboration Tracking */}
         {relSubTab === 'supplierCollabs' && (
           <div className="space-y-4">
-            <div className="flex items-center gap-3 justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Supplier Collaborations</span>
                 <div className="flex-1 h-px bg-[#e8e5e1]" />
               </div>
+              <button onClick={() => setShowAddSupplierModal(true)} className="px-3 py-1 text-[10px] font-bold text-white bg-[#157A6E] rounded-full hover:bg-[#126a5f]">+ Add</button>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -1744,9 +1973,12 @@ export default function LiveLeaderDashboard() {
         </div>
 
         {/* Feature 7: Event Playbooks with ROI Tracking */}
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Event Playbooks</span>
-          <div className="flex-1 h-px bg-[#e8e5e1]" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Event Playbooks</span>
+            <div className="flex-1 h-px bg-[#e8e5e1]" />
+          </div>
+          <button onClick={() => setShowAddEventModal(true)} className="px-3 py-1 text-[10px] font-bold text-white bg-[#157A6E] rounded-full hover:bg-[#126a5f]">+ Add Event</button>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -2195,6 +2427,140 @@ export default function LiveLeaderDashboard() {
             <div className="p-6 border-b border-[#e8e5e1]">
               <div className="flex items-center justify-between">
                 <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Launch Playbook</h2>
+
+      {/* ═══════════════════ PIECE 1: CREATE PARTNER MODAL ═══════════════════ */}
+      {showCreatePartner && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowCreatePartner(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-[600px]" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-[#e8e5e1]">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Create New Partner</h2>
+                <button onClick={() => setShowCreatePartner(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-11px font-bold uppercase text-gray-600">Partner Name</label>
+                <input type="text" value={createPartnerForm.name} onChange={(e) => setCreatePartnerForm(prev => ({...prev, name: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" placeholder="Name" />
+              </div>
+
+              <div>
+                <label className="text-11px font-bold uppercase text-gray-600">Company</label>
+                <input type="text" value={createPartnerForm.company} onChange={(e) => setCreatePartnerForm(prev => ({...prev, company: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" placeholder="Company" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-11px font-bold uppercase text-gray-600">Email</label>
+                  <input type="email" value={createPartnerForm.email} onChange={(e) => setCreatePartnerForm(prev => ({...prev, email: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" placeholder="Email" />
+                </div>
+                <div>
+                  <label className="text-11px font-bold uppercase text-gray-600">Phone</label>
+                  <input type="tel" value={createPartnerForm.phone} onChange={(e) => setCreatePartnerForm(prev => ({...prev, phone: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" placeholder="Phone" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-11px font-bold uppercase text-gray-600">Tier</label>
+                  <select value={createPartnerForm.tier} onChange={(e) => setCreatePartnerForm(prev => ({...prev, tier: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]">
+                    <option value="anchor">Anchor</option>
+                    <option value="scaling">Scaling</option>
+                    <option value="building">Building</option>
+                    <option value="launching">Launching</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-11px font-bold uppercase text-gray-600">State</label>
+                  <input type="text" value={createPartnerForm.state} onChange={(e) => setCreatePartnerForm(prev => ({...prev, state: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" placeholder="State" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-11px font-bold uppercase text-gray-600">Notes</label>
+                <textarea value={createPartnerForm.notes} onChange={(e) => setCreatePartnerForm(prev => ({...prev, notes: e.target.value}))} rows={3} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" placeholder="Additional notes..." />
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-[#e8e5e1] flex justify-end gap-2">
+              <button onClick={() => setShowCreatePartner(false)} className="px-4 py-2 text-12px font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+              <button onClick={() => { if (createPartnerForm.name && createPartnerForm.company) { const newAdvisor: any = { id: `a_${Date.now()}`, name: createPartnerForm.name, title: '', company: createPartnerForm.company, email: createPartnerForm.email, phone: createPartnerForm.phone, tier: createPartnerForm.tier, pulse: 'Strong', trajectory: 'Stable', tone: 'Neutral', intent: 'Growth', friction: 'Low', dealHealth: 'Good', relationshipStage: 'Prospect', location: createPartnerForm.state, birthday: '', education: '', family: '', hobbies: '', funFact: '', personalIntel: '', tsds: [], previousCompanies: [], mutualConnections: [], sharedClients: [], notes: [createPartnerForm.notes], activity: [], lastContact: new Date().toISOString(), deals: [], mrr: 5000, connectedSince: new Date().toISOString(), bestDayToReach: 'Monday', commPreference: 'Email', referredBy: '', engagementBreakdown: { engagement: 'Steady', pipelineStrength: 'Steady', responsiveness: 'Steady', growthPotential: 'Steady' }, diagnosis: '' }; setAdvisors(prev => [...prev, newAdvisor]); setCreatePartnerForm({ name: '', company: '', email: '', phone: '', tier: 'launching', state: '', notes: '' }); setShowCreatePartner(false); } }} className="px-4 py-2 text-12px font-medium text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f]">Create Partner</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════ PIECE 2: CREATE GROUP MODAL ═══════════════════ */}
+      {showCreateGroup && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowCreateGroup(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-[700px] max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-[#e8e5e1]">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Create Partner Group</h2>
+                <button onClick={() => setShowCreateGroup(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-11px font-bold uppercase text-gray-600">Group Name</label>
+                <input type="text" value={createGroupForm.name} onChange={(e) => setCreateGroupForm(prev => ({...prev, name: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" placeholder="e.g., Texas Anchors" />
+              </div>
+
+              <div>
+                <label className="text-11px font-bold uppercase text-gray-600">Rules</label>
+                <div className="mt-2 space-y-2">
+                  {createGroupForm.rules.map((rule, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <select value={rule.field} onChange={(e) => { const newRules = [...createGroupForm.rules]; newRules[idx].field = e.target.value; setCreateGroupForm(prev => ({...prev, rules: newRules})); }} className="flex-1 px-2 py-1 border border-gray-200 rounded text-[11px] focus:outline-none focus:border-[#157A6E]">
+                        <option value="tier">Tier</option>
+                        <option value="pulse">Pulse</option>
+                        <option value="state">State</option>
+                        <option value="stage">Stage</option>
+                        <option value="trajectory">Trajectory</option>
+                      </select>
+                      <select value={rule.operator} onChange={(e) => { const newRules = [...createGroupForm.rules]; newRules[idx].operator = e.target.value; setCreateGroupForm(prev => ({...prev, rules: newRules})); }} className="flex-1 px-2 py-1 border border-gray-200 rounded text-[11px] focus:outline-none focus:border-[#157A6E]">
+                        <option value="equals">Equals</option>
+                        <option value="not_equals">Not Equals</option>
+                        <option value="contains">Contains</option>
+                      </select>
+                      <input type="text" value={rule.value} onChange={(e) => { const newRules = [...createGroupForm.rules]; newRules[idx].value = e.target.value; setCreateGroupForm(prev => ({...prev, rules: newRules})); }} className="flex-1 px-2 py-1 border border-gray-200 rounded text-[11px] focus:outline-none focus:border-[#157A6E]" placeholder="Value" />
+                      {createGroupForm.rules.length > 1 && <button onClick={() => setCreateGroupForm(prev => ({...prev, rules: prev.rules.filter((_, i) => i !== idx)}))} className="text-red-500 hover:text-red-700"><X className="w-4 h-4" /></button>}
+                    </div>
+                  ))}
+                  <button onClick={() => setCreateGroupForm(prev => ({...prev, rules: [...prev.rules, {field: 'tier', operator: 'equals', value: ''}]}))} className="text-[10px] text-[#157A6E] font-semibold hover:underline">+ Add Rule</button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-11px font-bold uppercase text-gray-600">Assigned CMs</label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {['Jordan R.', 'Sarah K.', 'Marcus T.', 'Whole Team'].map(cm => (
+                    <button key={cm} onClick={() => { if (createGroupForm.assignedCMs.includes(cm)) { setCreateGroupForm(prev => ({...prev, assignedCMs: prev.assignedCMs.filter(c => c !== cm)})); } else { setCreateGroupForm(prev => ({...prev, assignedCMs: [...prev.assignedCMs, cm]})); } }} className={`px-3 py-1 text-[10px] font-bold rounded-full transition-colors ${createGroupForm.assignedCMs.includes(cm) ? 'bg-[#157A6E] text-white' : 'bg-gray-100 text-gray-600'}`}>{cm}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-11px font-bold uppercase text-gray-600">Start Date (optional)</label>
+                  <input type="date" value={createGroupForm.startDate} onChange={(e) => setCreateGroupForm(prev => ({...prev, startDate: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" />
+                </div>
+                <div>
+                  <label className="text-11px font-bold uppercase text-gray-600">End Date (optional)</label>
+                  <input type="date" value={createGroupForm.endDate} onChange={(e) => setCreateGroupForm(prev => ({...prev, endDate: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-[#e8e5e1] flex justify-end gap-2">
+              <button onClick={() => setShowCreateGroup(false)} className="px-4 py-2 text-12px font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+              <button onClick={() => { if (createGroupForm.name && createGroupForm.rules.every(r => r.value)) { const newGroup = { id: `g_${Date.now()}`, name: createGroupForm.name, rules: createGroupForm.rules, assignedTo: createGroupForm.assignedCMs, startDate: createGroupForm.startDate || undefined, endDate: createGroupForm.endDate || undefined }; setPartnerGroups(prev => [...prev, newGroup]); saveToStorage('leader_partnerGroups', [...partnerGroups, newGroup]); setCreateGroupForm({ name: '', rules: [{ field: 'tier', operator: 'equals', value: '' }], assignedCMs: [], startDate: '', endDate: '' }); setShowCreateGroup(false); } }} className="px-4 py-2 text-12px font-medium text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f]">Create Group</button>
+            </div>
+          </div>
+        </div>
+      )}
                 <button onClick={() => setShowPlaybookModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
               </div>
             </div>
@@ -2284,6 +2650,57 @@ export default function LiveLeaderDashboard() {
 
             <div className="p-6 border-t border-[#e8e5e1] flex justify-end gap-2">
               <button onClick={() => setShowPlaybookModal(false)} className="px-4 py-2 text-12px font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {showAddSupplierModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowAddSupplierModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-[600px] max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-[#e8e5e1]">
+              <div className="flex justify-between items-center">
+                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Add Collaboration</h2>
+                <button onClick={() => setShowAddSupplierModal(false)}><X className="w-4 h-4" /></button>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-11px font-bold uppercase text-gray-600 block mb-2">Supplier Name</label>
+                <input type="text" value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" />
+              </div>
+              <div>
+                <label className="text-11px font-bold uppercase text-gray-600 block mb-2">CM</label>
+                <select value={newSupplierCM} onChange={(e) => setNewSupplierCM(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]">
+                  <option value="">Select CM...</option>
+                  {reps.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-11px font-bold uppercase text-gray-600 block mb-2">Type</label>
+                <select value={newSupplierType} onChange={(e) => setNewSupplierType(e.target.value as any)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]">
+                  <option value="co-event">Co-Event</option>
+                  <option value="joint-selling">Joint Selling</option>
+                  <option value="referral">Referral</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-11px font-bold uppercase text-gray-600 block mb-2">Status</label>
+                <select value={newSupplierStatus} onChange={(e) => setNewSupplierStatus(e.target.value as any)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]">
+                  <option value="proposed">Proposed</option>
+                  <option value="active">Active</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-11px font-bold uppercase text-gray-600 block mb-2">Notes</label>
+                <textarea value={newSupplierNotes} onChange={(e) => setNewSupplierNotes(e.target.value)} rows={3} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" />
+              </div>
+            </div>
+            <div className="p-6 border-t border-[#e8e5e1] flex gap-2 justify-end">
+              <button onClick={() => setShowAddSupplierModal(false)} className="px-4 py-2 text-12px font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+              <button onClick={() => { const id = `sc_${Date.now()}`; setSupplierCollabs(prev => [...prev, {id, repId: newSupplierCM, supplierName: newSupplierName, type: newSupplierType, status: newSupplierStatus, partnerIds: [], notes: newSupplierNotes}]); setShowAddSupplierModal(false); setNewSupplierName(''); setNewSupplierCM(''); setNewSupplierNotes(''); }} className="px-4 py-2 text-12px font-medium text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f]">Create Collaboration</button>
             </div>
           </div>
         </div>
