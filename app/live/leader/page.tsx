@@ -226,7 +226,7 @@ export default function LiveLeaderDashboard() {
   const [dealActions, setDealActions] = useState<Record<string, 'flagged' | 'joined'>>({});
 
   // Playbook state
-  const [launchedPlaybooks, setLaunchedPlaybooks] = useState<Array<{templateId: string; advisorId: string; advisorName: string; launchedAt: string; priority: 'critical' | 'high' | 'medium'; completedSteps: number[]; skippedSteps: number[]; customSteps?: Array<{day: number; label: string; desc: string; phase: string}>; notes?: string; playbookName?: string}>>(() => loadFromStorage('cc_launchedPlaybooks', []));
+  const [launchedPlaybooks, setLaunchedPlaybooks] = useState<Array<{templateId: string; advisorId: string; advisorName: string; launchedAt: string; priority: 'critical' | 'high' | 'medium'; completedSteps: number[]; skippedSteps: number[]; customSteps?: Array<{day: number; label: string; desc: string; phase: string}>; notes?: string; playbookName?: string; assignedCM?: string}>>(() => loadFromStorage('leader_launchedPlaybooks', []));
   const [showPlaybookModal, setShowPlaybookModal] = useState(false);
   const [playbookModalAdvisor, setPlaybookModalAdvisor] = useState<Advisor | null>(null);
   const [playbookModalMode, setPlaybookModalMode] = useState<'template' | 'custom'>('template');
@@ -236,35 +236,52 @@ export default function LiveLeaderDashboard() {
   const [customPlaybookSteps, setCustomPlaybookSteps] = useState<Array<{label: string; desc: string; day: number}>>([{label: '', desc: '', day: 1}]);
   const [playbookAdvisorSearch, setPlaybookAdvisorSearch] = useState('');
   const [showPlaybookAdvisorPicker, setShowPlaybookAdvisorPicker] = useState(false);
+  const [editingPlaybookIdx, setEditingPlaybookIdx] = useState<number | null>(null);
+  const [modalEditSteps, setModalEditSteps] = useState<Array<{day: number; label: string; desc: string; phase: string}>>([]);
+  const [playbookAssignedCM, setPlaybookAssignedCM] = useState<string>('');
 
   const playbookTemplates = [
-    { id: 'win-back', title: 'Win-Back', icon: '🔄', subtitle: 'Re-engage at-risk partners', duration: '7 days', bgColor: 'bg-rose-50', borderColor: 'border-l-rose-400', color: '#e11d48', tagColor: 'bg-rose-100 text-rose-800', category: 'Retention', steps: [
+    { id: 'win-back', title: 'Win-Back', icon: '🔄', subtitle: 'Re-engage at-risk partners', duration: '7 days', bgColor: 'bg-rose-50', borderColor: 'border-l-rose-400', color: '#e11d48', tagColor: 'bg-rose-100 text-rose-800', category: 'Retention', applicableTo: 'At-Risk Partners', steps: [
       { day: 1, label: 'Review partner history', desc: 'Analyze engagement decline and identify root cause', phase: 'Assess' },
       { day: 2, label: 'Internal strategy session', desc: 'Align with CM on win-back approach', phase: 'Plan' },
       { day: 3, label: 'Direct outreach', desc: 'Personal call or meeting with partner', phase: 'Engage' },
       { day: 5, label: 'Value reinforcement', desc: 'Share success stories and new capabilities', phase: 'Engage' },
       { day: 7, label: 'Follow-up commitment', desc: 'Secure next steps and renewed engagement plan', phase: 'Close' },
     ]},
-    { id: 'onboarding', title: 'Onboarding', icon: '🚀', subtitle: 'Launch new partners', duration: '14 days', bgColor: 'bg-blue-50', borderColor: 'border-l-blue-400', color: '#2563eb', tagColor: 'bg-blue-100 text-blue-800', category: 'Activation', steps: [
+    { id: 'onboarding', title: 'Onboarding', icon: '🚀', subtitle: 'Launch new partners', duration: '14 days', bgColor: 'bg-blue-50', borderColor: 'border-l-blue-400', color: '#2563eb', tagColor: 'bg-blue-100 text-blue-800', category: 'Activation', applicableTo: 'New Partners', steps: [
       { day: 1, label: 'Welcome & intro', desc: 'Initial meeting and expectation setting', phase: 'Setup' },
       { day: 3, label: 'Training session', desc: 'Product and process training', phase: 'Setup' },
       { day: 5, label: 'First deal support', desc: 'Guide through first opportunity', phase: 'Activate' },
       { day: 10, label: 'Progress check-in', desc: 'Review early metrics and adjust', phase: 'Monitor' },
       { day: 14, label: 'Graduation review', desc: 'Assess readiness for independent operation', phase: 'Close' },
     ]},
-    { id: 'tier-upgrade', title: 'Tier Upgrade', icon: '⬆️', subtitle: 'Accelerate high-performers', duration: '30 days', bgColor: 'bg-amber-50', borderColor: 'border-l-amber-400', color: '#d97706', tagColor: 'bg-amber-100 text-amber-800', category: 'Growth', steps: [
+    { id: 'tier-upgrade', title: 'Tier Upgrade', icon: '⬆️', subtitle: 'Accelerate high-performers', duration: '30 days', bgColor: 'bg-amber-50', borderColor: 'border-l-amber-400', color: '#d97706', tagColor: 'bg-amber-100 text-amber-800', category: 'Growth', applicableTo: 'High-Performers', steps: [
       { day: 1, label: 'Performance review', desc: 'Document growth trajectory and potential', phase: 'Assess' },
       { day: 5, label: 'Expansion discussion', desc: 'Explore new product lines and territories', phase: 'Plan' },
       { day: 10, label: 'Joint business plan', desc: 'Co-create growth targets and strategy', phase: 'Plan' },
       { day: 20, label: 'Executive alignment', desc: 'Connect with partner leadership', phase: 'Engage' },
       { day: 30, label: 'Tier promotion', desc: 'Formalize upgrade with new benefits', phase: 'Close' },
     ]},
-    { id: 'qbr', title: 'QBR Prep', icon: '📊', subtitle: 'Quarterly business review', duration: '7 days', bgColor: 'bg-purple-50', borderColor: 'border-l-purple-400', color: '#7c3aed', tagColor: 'bg-purple-100 text-purple-800', category: 'Cadence', steps: [
+    { id: 'qbr', title: 'QBR Prep', icon: '📊', subtitle: 'Quarterly business review', duration: '7 days', bgColor: 'bg-purple-50', borderColor: 'border-l-purple-400', color: '#7c3aed', tagColor: 'bg-purple-100 text-purple-800', category: 'Cadence', applicableTo: 'All Partners', steps: [
       { day: 1, label: 'Data compilation', desc: 'Pull performance metrics and trends', phase: 'Prepare' },
       { day: 3, label: 'Deck preparation', desc: 'Build QBR presentation with insights', phase: 'Prepare' },
       { day: 5, label: 'Internal pre-brief', desc: 'Align team on talking points and asks', phase: 'Align' },
       { day: 6, label: 'QBR meeting', desc: 'Conduct review with partner', phase: 'Execute' },
       { day: 7, label: 'Follow-up actions', desc: 'Document commitments and next steps', phase: 'Close' },
+    ]},
+    { id: 'activation', title: 'Activation', icon: '⚡', subtitle: 'Reignite dormant partnerships', duration: '21 days', bgColor: 'bg-amber-50', borderColor: 'border-l-amber-400', color: '#f59e0b', tagColor: 'bg-amber-100 text-amber-800', category: 'Engagement', applicableTo: 'Dormant Partners', steps: [
+      { day: 1, label: 'Research', desc: 'Understand partner status and market context', phase: 'Research' },
+      { day: 3, label: 'Re-engage', desc: 'Personal outreach with refresh proposal', phase: 'Re-engage' },
+      { day: 7, label: 'Assess', desc: 'Evaluate partner capability and interest', phase: 'Assess' },
+      { day: 14, label: 'Activate', desc: 'Launch activation plan with incentives', phase: 'Activate' },
+      { day: 21, label: 'Measure', desc: 'Track early engagement metrics', phase: 'Measure' },
+    ]},
+    { id: 'cross-sell', title: 'Cross-Sell', icon: '📈', subtitle: 'Expand wallet share', duration: '14 days', bgColor: 'bg-green-50', borderColor: 'border-l-green-400', color: '#16a34a', tagColor: 'bg-green-100 text-green-800', category: 'Growth', applicableTo: 'Growing Partners', steps: [
+      { day: 1, label: 'Analyze', desc: 'Map current portfolio and identify gaps', phase: 'Analyze' },
+      { day: 3, label: 'Enable', desc: 'Provide training on new solutions', phase: 'Enable' },
+      { day: 7, label: 'Incentivize', desc: 'Structure deals with margin incentives', phase: 'Incentivize' },
+      { day: 10, label: 'Execute', desc: 'Launch first cross-sell deal', phase: 'Execute' },
+      { day: 14, label: 'Measure', desc: 'Track deal progression and success', phase: 'Measure' },
     ]},
   ];
 
@@ -304,7 +321,7 @@ export default function LiveLeaderDashboard() {
   };
 
   useEffect(() => { fetchData(); }, []);
-  useEffect(() => { saveToStorage('cc_launchedPlaybooks', launchedPlaybooks); }, [launchedPlaybooks]);
+  useEffect(() => { saveToStorage('leader_launchedPlaybooks', launchedPlaybooks); }, [launchedPlaybooks]);
   useEffect(() => { saveToStorage('leader_cadenceRules', cadenceRules); }, [cadenceRules]);
   useEffect(() => { saveToStorage('leader_alertThresholds', alertThresholds); }, [alertThresholds]);
   useEffect(() => { saveToStorage('leader_notifSettings', notifSettings); }, [notifSettings]);
@@ -542,6 +559,64 @@ export default function LiveLeaderDashboard() {
     return advisors.filter(a => !allRepAdvisorIds.has(a.id));
   }, [advisors, reps, deals]);
 
+  const recommendedPlaybooks = useMemo(() => {
+    const recommendations: Array<{templateId: string; templateTitle: string; icon: string; suggestedAdvisors: Array<{id: string; name: string; company: string}>; reason: string; urgency: 'critical' | 'high' | 'medium'}> = [];
+
+    // Win-Back: Fading or Slipping/Freefall
+    const winBackAdvisors = advisors.filter(a => a.pulse === 'Fading' || a.trajectory === 'Slipping' || a.trajectory === 'Freefall').slice(0, 3);
+    if (winBackAdvisors.length > 0) {
+      recommendations.push({
+        templateId: 'win-back',
+        templateTitle: 'Win-Back',
+        icon: '🔄',
+        suggestedAdvisors: winBackAdvisors.map(a => ({id: a.id, name: a.name, company: a.company})),
+        reason: `${winBackAdvisors.length} partner(s) showing warning signs`,
+        urgency: winBackAdvisors.some(a => a.trajectory === 'Freefall') ? 'critical' : 'high'
+      });
+    }
+
+    // Onboarding: tier === 'launching'
+    const onboardingAdvisors = advisors.filter(a => a.tier === 'launching').slice(0, 3);
+    if (onboardingAdvisors.length > 0) {
+      recommendations.push({
+        templateId: 'onboarding',
+        templateTitle: 'Onboarding',
+        icon: '🚀',
+        suggestedAdvisors: onboardingAdvisors.map(a => ({id: a.id, name: a.name, company: a.company})),
+        reason: `${onboardingAdvisors.length} new partner(s) need onboarding support`,
+        urgency: 'high'
+      });
+    }
+
+    // Tier Upgrade: tier === 'scaling' and (Strong pulse or Accelerating/Climbing)
+    const tierUpgradeAdvisors = advisors.filter(a => a.tier === 'scaling' && (a.pulse === 'Strong' || a.trajectory === 'Accelerating' || a.trajectory === 'Climbing')).slice(0, 3);
+    if (tierUpgradeAdvisors.length > 0) {
+      recommendations.push({
+        templateId: 'tier-upgrade',
+        templateTitle: 'Tier Upgrade',
+        icon: '⬆️',
+        suggestedAdvisors: tierUpgradeAdvisors.map(a => ({id: a.id, name: a.name, company: a.company})),
+        reason: `${tierUpgradeAdvisors.length} high-performer(s) ready for acceleration`,
+        urgency: 'medium'
+      });
+    }
+
+    // Activation: tier === 'building' and Fading pulse
+    const activationAdvisors = advisors.filter(a => a.tier === 'building' && a.pulse === 'Fading').slice(0, 3);
+    if (activationAdvisors.length > 0) {
+      recommendations.push({
+        templateId: 'activation',
+        templateTitle: 'Activation',
+        icon: '⚡',
+        suggestedAdvisors: activationAdvisors.map(a => ({id: a.id, name: a.name, company: a.company})),
+        reason: `${activationAdvisors.length} dormant partner(s) need activation`,
+        urgency: 'high'
+      });
+    }
+
+    return recommendations;
+  }, [advisors]);
+
   const handleAdvisorClick = (advisorId: string) => {
     const advisor = advisors.find(a => a.id === advisorId);
     if (advisor) {
@@ -559,6 +634,11 @@ export default function LiveLeaderDashboard() {
     try {
       await fetch('/api/live/advisors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...selectedAdvisor, [field]: value }) });
     } catch (err) { console.error('Failed to update advisor:', err); }
+  };
+
+  const handleDeletePlaybook = (idx: number) => {
+    setLaunchedPlaybooks(prev => prev.filter((_, i) => i !== idx));
+    setEditingPlaybookIdx(null);
   };
 
   // KPI computations
@@ -2019,13 +2099,356 @@ export default function LiveLeaderDashboard() {
 
         {/* PLAYBOOKS */}
         <div className="flex items-center gap-3">
-          <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Launch Playbook</span>
+          <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Playbook Center</span>
           <div className="flex-1 h-px bg-[#e8e5e1]" />
         </div>
 
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <button onClick={() => setShowPlaybookModal(true)} className="w-full px-4 py-3 text-13px font-semibold text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f]">+ Launch New Playbook</button>
-        </div>
+        {(() => {
+          const phaseColors: Record<string, string> = {
+            'Diagnose': 'bg-red-100 text-red-700', 'Engage': 'bg-orange-100 text-orange-700',
+            'Recover': 'bg-amber-100 text-amber-700', 'Activate': 'bg-green-100 text-green-700',
+            'Plan': 'bg-blue-100 text-blue-700', 'Execute': 'bg-amber-100 text-amber-700',
+            'Assess': 'bg-blue-100 text-blue-700', 'Close': 'bg-green-100 text-green-700',
+            'Setup': 'bg-blue-100 text-blue-700', 'Monitor': 'bg-indigo-100 text-indigo-700',
+            'Research': 'bg-gray-100 text-gray-700', 'Re-engage': 'bg-amber-100 text-amber-700',
+            'Prepare': 'bg-blue-100 text-blue-700', 'Follow-up': 'bg-green-100 text-green-700',
+            'Analyze': 'bg-indigo-100 text-indigo-700', 'Enable': 'bg-amber-100 text-amber-700',
+            'Incentivize': 'bg-purple-100 text-purple-700', 'Measure': 'bg-green-100 text-green-700',
+            'Growth': 'bg-teal-100 text-teal-700', 'Align': 'bg-teal-100 text-teal-700',
+          };
+
+          if (editingPlaybookIdx !== null && launchedPlaybooks[editingPlaybookIdx]) {
+            const pb = launchedPlaybooks[editingPlaybookIdx];
+            const template = playbookTemplates.find(t => t.id === pb.templateId);
+            const advisor = advisors.find(a => a.id === pb.advisorId);
+            const steps = pb.customSteps || template?.steps || [];
+            const completedCount = pb.completedSteps.length;
+            const effectiveSteps = steps.length - pb.skippedSteps.length;
+            const progressPercent = effectiveSteps > 0 ? Math.round((completedCount / effectiveSteps) * 100) : 0;
+            const launchDate = new Date(pb.launchedAt);
+
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <button onClick={() => setEditingPlaybookIdx(null)} className="px-3 py-2 text-12px font-semibold text-[#157A6E] hover:bg-gray-50 rounded">← Back to Playbooks</button>
+                </div>
+
+                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-start gap-4">
+                      <span className="text-[28px]">{template?.icon}</span>
+                      <div>
+                        <p className="text-11px font-bold uppercase tracking-[1.5px] text-[#157A6E]">{template?.category}</p>
+                        <h3 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">{pb.playbookName}: {advisor?.name}</h3>
+                        <p className="text-11px text-gray-600 mt-1">{formatCurrency(advisor?.mrr || 0)} MRR • {steps.length} steps • Launched {launchDate.toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 rounded-full text-[9px] font-bold ${pb.priority === 'critical' ? 'bg-red-100 text-red-700' : pb.priority === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {pb.priority.toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="flex justify-between mb-2">
+                      <span className="text-11px font-semibold text-gray-700">Progress</span>
+                      <span className="text-11px font-bold text-[#157A6E]">{progressPercent}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div style={{width: `${progressPercent}%`}} className="bg-[#157A6E] h-2 rounded-full transition-all"></div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-4">
+                    <div className="col-span-7 lg:col-span-5 space-y-3">
+                      <p className="text-11px font-bold uppercase tracking-[1.5px] text-gray-600">Action Steps</p>
+                      {steps.map((step, idx) => {
+                        const isCompleted = pb.completedSteps.includes(idx);
+                        const isSkipped = pb.skippedSteps.includes(idx);
+                        return (
+                          <div key={idx} className={`flex items-start gap-3 p-3 border rounded-[10px] ${isSkipped ? 'bg-gray-50 border-gray-200' : 'bg-white border-[#e8e5e1]'}`}>
+                            <button
+                              onClick={() => {
+                                setLaunchedPlaybooks(prev => prev.map((p, i) => {
+                                  if (i === editingPlaybookIdx) {
+                                    const completed = p.completedSteps.includes(idx) ? p.completedSteps.filter(x => x !== idx) : [...p.completedSteps, idx];
+                                    return {...p, completedSteps: completed};
+                                  }
+                                  return p;
+                                }));
+                              }}
+                              className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-12px transition-colors ${isCompleted ? 'bg-green-500 text-white' : isSkipped ? 'bg-gray-300 text-gray-600' : `${template?.tagColor}`}`}
+                            >
+                              {isCompleted ? '✓' : step.day}
+                            </button>
+                            <div className="flex-1">
+                              <input
+                                type="text"
+                                value={step.label}
+                                onChange={(e) => {
+                                  setLaunchedPlaybooks(prev => prev.map((p, i) => {
+                                    if (i === editingPlaybookIdx && p.customSteps) {
+                                      p.customSteps[idx].label = e.target.value;
+                                      return {...p};
+                                    }
+                                    return p;
+                                  }));
+                                }}
+                                className={`text-12px font-semibold text-gray-800 bg-transparent border-0 focus:outline-none w-full ${isSkipped ? 'line-through' : ''}`}
+                              />
+                              <textarea
+                                value={step.desc}
+                                onChange={(e) => {
+                                  setLaunchedPlaybooks(prev => prev.map((p, i) => {
+                                    if (i === editingPlaybookIdx && p.customSteps) {
+                                      p.customSteps[idx].desc = e.target.value;
+                                      return {...p};
+                                    }
+                                    return p;
+                                  }));
+                                }}
+                                className="text-[10px] text-gray-600 bg-transparent border-0 focus:outline-none w-full mt-1 resize-none"
+                              />
+                              <span className={`inline-block mt-2 text-[9px] px-2 py-0.5 rounded-full ${phaseColors[step.phase] || 'bg-gray-100 text-gray-700'}`}>{step.phase}</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setLaunchedPlaybooks(prev => prev.map((p, i) => {
+                                  if (i === editingPlaybookIdx) {
+                                    const skipped = isSkipped ? p.skippedSteps.filter(x => x !== idx) : [...p.skippedSteps, idx];
+                                    return {...p, skippedSteps: skipped};
+                                  }
+                                  return p;
+                                }));
+                              }}
+                              className="text-[10px] font-semibold text-gray-500 hover:text-gray-700"
+                            >
+                              {isSkipped ? 'Unskip' : 'Skip'}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="col-span-7 lg:col-span-2 space-y-4">
+                      <div className="bg-gray-50 rounded-[10px] border border-[#e8e5e1] p-4">
+                        <p className="text-11px font-bold uppercase text-gray-600 mb-3">Partner</p>
+                        {advisor && (
+                          <div className="space-y-2">
+                            <p className="text-12px font-semibold text-gray-800">{advisor.name}</p>
+                            <p className="text-[10px] text-gray-600">{advisor.company}</p>
+                            <div className="grid grid-cols-2 gap-2 text-[10px]">
+                              <div><span className="text-gray-600">Tier:</span> <span className="font-semibold text-gray-800">{advisor.tier}</span></div>
+                              <div><span className="text-gray-600">MRR:</span> <span className="font-semibold text-gray-800">{formatCurrency(advisor.mrr)}</span></div>
+                              <div><span className="text-gray-600">Pulse:</span> <span className="font-semibold text-gray-800">{advisor.pulse}</span></div>
+                              <div><span className="text-gray-600">Trajectory:</span> <span className="font-semibold text-gray-800">{advisor.trajectory}</span></div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="bg-gray-50 rounded-[10px] border border-[#e8e5e1] p-4">
+                        <p className="text-11px font-bold uppercase text-gray-600 mb-2">Assigned CM</p>
+                        <input
+                          type="text"
+                          value={pb.assignedCM || ''}
+                          onChange={(e) => {
+                            setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? {...p, assignedCM: e.target.value} : p));
+                          }}
+                          placeholder="Assigned to..."
+                          className="w-full px-2 py-1 text-12px border border-[#e8e5e1] rounded-lg focus:outline-none focus:border-[#157A6E]"
+                        />
+                      </div>
+
+                      <div className="bg-gray-50 rounded-[10px] border border-[#e8e5e1] p-4">
+                        <p className="text-11px font-bold uppercase text-gray-600 mb-2">Notes</p>
+                        <textarea
+                          value={pb.notes || ''}
+                          onChange={(e) => {
+                            setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? {...p, notes: e.target.value} : p));
+                          }}
+                          className="w-full px-2 py-1 text-[10px] border border-[#e8e5e1] rounded-lg focus:outline-none focus:border-[#157A6E] resize-none h-20"
+                        />
+                      </div>
+
+                      <div className="bg-gray-50 rounded-[10px] border border-[#e8e5e1] p-4">
+                        <p className="text-11px font-bold uppercase text-gray-600 mb-3">Stats</p>
+                        <div className="space-y-1 text-[10px]">
+                          <div className="flex justify-between"><span className="text-gray-600">Completed:</span> <span className="font-semibold">{completedCount}/{effectiveSteps}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-600">Skipped:</span> <span className="font-semibold">{pb.skippedSteps.length}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-600">Progress:</span> <span className="font-semibold text-[#157A6E]">{progressPercent}%</span></div>
+                        </div>
+                      </div>
+
+                      <div className="bg-gray-50 rounded-[10px] border border-[#e8e5e1] p-4">
+                        <p className="text-11px font-bold uppercase text-gray-600 mb-3">Priority</p>
+                        <div className="space-y-1">
+                          {(['critical', 'high', 'medium'] as const).map(pri => (
+                            <button
+                              key={pri}
+                              onClick={() => {
+                                setLaunchedPlaybooks(prev => prev.map((p, i) => i === editingPlaybookIdx ? {...p, priority: pri} : p));
+                              }}
+                              className={`w-full px-2 py-1 text-[10px] font-semibold rounded-lg transition-colors ${pb.priority === pri ? 'bg-[#157A6E] text-white' : 'bg-white text-gray-700 border border-[#e8e5e1] hover:bg-gray-50'}`}
+                            >
+                              {pri.toUpperCase()}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleDeletePlaybook(editingPlaybookIdx)}
+                        className="w-full px-3 py-2 text-11px font-bold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+                      >
+                        Delete Playbook
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // Show active playbooks and recommendations
+          return (
+            <div className="space-y-6">
+              {/* RECOMMENDATIONS */}
+              {recommendedPlaybooks.length > 0 && (
+                <div>
+                  <p className="text-11px font-bold uppercase tracking-[1.5px] text-gray-600 mb-3">Recommended Playbooks</p>
+                  <div className="space-y-2">
+                    {recommendedPlaybooks.map(rec => (
+                      <div key={rec.templateId} className="flex items-center justify-between bg-gradient-to-r from-yellow-50 to-amber-50 border border-amber-200 rounded-[10px] p-3">
+                        <div className="flex items-center gap-3 flex-1">
+                          <span className="text-[20px]">{rec.icon}</span>
+                          <div className="flex-1">
+                            <p className="text-12px font-semibold text-gray-800">{rec.templateTitle}</p>
+                            <p className="text-[10px] text-gray-600">{rec.suggestedAdvisors.map(a => a.name).join(', ')}</p>
+                            <p className="text-[9px] text-gray-500 mt-1">{rec.reason}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${rec.urgency === 'critical' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>{rec.urgency.toUpperCase()}</span>
+                          <button onClick={() => { setPlaybookModalAdvisor(advisors.find(a => a.id === rec.suggestedAdvisors[0].id) || null); setSelectedPlaybookTemplate(rec.templateId); setShowPlaybookModal(true); }} className="px-2 py-1 text-[10px] font-bold text-white bg-[#157A6E] rounded hover:bg-[#126a5f]">Assign</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ACTIVE PLAYBOOKS */}
+              {launchedPlaybooks.length > 0 && (
+                <div>
+                  <p className="text-11px font-bold uppercase tracking-[1.5px] text-gray-600 mb-3">Active Playbooks</p>
+                  <div className="space-y-3">
+                    {launchedPlaybooks.map((pb, idx) => {
+                      const template = playbookTemplates.find(t => t.id === pb.templateId);
+                      const advisor = advisors.find(a => a.id === pb.advisorId);
+                      const steps = pb.customSteps || template?.steps || [];
+                      const completedCount = pb.completedSteps.length;
+                      const effectiveSteps = steps.length - pb.skippedSteps.length;
+                      const progressPercent = effectiveSteps > 0 ? Math.round((completedCount / effectiveSteps) * 100) : 0;
+
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => setEditingPlaybookIdx(idx)}
+                          className={`cursor-pointer border rounded-[10px] p-4 transition-all hover:shadow-md ${template?.bgColor} border-l-4 ${template?.borderColor}`}
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-start gap-3">
+                              <span className="text-[24px]">{template?.icon}</span>
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-11px font-bold text-gray-600 uppercase">{template?.category}</span>
+                                  <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${pb.priority === 'critical' ? 'bg-red-100 text-red-700' : pb.priority === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>{pb.priority.toUpperCase()}</span>
+                                  <span className="px-2 py-0.5 rounded-full text-[8px] font-bold bg-green-100 text-green-700">LAUNCHED</span>
+                                </div>
+                                <h4 className="text-13px font-semibold text-gray-800">{pb.playbookName}: {advisor?.name}</h4>
+                                <p className="text-[10px] text-gray-600 mt-1">Assigned to: <span className="font-semibold">{pb.assignedCM || 'Unassigned'}</span> • {formatCurrency(advisor?.mrr || 0)} MRR</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between mb-1">
+                              <span className="text-[10px] font-semibold text-gray-700">Progress: {progressPercent}%</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div style={{width: `${progressPercent}%`}} className="bg-[#157A6E] h-2 rounded-full transition-all"></div>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 flex-wrap">
+                            {steps.slice(0, 5).map((step, stepIdx) => {
+                              const isCompleted = pb.completedSteps.includes(stepIdx);
+                              const isSkipped = pb.skippedSteps.includes(stepIdx);
+                              return (
+                                <button
+                                  key={stepIdx}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLaunchedPlaybooks(prev => prev.map((p, i) => {
+                                      if (i === idx) {
+                                        const completed = p.completedSteps.includes(stepIdx) ? p.completedSteps.filter(x => x !== stepIdx) : [...p.completedSteps, stepIdx];
+                                        return {...p, completedSteps: completed};
+                                      }
+                                      return p;
+                                    }));
+                                  }}
+                                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-semibold transition-colors ${isCompleted ? 'bg-green-500 text-white' : isSkipped ? 'bg-gray-300 text-gray-600 line-through' : `${template?.tagColor}`}`}
+                                >
+                                  <span className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold border border-current">{isCompleted ? '✓' : step.day}</span>
+                                  {step.label}
+                                </button>
+                              );
+                            })}
+                            {steps.length > 5 && <span className="px-2 py-1 text-[9px] text-gray-600">+{steps.length - 5} more</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* PLAYBOOK LIBRARY */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-11px font-bold uppercase tracking-[1.5px] text-gray-600">Playbook Library</p>
+                  <button onClick={() => { setPlaybookModalAdvisor(null); setShowPlaybookModal(true); }} className="px-3 py-1 text-[10px] font-bold text-white bg-[#157A6E] rounded hover:bg-[#126a5f]">+ Launch New</button>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                  {playbookTemplates.map(tmpl => (
+                    <button
+                      key={tmpl.id}
+                      onClick={() => { setPlaybookModalAdvisor(null); setSelectedPlaybookTemplate(tmpl.id); setShowPlaybookModal(true); }}
+                      className={`${tmpl.bgColor} rounded-[10px] border-2 border-[#e8e5e1] p-3 text-left hover:shadow-md transition-all border-l-4 ${tmpl.borderColor}`}
+                    >
+                      <div className="flex items-start gap-2 mb-2">
+                        <span className="text-[18px]">{tmpl.icon}</span>
+                        <div className="flex-1">
+                          <span className="text-[8px] font-bold uppercase tracking-[1.2px] text-gray-600 block">{tmpl.applicableTo}</span>
+                          <h4 className="text-12px font-semibold text-gray-800">{tmpl.title}</h4>
+                          <p className="text-[9px] text-gray-600">{tmpl.subtitle}</p>
+                        </div>
+                      </div>
+                      <p className="text-[9px] text-gray-600">{tmpl.duration} • {tmpl.steps.length} steps</p>
+                      <div className="mt-2 flex gap-1 flex-wrap">
+                        {tmpl.steps.slice(0, 4).map((step, idx) => (
+                          <span key={idx} className={`text-[7px] px-1.5 py-0.5 rounded-full font-semibold ${phaseColors[step.phase] || 'bg-gray-100 text-gray-700'}`}>{step.phase}</span>
+                        ))}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Feature 4: Leader Interaction Logging and Impact */}
         <div className="flex items-center gap-3">
@@ -2423,233 +2846,289 @@ export default function LiveLeaderDashboard() {
       {/* ═══════════════════ PLAYBOOK MODAL ═══════════════════ */}
       {showPlaybookModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowPlaybookModal(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-[700px] max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-[800px] max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="p-6 border-b border-[#e8e5e1]">
-              <div className="flex items-center justify-between">
-                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Launch Playbook</h2>
-
-      {/* ═══════════════════ PIECE 1: CREATE PARTNER MODAL ═══════════════════ */}
-      {showCreatePartner && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowCreatePartner(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-[600px]" onClick={e => e.stopPropagation()}>
-            <div className="p-6 border-b border-[#e8e5e1]">
-              <div className="flex items-center justify-between">
-                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Create New Partner</h2>
-                <button onClick={() => setShowCreatePartner(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Assign Playbook</h2>
+                <button onClick={() => { setShowPlaybookModal(false); setPlaybookModalAdvisor(null); setSelectedPlaybookTemplate(null); setPlaybookModalMode('template'); }} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="flex border-b border-gray-200">
+                <button
+                  onClick={() => setPlaybookModalMode('template')}
+                  className={`px-4 py-2 text-13px font-semibold border-b-2 transition-colors ${playbookModalMode === 'template' ? 'text-[#157A6E] border-[#157A6E]' : 'text-gray-500 border-transparent'}`}
+                >
+                  Choose Template
+                </button>
+                <button
+                  onClick={() => setPlaybookModalMode('custom')}
+                  className={`px-4 py-2 text-13px font-semibold border-b-2 transition-colors ${playbookModalMode === 'custom' ? 'text-[#157A6E] border-[#157A6E]' : 'text-gray-500 border-transparent'}`}
+                >
+                  Create Custom
+                </button>
               </div>
             </div>
 
             <div className="p-6 space-y-4">
-              <div>
-                <label className="text-11px font-bold uppercase text-gray-600">Partner Name</label>
-                <input type="text" value={createPartnerForm.name} onChange={(e) => setCreatePartnerForm(prev => ({...prev, name: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" placeholder="Name" />
-              </div>
-
-              <div>
-                <label className="text-11px font-bold uppercase text-gray-600">Company</label>
-                <input type="text" value={createPartnerForm.company} onChange={(e) => setCreatePartnerForm(prev => ({...prev, company: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" placeholder="Company" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-11px font-bold uppercase text-gray-600">Email</label>
-                  <input type="email" value={createPartnerForm.email} onChange={(e) => setCreatePartnerForm(prev => ({...prev, email: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" placeholder="Email" />
-                </div>
-                <div>
-                  <label className="text-11px font-bold uppercase text-gray-600">Phone</label>
-                  <input type="tel" value={createPartnerForm.phone} onChange={(e) => setCreatePartnerForm(prev => ({...prev, phone: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" placeholder="Phone" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-11px font-bold uppercase text-gray-600">Tier</label>
-                  <select value={createPartnerForm.tier} onChange={(e) => setCreatePartnerForm(prev => ({...prev, tier: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]">
-                    <option value="anchor">Anchor</option>
-                    <option value="scaling">Scaling</option>
-                    <option value="building">Building</option>
-                    <option value="launching">Launching</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-11px font-bold uppercase text-gray-600">State</label>
-                  <input type="text" value={createPartnerForm.state} onChange={(e) => setCreatePartnerForm(prev => ({...prev, state: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" placeholder="State" />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-11px font-bold uppercase text-gray-600">Notes</label>
-                <textarea value={createPartnerForm.notes} onChange={(e) => setCreatePartnerForm(prev => ({...prev, notes: e.target.value}))} rows={3} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" placeholder="Additional notes..." />
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-[#e8e5e1] flex justify-end gap-2">
-              <button onClick={() => setShowCreatePartner(false)} className="px-4 py-2 text-12px font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-              <button onClick={() => { if (createPartnerForm.name && createPartnerForm.company) { const newAdvisor: any = { id: `a_${Date.now()}`, name: createPartnerForm.name, title: '', company: createPartnerForm.company, email: createPartnerForm.email, phone: createPartnerForm.phone, tier: createPartnerForm.tier, pulse: 'Strong', trajectory: 'Stable', tone: 'Neutral', intent: 'Growth', friction: 'Low', dealHealth: 'Good', relationshipStage: 'Prospect', location: createPartnerForm.state, birthday: '', education: '', family: '', hobbies: '', funFact: '', personalIntel: '', tsds: [], previousCompanies: [], mutualConnections: [], sharedClients: [], notes: [createPartnerForm.notes], activity: [], lastContact: new Date().toISOString(), deals: [], mrr: 5000, connectedSince: new Date().toISOString(), bestDayToReach: 'Monday', commPreference: 'Email', referredBy: '', engagementBreakdown: { engagement: 'Steady', pipelineStrength: 'Steady', responsiveness: 'Steady', growthPotential: 'Steady' }, diagnosis: '' }; setAdvisors(prev => [...prev, newAdvisor]); setCreatePartnerForm({ name: '', company: '', email: '', phone: '', tier: 'launching', state: '', notes: '' }); setShowCreatePartner(false); } }} className="px-4 py-2 text-12px font-medium text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f]">Create Partner</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ═══════════════════ PIECE 2: CREATE GROUP MODAL ═══════════════════ */}
-      {showCreateGroup && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setShowCreateGroup(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-[700px] max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="p-6 border-b border-[#e8e5e1]">
-              <div className="flex items-center justify-between">
-                <h2 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">Create Partner Group</h2>
-                <button onClick={() => setShowCreateGroup(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="text-11px font-bold uppercase text-gray-600">Group Name</label>
-                <input type="text" value={createGroupForm.name} onChange={(e) => setCreateGroupForm(prev => ({...prev, name: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" placeholder="e.g., Texas Anchors" />
-              </div>
-
-              <div>
-                <label className="text-11px font-bold uppercase text-gray-600">Rules</label>
-                <div className="mt-2 space-y-2">
-                  {createGroupForm.rules.map((rule, idx) => (
-                    <div key={idx} className="flex gap-2">
-                      <select value={rule.field} onChange={(e) => { const newRules = [...createGroupForm.rules]; newRules[idx].field = e.target.value; setCreateGroupForm(prev => ({...prev, rules: newRules})); }} className="flex-1 px-2 py-1 border border-gray-200 rounded text-[11px] focus:outline-none focus:border-[#157A6E]">
-                        <option value="tier">Tier</option>
-                        <option value="pulse">Pulse</option>
-                        <option value="state">State</option>
-                        <option value="stage">Stage</option>
-                        <option value="trajectory">Trajectory</option>
-                      </select>
-                      <select value={rule.operator} onChange={(e) => { const newRules = [...createGroupForm.rules]; newRules[idx].operator = e.target.value; setCreateGroupForm(prev => ({...prev, rules: newRules})); }} className="flex-1 px-2 py-1 border border-gray-200 rounded text-[11px] focus:outline-none focus:border-[#157A6E]">
-                        <option value="equals">Equals</option>
-                        <option value="not_equals">Not Equals</option>
-                        <option value="contains">Contains</option>
-                      </select>
-                      <input type="text" value={rule.value} onChange={(e) => { const newRules = [...createGroupForm.rules]; newRules[idx].value = e.target.value; setCreateGroupForm(prev => ({...prev, rules: newRules})); }} className="flex-1 px-2 py-1 border border-gray-200 rounded text-[11px] focus:outline-none focus:border-[#157A6E]" placeholder="Value" />
-                      {createGroupForm.rules.length > 1 && <button onClick={() => setCreateGroupForm(prev => ({...prev, rules: prev.rules.filter((_, i) => i !== idx)}))} className="text-red-500 hover:text-red-700"><X className="w-4 h-4" /></button>}
-                    </div>
-                  ))}
-                  <button onClick={() => setCreateGroupForm(prev => ({...prev, rules: [...prev.rules, {field: 'tier', operator: 'equals', value: ''}]}))} className="text-[10px] text-[#157A6E] font-semibold hover:underline">+ Add Rule</button>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-11px font-bold uppercase text-gray-600">Assigned CMs</label>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {['Jordan R.', 'Sarah K.', 'Marcus T.', 'Whole Team'].map(cm => (
-                    <button key={cm} onClick={() => { if (createGroupForm.assignedCMs.includes(cm)) { setCreateGroupForm(prev => ({...prev, assignedCMs: prev.assignedCMs.filter(c => c !== cm)})); } else { setCreateGroupForm(prev => ({...prev, assignedCMs: [...prev.assignedCMs, cm]})); } }} className={`px-3 py-1 text-[10px] font-bold rounded-full transition-colors ${createGroupForm.assignedCMs.includes(cm) ? 'bg-[#157A6E] text-white' : 'bg-gray-100 text-gray-600'}`}>{cm}</button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-11px font-bold uppercase text-gray-600">Start Date (optional)</label>
-                  <input type="date" value={createGroupForm.startDate} onChange={(e) => setCreateGroupForm(prev => ({...prev, startDate: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" />
-                </div>
-                <div>
-                  <label className="text-11px font-bold uppercase text-gray-600">End Date (optional)</label>
-                  <input type="date" value={createGroupForm.endDate} onChange={(e) => setCreateGroupForm(prev => ({...prev, endDate: e.target.value}))} className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-12px focus:outline-none focus:border-[#157A6E]" />
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-[#e8e5e1] flex justify-end gap-2">
-              <button onClick={() => setShowCreateGroup(false)} className="px-4 py-2 text-12px font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-              <button onClick={() => { if (createGroupForm.name && createGroupForm.rules.every(r => r.value)) { const newGroup = { id: `g_${Date.now()}`, name: createGroupForm.name, rules: createGroupForm.rules, assignedTo: createGroupForm.assignedCMs, startDate: createGroupForm.startDate || undefined, endDate: createGroupForm.endDate || undefined }; setPartnerGroups(prev => [...prev, newGroup]); saveToStorage('leader_partnerGroups', [...partnerGroups, newGroup]); setCreateGroupForm({ name: '', rules: [{ field: 'tier', operator: 'equals', value: '' }], assignedCMs: [], startDate: '', endDate: '' }); setShowCreateGroup(false); } }} className="px-4 py-2 text-12px font-medium text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f]">Create Group</button>
-            </div>
-          </div>
-        </div>
-      )}
-                <button onClick={() => setShowPlaybookModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="text-11px font-bold uppercase text-gray-600">Select Partner</label>
-                <div className="mt-2">
-                  {!playbookModalAdvisor ? (
-                    <button onClick={() => setShowPlaybookAdvisorPicker(true)} className="w-full px-3 py-2 border border-[#e8e5e1] rounded-lg text-12px text-gray-600 hover:bg-gray-50">
-                      Choose partner...
-                    </button>
-                  ) : (
-                    <div className="px-3 py-2 bg-gray-50 rounded-lg border border-[#e8e5e1] flex items-center justify-between">
-                      <div>
-                        <p className="text-12px font-semibold text-gray-800">{playbookModalAdvisor.name}</p>
-                        <p className="text-[10px] text-gray-500">{playbookModalAdvisor.company}</p>
+              {playbookModalMode === 'template' ? (
+                <>
+                  <div>
+                    <label className="text-11px font-bold uppercase text-gray-600 block mb-3">Select Partner</label>
+                    {!playbookModalAdvisor ? (
+                      <button onClick={() => setShowPlaybookAdvisorPicker(true)} className="w-full px-3 py-2 border border-[#e8e5e1] rounded-lg text-12px text-gray-600 hover:bg-gray-50">
+                        Choose partner...
+                      </button>
+                    ) : (
+                      <div className="px-3 py-2 bg-gray-50 rounded-lg border border-[#e8e5e1] flex items-center justify-between">
+                        <div>
+                          <p className="text-12px font-semibold text-gray-800">{playbookModalAdvisor.name}</p>
+                          <p className="text-[10px] text-gray-500">{playbookModalAdvisor.company}</p>
+                        </div>
+                        <button onClick={() => setShowPlaybookAdvisorPicker(true)} className="text-[10px] text-[#157A6E] font-semibold">Change</button>
                       </div>
-                      <button onClick={() => setShowPlaybookAdvisorPicker(true)} className="text-[10px] text-[#157A6E] font-semibold">Change</button>
-                    </div>
-                  )}
-                </div>
+                    )}
 
-                {showPlaybookAdvisorPicker && (
-                  <div className="mt-2 border border-[#e8e5e1] rounded-lg overflow-hidden">
-                    <input
-                      type="text"
-                      value={playbookAdvisorSearch}
-                      onChange={(e) => setPlaybookAdvisorSearch(e.target.value)}
-                      placeholder="Search partners..."
-                      className="w-full px-3 py-2 text-12px border-b border-[#e8e5e1] focus:outline-none focus:bg-teal-50"
-                      autoFocus
-                    />
-                    <div className="max-h-[200px] overflow-y-auto">
-                      {advisors
-                        .filter(a => !playbookAdvisorSearch || a.name.toLowerCase().includes(playbookAdvisorSearch.toLowerCase()) || a.company.toLowerCase().includes(playbookAdvisorSearch.toLowerCase()))
-                        .map(a => (
-                          <div
-                            key={a.id}
-                            onClick={() => { setPlaybookModalAdvisor(a); setShowPlaybookAdvisorPicker(false); setPlaybookAdvisorSearch(''); }}
-                            className="flex items-center justify-between px-3 py-2 hover:bg-[#F7F5F2] cursor-pointer border-b border-gray-50"
-                          >
-                            <div><p className="text-12px font-semibold text-gray-800">{a.name}</p><p className="text-[10px] text-gray-500">{a.company}</p></div>
-                            <div className="flex items-center gap-2"><TierBadge tier={a.tier} /><span className="text-11px font-bold text-gray-700">{formatCurrency(a.mrr)}</span></div>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="text-11px font-bold uppercase text-gray-600">Choose Template</label>
-                <div className="mt-2 grid grid-cols-2 gap-3">
-                  {playbookTemplates.map(tmpl => (
-                    <div
-                      key={tmpl.id}
-                      onClick={() => {
-                        if (playbookModalAdvisor) {
-                          setLaunchedPlaybooks(prev => [...prev, {
-                            templateId: tmpl.id,
-                            advisorId: playbookModalAdvisor.id,
-                            advisorName: playbookModalAdvisor.name,
-                            launchedAt: new Date().toISOString(),
-                            priority: playbookPriority,
-                            completedSteps: [],
-                            skippedSteps: [],
-                            playbookName: tmpl.title
-                          }]);
-                          setShowPlaybookModal(false);
-                        }
-                      }}
-                      className={`${tmpl.bgColor} rounded-lg border-2 border-[#e8e5e1] p-3 cursor-pointer hover:shadow-md transition-all border-l-4 ${tmpl.borderColor} ${!playbookModalAdvisor ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <div className="flex items-start gap-2 mb-2">
-                        <span className="text-[18px]">{tmpl.icon}</span>
-                        <div className="flex-1">
-                          <h4 className="text-12px font-semibold text-gray-800">{tmpl.title}</h4>
-                          <p className="text-[10px] text-gray-600">{tmpl.subtitle}</p>
+                    {showPlaybookAdvisorPicker && (
+                      <div className="mt-2 border border-[#e8e5e1] rounded-lg overflow-hidden">
+                        <input
+                          type="text"
+                          value={playbookAdvisorSearch}
+                          onChange={(e) => setPlaybookAdvisorSearch(e.target.value)}
+                          placeholder="Search partners..."
+                          className="w-full px-3 py-2 text-12px border-b border-[#e8e5e1] focus:outline-none focus:bg-teal-50"
+                          autoFocus
+                        />
+                        <div className="max-h-[200px] overflow-y-auto">
+                          {advisors
+                            .filter(a => !playbookAdvisorSearch || a.name.toLowerCase().includes(playbookAdvisorSearch.toLowerCase()) || a.company.toLowerCase().includes(playbookAdvisorSearch.toLowerCase()))
+                            .map(a => (
+                              <div
+                                key={a.id}
+                                onClick={() => { setPlaybookModalAdvisor(a); setShowPlaybookAdvisorPicker(false); setPlaybookAdvisorSearch(''); }}
+                                className="flex items-center justify-between px-3 py-2 hover:bg-[#F7F5F2] cursor-pointer border-b border-gray-50"
+                              >
+                                <div><p className="text-12px font-semibold text-gray-800">{a.name}</p><p className="text-[10px] text-gray-500">{a.company}</p></div>
+                                <div className="flex items-center gap-2"><TierBadge tier={a.tier} /><span className="text-11px font-bold text-gray-700">{formatCurrency(a.mrr)}</span></div>
+                              </div>
+                            ))}
                         </div>
                       </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-11px font-bold uppercase text-gray-600 block mb-3">Template</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {playbookTemplates.map(tmpl => (
+                        <button
+                          key={tmpl.id}
+                          onClick={() => setSelectedPlaybookTemplate(tmpl.id)}
+                          className={`${tmpl.bgColor} rounded-lg border-2 p-3 text-left transition-all border-l-4 ${tmpl.borderColor} ${selectedPlaybookTemplate === tmpl.id ? 'border-2 border-[#157A6E]' : 'border-[#e8e5e1]'}`}
+                        >
+                          <div className="flex items-start gap-2 mb-2">
+                            <span className="text-[18px]">{tmpl.icon}</span>
+                            <div className="flex-1">
+                              <h4 className="text-12px font-semibold text-gray-800">{tmpl.title}</h4>
+                              <p className="text-[10px] text-gray-600">{tmpl.subtitle}</p>
+                            </div>
+                          </div>
+                          <p className="text-[9px] text-gray-600">{tmpl.duration} • {tmpl.steps.length} steps</p>
+                        </button>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
+
+                  {selectedPlaybookTemplate && playbookTemplates.find(t => t.id === selectedPlaybookTemplate) && (
+                    <>
+                      <div>
+                        <label className="text-11px font-bold uppercase text-gray-600 block mb-2">Steps Preview</label>
+                        <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                          {playbookTemplates.find(t => t.id === selectedPlaybookTemplate)!.steps.map((step, idx) => (
+                            <div key={idx} className="flex items-center gap-2 text-[10px]">
+                              <span className="w-5 h-5 rounded-full bg-white border border-gray-300 flex items-center justify-center font-bold text-[9px]">{step.day}</span>
+                              <span className="font-semibold text-gray-800">{step.label}</span>
+                              <span className="text-gray-600">({step.phase})</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-11px font-bold uppercase text-gray-600 block mb-2">Assign To (CM)</label>
+                          <select
+                            value={playbookAssignedCM}
+                            onChange={(e) => setPlaybookAssignedCM(e.target.value)}
+                            className="w-full px-3 py-2 border border-[#e8e5e1] rounded-lg text-12px focus:outline-none focus:border-[#157A6E]"
+                          >
+                            <option value="">Select CM...</option>
+                            {reps.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-11px font-bold uppercase text-gray-600 block mb-2">Priority</label>
+                          <select
+                            value={playbookPriority}
+                            onChange={(e) => setPlaybookPriority(e.target.value as 'critical' | 'high' | 'medium')}
+                            className="w-full px-3 py-2 border border-[#e8e5e1] rounded-lg text-12px focus:outline-none focus:border-[#157A6E]"
+                          >
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                          </select>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-11px font-bold uppercase text-gray-600 block mb-2">Playbook Name</label>
+                    <input
+                      type="text"
+                      value={customPlaybookName}
+                      onChange={(e) => setCustomPlaybookName(e.target.value)}
+                      placeholder="e.g., Custom Engagement Plan"
+                      className="w-full px-3 py-2 border border-[#e8e5e1] rounded-lg text-12px focus:outline-none focus:border-[#157A6E]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-11px font-bold uppercase text-gray-600 block mb-2">Select Partner</label>
+                    {!playbookModalAdvisor ? (
+                      <button onClick={() => setShowPlaybookAdvisorPicker(true)} className="w-full px-3 py-2 border border-[#e8e5e1] rounded-lg text-12px text-gray-600 hover:bg-gray-50">
+                        Choose partner...
+                      </button>
+                    ) : (
+                      <div className="px-3 py-2 bg-gray-50 rounded-lg border border-[#e8e5e1] flex items-center justify-between">
+                        <div>
+                          <p className="text-12px font-semibold text-gray-800">{playbookModalAdvisor.name}</p>
+                          <p className="text-[10px] text-gray-500">{playbookModalAdvisor.company}</p>
+                        </div>
+                        <button onClick={() => setShowPlaybookAdvisorPicker(true)} className="text-[10px] text-[#157A6E] font-semibold">Change</button>
+                      </div>
+                    )}
+
+                    {showPlaybookAdvisorPicker && (
+                      <div className="mt-2 border border-[#e8e5e1] rounded-lg overflow-hidden">
+                        <input
+                          type="text"
+                          value={playbookAdvisorSearch}
+                          onChange={(e) => setPlaybookAdvisorSearch(e.target.value)}
+                          placeholder="Search partners..."
+                          className="w-full px-3 py-2 text-12px border-b border-[#e8e5e1] focus:outline-none focus:bg-teal-50"
+                          autoFocus
+                        />
+                        <div className="max-h-[200px] overflow-y-auto">
+                          {advisors
+                            .filter(a => !playbookAdvisorSearch || a.name.toLowerCase().includes(playbookAdvisorSearch.toLowerCase()) || a.company.toLowerCase().includes(playbookAdvisorSearch.toLowerCase()))
+                            .map(a => (
+                              <div
+                                key={a.id}
+                                onClick={() => { setPlaybookModalAdvisor(a); setShowPlaybookAdvisorPicker(false); setPlaybookAdvisorSearch(''); }}
+                                className="flex items-center justify-between px-3 py-2 hover:bg-[#F7F5F2] cursor-pointer border-b border-gray-50"
+                              >
+                                <div><p className="text-12px font-semibold text-gray-800">{a.name}</p><p className="text-[10px] text-gray-500">{a.company}</p></div>
+                                <div className="flex items-center gap-2"><TierBadge tier={a.tier} /><span className="text-11px font-bold text-gray-700">{formatCurrency(a.mrr)}</span></div>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-11px font-bold uppercase text-gray-600 block mb-2">Steps</label>
+                    <div className="space-y-2">
+                      {customPlaybookSteps.map((step, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <input type="number" value={step.day} onChange={(e) => { const newSteps = [...customPlaybookSteps]; newSteps[idx].day = parseInt(e.target.value) || 1; setCustomPlaybookSteps(newSteps); }} placeholder="Day" className="w-16 px-2 py-1 border border-[#e8e5e1] rounded text-11px focus:outline-none focus:border-[#157A6E]" />
+                          <input type="text" value={step.label} onChange={(e) => { const newSteps = [...customPlaybookSteps]; newSteps[idx].label = e.target.value; setCustomPlaybookSteps(newSteps); }} placeholder="Label" className="flex-1 px-2 py-1 border border-[#e8e5e1] rounded text-11px focus:outline-none focus:border-[#157A6E]" />
+                          <input type="text" value={step.desc} onChange={(e) => { const newSteps = [...customPlaybookSteps]; newSteps[idx].desc = e.target.value; setCustomPlaybookSteps(newSteps); }} placeholder="Description" className="flex-1 px-2 py-1 border border-[#e8e5e1] rounded text-11px focus:outline-none focus:border-[#157A6E]" />
+                          {customPlaybookSteps.length > 1 && <button onClick={() => setCustomPlaybookSteps(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700"><X className="w-4 h-4" /></button>}
+                        </div>
+                      ))}
+                      <button onClick={() => setCustomPlaybookSteps(prev => [...prev, {day: (prev[prev.length - 1]?.day || 0) + 1, label: '', desc: ''}])} className="text-[10px] text-[#157A6E] font-semibold hover:underline">+ Add Step</button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-11px font-bold uppercase text-gray-600 block mb-2">Assign To (CM)</label>
+                      <select
+                        value={playbookAssignedCM}
+                        onChange={(e) => setPlaybookAssignedCM(e.target.value)}
+                        className="w-full px-3 py-2 border border-[#e8e5e1] rounded-lg text-12px focus:outline-none focus:border-[#157A6E]"
+                      >
+                        <option value="">Select CM...</option>
+                        {reps.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-11px font-bold uppercase text-gray-600 block mb-2">Priority</label>
+                      <select
+                        value={playbookPriority}
+                        onChange={(e) => setPlaybookPriority(e.target.value as 'critical' | 'high' | 'medium')}
+                        className="w-full px-3 py-2 border border-[#e8e5e1] rounded-lg text-12px focus:outline-none focus:border-[#157A6E]"
+                      >
+                        <option value="critical">Critical</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="p-6 border-t border-[#e8e5e1] flex justify-end gap-2">
-              <button onClick={() => setShowPlaybookModal(false)} className="px-4 py-2 text-12px font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+              <button onClick={() => { setShowPlaybookModal(false); setPlaybookModalAdvisor(null); setSelectedPlaybookTemplate(null); setPlaybookModalMode('template'); }} className="px-4 py-2 text-12px font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+              <button
+                onClick={() => {
+                  if (playbookModalMode === 'template' && selectedPlaybookTemplate && playbookModalAdvisor) {
+                    const template = playbookTemplates.find(t => t.id === selectedPlaybookTemplate);
+                    setLaunchedPlaybooks(prev => [...prev, {
+                      templateId: selectedPlaybookTemplate,
+                      advisorId: playbookModalAdvisor.id,
+                      advisorName: playbookModalAdvisor.name,
+                      launchedAt: new Date().toISOString(),
+                      priority: playbookPriority,
+                      completedSteps: [],
+                      skippedSteps: [],
+                      playbookName: template?.title || 'Playbook',
+                      assignedCM: playbookAssignedCM
+                    }]);
+                    setShowPlaybookModal(false);
+                    setPlaybookModalAdvisor(null);
+                    setSelectedPlaybookTemplate(null);
+                    setPlaybookModalMode('template');
+                    setPlaybookAssignedCM('');
+                  } else if (playbookModalMode === 'custom' && customPlaybookName && playbookModalAdvisor && customPlaybookSteps.length > 0) {
+                    setLaunchedPlaybooks(prev => [...prev, {
+                      templateId: 'custom',
+                      advisorId: playbookModalAdvisor.id,
+                      advisorName: playbookModalAdvisor.name,
+                      launchedAt: new Date().toISOString(),
+                      priority: playbookPriority,
+                      completedSteps: [],
+                      skippedSteps: [],
+                      customSteps: customPlaybookSteps.map(s => ({...s, phase: 'Execute'})),
+                      playbookName: customPlaybookName,
+                      assignedCM: playbookAssignedCM
+                    }]);
+                    setShowPlaybookModal(false);
+                    setPlaybookModalAdvisor(null);
+                    setCustomPlaybookName('');
+                    setCustomPlaybookSteps([{label: '', desc: '', day: 1}]);
+                    setPlaybookModalMode('template');
+                    setPlaybookAssignedCM('');
+                  }
+                }}
+                disabled={playbookModalMode === 'template' ? !selectedPlaybookTemplate || !playbookModalAdvisor : !customPlaybookName || !playbookModalAdvisor || customPlaybookSteps.length === 0}
+                className="px-4 py-2 text-12px font-medium text-white bg-[#157A6E] rounded-lg hover:bg-[#126a5f] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {playbookModalMode === 'template' ? 'Assign Playbook' : 'Create & Assign'}
+              </button>
             </div>
           </div>
         </div>
