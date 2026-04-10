@@ -188,6 +188,9 @@ export default function LiveLeaderDashboard() {
 
   // Intelligence view
   const [signalSubTab, setSignalSubTab] = useState<'deal' | 'partner'>('deal');
+  const [intelSubTab, setIntelSubTab] = useState<'signals' | 'playbooks' | 'forecast' | 'events' | 'leader-touch' | 'diagnostics'>('signals');
+  const [signalFilter, setSignalFilter] = useState<'all' | 'deal_risks' | 'partner_risks' | 'sentiment' | 'expansion'>('all');
+  const [dismissedSignals, setDismissedSignals] = useState<Set<number>>(new Set());
   const [playbookAssignTo, setPlaybookAssignTo] = useState<'self' | 'one' | 'multiple' | 'team'>('self');
   const [playbookAssignCM, setPlaybookAssignCM] = useState('');
   const [playbookAssignMultiple, setPlaybookAssignMultiple] = useState<string[]>([]);
@@ -1925,8 +1928,24 @@ export default function LiveLeaderDashboard() {
 
   // ═══════════════════ VIEW 5: INTELLIGENCE ═══════════════════
   const renderIntelligence = () => {
-    const dealSignals = signals.filter(s => ['deal_at_risk', 'override_pending', 'expansion'].includes(s.type));
-    const partnerSignals = signals.filter(s => ['partner_fading', 'trajectory_freefall'].includes(s.type));
+    // Compute filtered signals based on signalFilter and dismissedSignals
+    const getFilteredSignals = () => {
+      let filtered = signals.filter(s => !dismissedSignals.has(signals.indexOf(s)));
+
+      if (signalFilter === 'deal_risks') {
+        filtered = filtered.filter(s => ['deal_at_risk', 'override_pending'].includes(s.type));
+      } else if (signalFilter === 'partner_risks') {
+        filtered = filtered.filter(s => ['partner_fading', 'trajectory_freefall'].includes(s.type));
+      } else if (signalFilter === 'sentiment') {
+        filtered = filtered.filter(s => s.type === 'sentiment_alert');
+      } else if (signalFilter === 'expansion') {
+        filtered = filtered.filter(s => s.type === 'expansion');
+      }
+      return filtered;
+    };
+
+    const filteredSignals = getFilteredSignals();
+    const criticalSignalCount = signals.filter(s => s.severity === 'critical' && !dismissedSignals.has(signals.indexOf(s))).length;
 
     return (
       <div className="space-y-6">
@@ -1934,244 +1953,180 @@ export default function LiveLeaderDashboard() {
           <h1 className="text-[24px] font-semibold font-['Newsreader'] text-gray-900">Intelligence</h1>
         </div>
 
-        {/* SIGNAL SUMMARY */}
-        <div className="grid grid-cols-4 gap-3">
+        {/* PERSISTENT KPI STRIP - always visible across all tabs */}
+        <div className="grid grid-cols-5 gap-3">
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
             <p className="text-[10px] text-gray-500 uppercase font-bold">Total Signals</p>
-            <p className="text-[24px] font-bold text-gray-800 mt-2">{signals.length}</p>
+            <p className="text-[24px] font-bold text-gray-800 mt-2">{signals.filter(s => !dismissedSignals.has(signals.indexOf(s))).length}</p>
           </div>
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
             <p className="text-[10px] text-gray-500 uppercase font-bold">Critical</p>
-            <p className="text-[24px] font-bold text-red-600 mt-2">{signals.filter(s => s.severity === 'critical').length}</p>
+            <p className="text-[24px] font-bold text-red-600 mt-2">{criticalSignalCount}</p>
           </div>
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
-            <p className="text-[10px] text-gray-500 uppercase font-bold">High</p>
-            <p className="text-[24px] font-bold text-amber-600 mt-2">{signals.filter(s => s.severity === 'high').length}</p>
+            <p className="text-[10px] text-gray-500 uppercase font-bold">Active Playbooks</p>
+            <p className="text-[24px] font-bold text-[#157A6E] mt-2">{launchedPlaybooks.length}</p>
           </div>
           <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
-            <p className="text-[10px] text-gray-500 uppercase font-bold">Medium</p>
-            <p className="text-[24px] font-bold text-blue-600 mt-2">{signals.filter(s => s.severity === 'medium').length}</p>
+            <p className="text-[10px] text-gray-500 uppercase font-bold">Forecast Accuracy</p>
+            <p className="text-[24px] font-bold text-blue-600 mt-2">{Math.round(reps.reduce((s, r) => s + (getForecastHistoryData(r.id)[0]?.actual || 0) / (getForecastHistoryData(r.id)[0]?.forecasted || 1), 0) / reps.length * 100)}%</p>
+          </div>
+          <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4 text-center">
+            <p className="text-[10px] text-gray-500 uppercase font-bold">Events This Quarter</p>
+            <p className="text-[24px] font-bold text-gray-800 mt-2">{eventPlaybooks.length}</p>
           </div>
         </div>
 
-        {/* TABS */}
-        <div className="flex border-b border-[#e8e5e1] gap-4">
-          {(['deal', 'partner'] as const).map(tab => (
+        {/* SUB-TAB NAVIGATION */}
+        <div className="flex border-b border-[#e8e5e1]">
+          {(['signals', 'playbooks', 'forecast', 'events', 'leader-touch', 'diagnostics'] as const).map(tab => (
             <button
               key={tab}
-              onClick={() => setSignalSubTab(tab)}
-              className={`px-6 py-3 text-13px font-semibold border-b-2 transition-colors ${
-                signalSubTab === tab ? 'text-[#157A6E] border-[#157A6E]' : 'text-gray-500 border-transparent'
+              onClick={() => setIntelSubTab(tab)}
+              className={`px-6 py-3 text-13px font-semibold border-b-2 transition-colors relative ${
+                intelSubTab === tab ? 'text-[#157A6E] border-[#157A6E]' : 'text-gray-500 border-transparent'
               }`}
             >
-              {tab === 'deal' ? 'Deal Signals' : 'Partner Signals'}
+              {tab === 'signals' ? 'Signals' : tab === 'playbooks' ? 'Playbooks' : tab === 'forecast' ? 'Forecast Accuracy' : tab === 'events' ? 'Events & ROI' : tab === 'leader-touch' ? 'Leader Touch' : 'Diagnostics'}
+              {tab === 'signals' && criticalSignalCount > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold text-white bg-red-600 rounded-full">{criticalSignalCount}</span>
+              )}
+              {tab === 'playbooks' && launchedPlaybooks.length > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold text-white bg-[#157A6E] rounded-full">{launchedPlaybooks.length}</span>
+              )}
             </button>
           ))}
         </div>
 
-        {signalSubTab === 'deal' && (
-          <div className="space-y-3">
-            {dealSignals.map((s, i) => (
-              <div key={i} className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-12px font-semibold text-gray-800">{s.text}</p>
-                    <p className="text-[10px] text-gray-500 mt-1">{s.repName} {s.advisorName ? `· ${s.advisorName}` : ''}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${s.severity === 'critical' ? 'bg-red-100 text-red-800' : s.severity === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{s.severity.toUpperCase()}</span>
-                    <p className="text-[10px] text-gray-500 mt-1">{s.time}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* TAB CONTENT - only render active tab */}
 
-        {signalSubTab === 'partner' && (
-          <div className="space-y-3">
-            {partnerSignals.map((s, i) => (
-              <div key={i} className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-12px font-semibold text-gray-800">{s.text}</p>
-                    <p className="text-[10px] text-gray-500 mt-1">{s.advisorName}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${s.severity === 'critical' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>{s.severity.toUpperCase()}</span>
-                    <p className="text-[10px] text-gray-500 mt-1">{s.time}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        {intelSubTab === 'signals' && (
+          <div className="space-y-4">
+            {/* Filter pills row */}
+            <div className="flex gap-2 flex-wrap">
+              {(['all', 'deal_risks', 'partner_risks', 'sentiment', 'expansion'] as const).map(filter => (
+                <button
+                  key={filter}
+                  onClick={() => setSignalFilter(filter)}
+                  className={`px-3 py-1 text-[10px] font-semibold rounded-full border transition-colors ${
+                    signalFilter === filter
+                      ? 'bg-[#157A6E] text-white border-[#157A6E]'
+                      : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  {filter === 'all' ? 'All' : filter === 'deal_risks' ? 'Deal Risks' : filter === 'partner_risks' ? 'Partner Risks' : filter === 'sentiment' ? 'Sentiment' : 'Expansion'}
+                </button>
+              ))}
+            </div>
 
-        {/* Feature 6: Forecast Accuracy Reporting */}
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Forecast Accuracy</span>
-          <div className="flex-1 h-px bg-[#e8e5e1]" />
-        </div>
-
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
-          <table className="w-full text-11px">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="px-4 py-2 text-left font-bold text-gray-700">Rep</th>
-                <th className="px-4 py-2 text-right font-bold text-gray-700">Q1 Forecast</th>
-                <th className="px-4 py-2 text-right font-bold text-gray-700">Q1 Actual</th>
-                <th className="px-4 py-2 text-center font-bold text-gray-700">Accuracy</th>
-                <th className="px-4 py-2 text-right font-bold text-gray-700">Trend</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reps.map((rep, i) => {
-                const history = getForecastHistoryData(rep.id);
-                const q1 = history[0];
-                const accuracy = q1 ? Math.round((q1.actual / q1.forecasted) * 100) : 0;
-                const trend = accuracy >= 90 ? '+' : accuracy >= 75 ? '→' : '−';
-                const trendColor = accuracy >= 90 ? 'text-green-600' : accuracy >= 75 ? 'text-amber-600' : 'text-red-600';
-                return (
-                  <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="px-4 py-2 font-semibold text-gray-800">{rep.name}</td>
-                    <td className="px-4 py-2 text-right text-gray-600">{formatCurrency(q1?.forecasted || 0)}</td>
-                    <td className="px-4 py-2 text-right font-bold text-gray-800">{formatCurrency(q1?.actual || 0)}</td>
-                    <td className="px-4 py-2 text-center"><span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${accuracy >= 90 ? 'bg-green-100 text-green-800' : accuracy >= 75 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>{accuracy}%</span></td>
-                    <td className={`px-4 py-2 text-right font-bold ${trendColor}`}>{trend}</td>
-                  </tr>
-                );
-              })}
-              <tr className="bg-[#F7F5F2] font-bold">
-                <td className="px-4 py-2 text-gray-800">TEAM AVG</td>
-                <td className="px-4 py-2 text-right text-gray-800">{formatCurrency(reps.reduce((s, r) => s + (getForecastHistoryData(r.id)[0]?.forecasted || 0), 0) / reps.length)}</td>
-                <td className="px-4 py-2 text-right text-gray-800">{formatCurrency(reps.reduce((s, r) => s + (getForecastHistoryData(r.id)[0]?.actual || 0), 0) / reps.length)}</td>
-                <td className="px-4 py-2 text-center text-gray-800">{Math.round(reps.reduce((s, r) => s + (getForecastHistoryData(r.id)[0]?.actual || 0) / (getForecastHistoryData(r.id)[0]?.forecasted || 1), 0) / reps.length * 100)}%</td>
-                <td />
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* Feature 7: Event Playbooks with ROI Tracking */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Event Playbooks</span>
-            <div className="flex-1 h-px bg-[#e8e5e1]" />
-          </div>
-          <button onClick={() => setShowAddEventModal(true)} className="px-3 py-1 text-[10px] font-bold text-white bg-[#157A6E] rounded-full hover:bg-[#126a5f]">+ Add Event</button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          {eventPlaybooks.map(event => {
-            const roiCalc = event.actualMeetings && event.budget ? ((event.actualMeetings / event.targetMeetings) * (event.actualSignups ? event.actualSignups / event.targetSignups : 0.5)) * 100 : 0;
-            const statusColors = { planning: 'bg-blue-50 border-blue-200', active: 'bg-green-50 border-green-200', completed: 'bg-gray-50 border-gray-200' };
-            return (
-              <div key={event.id} className={`border border-[#e8e5e1] rounded-[10px] p-4 ${statusColors[event.status]}`}>
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <p className="text-12px font-semibold text-gray-800">{event.name}</p>
-                    <p className="text-[10px] text-gray-600">{event.date}</p>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${event.status === 'planning' ? 'bg-blue-100 text-blue-800' : event.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                    {event.status.toUpperCase()}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-[10px] mb-3">
-                  <div>
-                    <p className="text-gray-600">Budget</p>
-                    <p className="font-bold text-gray-800">{formatCurrency(event.budget)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Meetings</p>
-                    <p className="font-bold text-gray-800">{event.actualMeetings || 0} / {event.targetMeetings}</p>
-                  </div>
-                </div>
-                {event.actualMeetings && (
-                  <div className="pt-2 border-t border-gray-200">
-                    <p className="text-[9px] text-gray-600">Est. ROI</p>
-                    <p className="text-[14px] font-bold text-[#157A6E]">{roiCalc.toFixed(0)}%</p>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* PLAYBOOKS */}
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Playbook Center</span>
-          <div className="flex-1 h-px bg-[#e8e5e1]" />
-        </div>
-
-        {(() => {
-          const phaseColors: Record<string, string> = {
-            'Diagnose': 'bg-red-100 text-red-700', 'Engage': 'bg-orange-100 text-orange-700',
-            'Recover': 'bg-amber-100 text-amber-700', 'Activate': 'bg-green-100 text-green-700',
-            'Plan': 'bg-blue-100 text-blue-700', 'Execute': 'bg-amber-100 text-amber-700',
-            'Assess': 'bg-blue-100 text-blue-700', 'Close': 'bg-green-100 text-green-700',
-            'Setup': 'bg-blue-100 text-blue-700', 'Monitor': 'bg-indigo-100 text-indigo-700',
-            'Research': 'bg-gray-100 text-gray-700', 'Re-engage': 'bg-amber-100 text-amber-700',
-            'Prepare': 'bg-blue-100 text-blue-700', 'Follow-up': 'bg-green-100 text-green-700',
-            'Analyze': 'bg-indigo-100 text-indigo-700', 'Enable': 'bg-amber-100 text-amber-700',
-            'Incentivize': 'bg-purple-100 text-purple-700', 'Measure': 'bg-green-100 text-green-700',
-            'Growth': 'bg-teal-100 text-teal-700', 'Align': 'bg-teal-100 text-teal-700',
-          };
-
-          if (editingPlaybookIdx !== null && launchedPlaybooks[editingPlaybookIdx]) {
-            const pb = launchedPlaybooks[editingPlaybookIdx];
-            const template = playbookTemplates.find(t => t.id === pb.templateId);
-            const advisor = advisors.find(a => a.id === pb.advisorId);
-            const steps = pb.customSteps || template?.steps || [];
-            const completedCount = pb.completedSteps.length;
-            const effectiveSteps = steps.length - pb.skippedSteps.length;
-            const progressPercent = effectiveSteps > 0 ? Math.round((completedCount / effectiveSteps) * 100) : 0;
-            const launchDate = new Date(pb.launchedAt);
-
-            return (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <button onClick={() => setEditingPlaybookIdx(null)} className="px-3 py-2 text-12px font-semibold text-[#157A6E] hover:bg-gray-50 rounded">← Back to Playbooks</button>
-                </div>
-
-                <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-start gap-4">
-                      <span className="text-[28px]">{template?.icon}</span>
-                      <div>
-                        <p className="text-11px font-bold uppercase tracking-[1.5px] text-[#157A6E]">{template?.category}</p>
-                        <h3 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">{pb.playbookName}: {advisor?.name}</h3>
-                        <p className="text-11px text-gray-600 mt-1">{formatCurrency(advisor?.mrr || 0)} MRR • {steps.length} steps • Launched {launchDate.toLocaleDateString()}</p>
+            {/* Signal cards */}
+            <div className="space-y-3">
+              {filteredSignals.length > 0 ? (
+                filteredSignals.map((s, i) => (
+                  <div key={i} className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="text-12px font-semibold text-gray-800">{s.text}</p>
+                        <p className="text-[10px] text-gray-500 mt-1">{s.repName || s.advisorName}</p>
+                      </div>
+                      <div className="text-right ml-4">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${s.severity === 'critical' ? 'bg-red-100 text-red-800' : s.severity === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{s.severity.toUpperCase()}</span>
+                        <p className="text-[10px] text-gray-500 mt-1">{s.time}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded-full text-[9px] font-bold ${pb.priority === 'critical' ? 'bg-red-100 text-red-700' : pb.priority === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {pb.priority.toUpperCase()}
-                      </span>
+                    <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+                      <button className="text-[10px] font-semibold text-[#157A6E] hover:bg-gray-50 px-2 py-1 rounded">View Deal</button>
+                      <button className="text-[10px] font-semibold text-[#157A6E] hover:bg-gray-50 px-2 py-1 rounded">Assign Playbook</button>
+                      <button
+                        onClick={() => {
+                          const idx = signals.indexOf(s);
+                          setDismissedSignals(prev => new Set(prev).add(idx));
+                        }}
+                        className="text-[10px] font-semibold text-gray-500 hover:text-red-600 hover:bg-gray-50 px-2 py-1 rounded ml-auto"
+                      >
+                        Dismiss
+                      </button>
                     </div>
                   </div>
+                ))
+              ) : (
+                <p className="text-[10px] text-gray-400 py-4">No signals match this filter</p>
+              )}
+            </div>
+          </div>
+        )}
 
-                  <div className="mb-4">
-                    <div className="flex justify-between mb-2">
-                      <span className="text-11px font-semibold text-gray-700">Progress</span>
-                      <span className="text-11px font-bold text-[#157A6E]">{progressPercent}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div style={{width: `${progressPercent}%`}} className="bg-[#157A6E] h-2 rounded-full transition-all"></div>
-                    </div>
-                  </div>
+        {intelSubTab === 'playbooks' && (
+          <div className="space-y-4">
+            {(() => {
+              const phaseColors: Record<string, string> = {
+                'Diagnose': 'bg-red-100 text-red-700', 'Engage': 'bg-orange-100 text-orange-700',
+                'Recover': 'bg-amber-100 text-amber-700', 'Activate': 'bg-green-100 text-green-700',
+                'Plan': 'bg-blue-100 text-blue-700', 'Execute': 'bg-amber-100 text-amber-700',
+                'Assess': 'bg-blue-100 text-blue-700', 'Close': 'bg-green-100 text-green-700',
+                'Setup': 'bg-blue-100 text-blue-700', 'Monitor': 'bg-indigo-100 text-indigo-700',
+                'Research': 'bg-gray-100 text-gray-700', 'Re-engage': 'bg-amber-100 text-amber-700',
+                'Prepare': 'bg-blue-100 text-blue-700', 'Follow-up': 'bg-green-100 text-green-700',
+                'Analyze': 'bg-indigo-100 text-indigo-700', 'Enable': 'bg-amber-100 text-amber-700',
+                'Incentivize': 'bg-purple-100 text-purple-700', 'Measure': 'bg-green-100 text-green-700',
+                'Growth': 'bg-teal-100 text-teal-700', 'Align': 'bg-teal-100 text-teal-700',
+              };
 
-                  <div className="grid grid-cols-7 gap-4">
-                    <div className="col-span-7 lg:col-span-5 space-y-3">
-                      <p className="text-11px font-bold uppercase tracking-[1.5px] text-gray-600">Action Steps</p>
-                      {steps.map((step, idx) => {
-                        const isCompleted = pb.completedSteps.includes(idx);
-                        const isSkipped = pb.skippedSteps.includes(idx);
-                        return (
-                          <div key={idx} className={`flex items-start gap-3 p-3 border rounded-[10px] ${isSkipped ? 'bg-gray-50 border-gray-200' : 'bg-white border-[#e8e5e1]'}`}>
-                            <button
-                              onClick={() => {
-                                setLaunchedPlaybooks(prev => prev.map((p, i) => {
-                                  if (i === editingPlaybookIdx) {
+              if (editingPlaybookIdx !== null && launchedPlaybooks[editingPlaybookIdx]) {
+                const pb = launchedPlaybooks[editingPlaybookIdx];
+                const template = playbookTemplates.find(t => t.id === pb.templateId);
+                const advisor = advisors.find(a => a.id === pb.advisorId);
+                const steps = pb.customSteps || template?.steps || [];
+                const completedCount = pb.completedSteps.length;
+                const effectiveSteps = steps.length - pb.skippedSteps.length;
+                const progressPercent = effectiveSteps > 0 ? Math.round((completedCount / effectiveSteps) * 100) : 0;
+                const launchDate = new Date(pb.launchedAt);
+
+                return (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 mb-4">
+                      <button onClick={() => setEditingPlaybookIdx(null)} className="px-3 py-2 text-12px font-semibold text-[#157A6E] hover:bg-gray-50 rounded">← Back to Playbooks</button>
+                    </div>
+
+                    <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-start gap-4">
+                          <span className="text-[28px]">{template?.icon}</span>
+                          <div>
+                            <p className="text-11px font-bold uppercase tracking-[1.5px] text-[#157A6E]">{template?.category}</p>
+                            <h3 className="text-[18px] font-bold font-['Newsreader'] text-gray-800">{pb.playbookName}: {advisor?.name}</h3>
+                            <p className="text-11px text-gray-600 mt-1">{formatCurrency(advisor?.mrr || 0)} MRR • {steps.length} steps • Launched {launchDate.toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded-full text-[9px] font-bold ${pb.priority === 'critical' ? 'bg-red-100 text-red-700' : pb.priority === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {pb.priority.toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mb-4">
+                        <div className="flex justify-between mb-2">
+                          <span className="text-11px font-semibold text-gray-700">Progress</span>
+                          <span className="text-11px font-bold text-[#157A6E]">{progressPercent}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div style={{width: `${progressPercent}%`}} className="bg-[#157A6E] h-2 rounded-full transition-all"></div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-7 gap-4">
+                        <div className="col-span-7 lg:col-span-5 space-y-3">
+                          <p className="text-11px font-bold uppercase tracking-[1.5px] text-gray-600">Action Steps</p>
+                          {steps.map((step, idx) => {
+                            const isCompleted = pb.completedSteps.includes(idx);
+                            const isSkipped = pb.skippedSteps.includes(idx);
+                            return (
+                              <div key={idx} className={`flex items-start gap-3 p-3 border rounded-[10px] ${isSkipped ? 'bg-gray-50 border-gray-200' : 'bg-white border-[#e8e5e1]'}`}>
+                                <button
+                                  onClick={() => {
+                                    setLaunchedPlaybooks(prev => prev.map((p, i) => {
+                                      if (i === editingPlaybookIdx) {
                                     const completed = p.completedSteps.includes(idx) ? p.completedSteps.filter(x => x !== idx) : [...p.completedSteps, idx];
                                     return {...p, completedSteps: completed};
                                   }
@@ -2449,100 +2404,280 @@ export default function LiveLeaderDashboard() {
             </div>
           );
         })()}
-
-        {/* Feature 4: Leader Interaction Logging and Impact */}
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Leader Touch Impact</span>
-          <div className="flex-1 h-px bg-[#e8e5e1]" />
         </div>
+        )}
 
-        {(() => {
-          const impact = getLeaderTouchImpact();
-          return (
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-[10px] border border-green-200 p-4 text-center">
-                <p className="text-[10px] text-gray-600 uppercase font-bold">Avg Cycle (Leader Touched)</p>
-                <p className="text-[24px] font-bold text-gray-800 mt-2">{impact.avgCycleTouched}d</p>
-                <p className="text-[9px] text-gray-500 mt-1">{impact.touchedCount} deals</p>
-              </div>
-              <div className="bg-gray-50 rounded-[10px] border border-gray-200 p-4 text-center">
-                <p className="text-[10px] text-gray-600 uppercase font-bold">Avg Cycle (No Touch)</p>
-                <p className="text-[24px] font-bold text-gray-800 mt-2">{impact.avgCycleUntouched}d</p>
-              </div>
-              <div className={`rounded-[10px] border p-4 text-center ${impact.avgCycleTouched < impact.avgCycleUntouched ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                <p className="text-[10px] text-gray-600 uppercase font-bold">Impact</p>
-                <p className={`text-[24px] font-bold mt-2 ${impact.avgCycleTouched < impact.avgCycleUntouched ? 'text-green-700' : 'text-red-700'}`}>
-                  {impact.avgCycleUntouched - impact.avgCycleTouched > 0 ? '−' : '+'}{Math.abs(impact.avgCycleUntouched - impact.avgCycleTouched)}d
-                </p>
-              </div>
+        {intelSubTab === 'forecast' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-hidden">
+              <table className="w-full text-11px">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-4 py-2 text-left font-bold text-gray-700">Rep</th>
+                    <th className="px-4 py-2 text-right font-bold text-gray-700">Q1 Forecast</th>
+                    <th className="px-4 py-2 text-right font-bold text-gray-700">Q1 Actual</th>
+                    <th className="px-4 py-2 text-center font-bold text-gray-700">Accuracy</th>
+                    <th className="px-4 py-2 text-right font-bold text-gray-700">Trend</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reps.map((rep, i) => {
+                    const history = getForecastHistoryData(rep.id);
+                    const q1 = history[0];
+                    const accuracy = q1 ? Math.round((q1.actual / q1.forecasted) * 100) : 0;
+                    const trend = accuracy >= 90 ? '+' : accuracy >= 75 ? '→' : '−';
+                    const trendColor = accuracy >= 90 ? 'text-green-600' : accuracy >= 75 ? 'text-amber-600' : 'text-red-600';
+                    return (
+                      <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="px-4 py-2 font-semibold text-gray-800">{rep.name}</td>
+                        <td className="px-4 py-2 text-right text-gray-600">{formatCurrency(q1?.forecasted || 0)}</td>
+                        <td className="px-4 py-2 text-right font-bold text-gray-800">{formatCurrency(q1?.actual || 0)}</td>
+                        <td className="px-4 py-2 text-center"><span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${accuracy >= 90 ? 'bg-green-100 text-green-800' : accuracy >= 75 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}`}>{accuracy}%</span></td>
+                        <td className={`px-4 py-2 text-right font-bold ${trendColor}`}>{trend}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="bg-[#F7F5F2] font-bold">
+                    <td className="px-4 py-2 text-gray-800">TEAM AVG</td>
+                    <td className="px-4 py-2 text-right text-gray-800">{formatCurrency(reps.reduce((s, r) => s + (getForecastHistoryData(r.id)[0]?.forecasted || 0), 0) / reps.length)}</td>
+                    <td className="px-4 py-2 text-right text-gray-800">{formatCurrency(reps.reduce((s, r) => s + (getForecastHistoryData(r.id)[0]?.actual || 0), 0) / reps.length)}</td>
+                    <td className="px-4 py-2 text-center text-gray-800">{Math.round(reps.reduce((s, r) => s + (getForecastHistoryData(r.id)[0]?.actual || 0) / (getForecastHistoryData(r.id)[0]?.forecasted || 1), 0) / reps.length * 100)}%</td>
+                    <td />
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          );
-        })()}
 
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-12px font-bold text-gray-800">Recent Leader Notes</p>
-            <button
-              onClick={() => setShowLogInteractionModal(true)}
-              className="px-2 py-1 text-[10px] font-bold text-white bg-[#157A6E] rounded hover:bg-[#126a5f]"
-            >
-              + Log Interaction
-            </button>
-          </div>
-          {leaderInteractions.length > 0 ? (
-            <div className="space-y-2 max-h-[200px] overflow-y-auto">
-              {leaderInteractions.slice(-5).reverse().map(interaction => {
-                const advisor = advisors.find(a => a.id === interaction.advisorId);
-                const deal = allDeals.find(d => d.id === interaction.dealId);
+            {/* Forecast Insights */}
+            <div className="grid grid-cols-3 gap-4">
+              {(() => {
+                let worstAccuracy = 100;
+                let bestAccuracy = 0;
+                let bestReliable = 100;
+                let worstRep = '';
+                let bestRep = '';
+                let reliableRep = '';
+
+                reps.forEach(rep => {
+                  const history = getForecastHistoryData(rep.id);
+                  const q1 = history[0];
+                  const accuracy = q1 ? Math.round((q1.actual / q1.forecasted) * 100) : 0;
+
+                  if (accuracy < worstAccuracy) {
+                    worstAccuracy = accuracy;
+                    worstRep = rep.name;
+                  }
+                  if (accuracy > bestAccuracy) {
+                    bestAccuracy = accuracy;
+                    bestRep = rep.name;
+                  }
+                  if (Math.abs(accuracy - 100) < Math.abs(bestReliable - 100)) {
+                    bestReliable = accuracy;
+                    reliableRep = rep.name;
+                  }
+                });
+
                 return (
-                  <div key={interaction.id} className="p-2 bg-gray-50 rounded text-[10px] border border-gray-100">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-bold text-gray-800">{advisor?.name || 'Unknown'}</p>
-                        <p className="text-gray-600 mt-0.5">{interaction.note}</p>
-                        {deal && <p className="text-[9px] text-gray-500 mt-1">Deal: {deal.name}</p>}
-                      </div>
-                      <p className="text-[9px] text-gray-500 whitespace-nowrap">{new Date(interaction.date).toLocaleDateString()}</p>
+                  <>
+                    <div className="bg-red-50 rounded-[10px] border border-red-200 p-4">
+                      <p className="text-[10px] text-gray-600 uppercase font-bold">Over-Forecaster</p>
+                      <p className="text-[18px] font-bold text-gray-800 mt-2">{worstRep}</p>
+                      <p className="text-[12px] text-red-600 mt-1">{worstAccuracy}% Accuracy</p>
                     </div>
+                    <div className="bg-green-50 rounded-[10px] border border-green-200 p-4">
+                      <p className="text-[10px] text-gray-600 uppercase font-bold">Most Improved</p>
+                      <p className="text-[18px] font-bold text-gray-800 mt-2">{bestRep}</p>
+                      <p className="text-[12px] text-green-600 mt-1">{bestAccuracy}% Accuracy</p>
+                    </div>
+                    <div className="bg-blue-50 rounded-[10px] border border-blue-200 p-4">
+                      <p className="text-[10px] text-gray-600 uppercase font-bold">Most Reliable</p>
+                      <p className="text-[18px] font-bold text-gray-800 mt-2">{reliableRep}</p>
+                      <p className="text-[12px] text-blue-600 mt-1">{bestReliable}% Accuracy</p>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {intelSubTab === 'events' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-13px font-semibold text-gray-800">Events</h3>
+              <button onClick={() => setShowAddEventModal(true)} className="px-3 py-1 text-[10px] font-bold text-white bg-[#157A6E] rounded-full hover:bg-[#126a5f]">+ Add Event</button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {eventPlaybooks.map(event => {
+                const roiCalc = event.actualMeetings && event.budget ? ((event.actualMeetings / event.targetMeetings) * (event.actualSignups ? event.actualSignups / event.targetSignups : 0.5)) * 100 : 0;
+                const statusColors = { planning: 'bg-blue-50 border-blue-200', active: 'bg-green-50 border-green-200', completed: 'bg-gray-50 border-gray-200' };
+                return (
+                  <div key={event.id} className={`border border-[#e8e5e1] rounded-[10px] p-4 ${statusColors[event.status]}`}>
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <p className="text-12px font-semibold text-gray-800">{event.name}</p>
+                        <p className="text-[10px] text-gray-600">{event.date}</p>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[8px] font-bold ${event.status === 'planning' ? 'bg-blue-100 text-blue-800' : event.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                        {event.status.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[10px] mb-3">
+                      <div>
+                        <p className="text-gray-600">Budget</p>
+                        <p className="font-bold text-gray-800">{formatCurrency(event.budget)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600">Meetings</p>
+                        <p className="font-bold text-gray-800">{event.actualMeetings || 0} / {event.targetMeetings}</p>
+                      </div>
+                    </div>
+                    {event.actualMeetings && (
+                      <div className="pt-2 border-t border-gray-200">
+                        <p className="text-[9px] text-gray-600">Est. ROI</p>
+                        <p className="text-[14px] font-bold text-[#157A6E]">{roiCalc.toFixed(0)}%</p>
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
-          ) : (
-            <p className="text-[10px] text-gray-400 py-2">No interactions logged yet</p>
-          )}
-        </div>
 
-        {/* DIAGNOSTICS */}
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#157A6E] whitespace-nowrap">Diagnostics</span>
-          <div className="flex-1 h-px bg-[#e8e5e1]" />
-        </div>
+            {/* Pipeline Impact Summary */}
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+              <p className="text-12px font-bold text-gray-800 mb-4">Pipeline Impact Summary</p>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-600 uppercase font-bold">Total Events</p>
+                  <p className="text-[24px] font-bold text-gray-800 mt-2">{eventPlaybooks.length}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-600 uppercase font-bold">Total Budget</p>
+                  <p className="text-[18px] font-bold text-gray-800 mt-2">{formatCurrency(eventPlaybooks.reduce((s, e) => s + e.budget, 0))}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-600 uppercase font-bold">Total Meetings</p>
+                  <p className="text-[24px] font-bold text-gray-800 mt-2">{eventPlaybooks.reduce((s, e) => s + (e.actualMeetings || 0), 0)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
-        <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-x-auto">
-          <table className="w-full text-[10px]">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="px-4 py-2 text-left font-bold text-gray-700">Advisor</th>
-                <th className="px-4 py-2 text-center font-bold text-gray-700">Pulse</th>
-                <th className="px-4 py-2 text-center font-bold text-gray-700">Trajectory</th>
-                <th className="px-4 py-2 text-center font-bold text-gray-700">Friction</th>
-                <th className="px-4 py-2 text-center font-bold text-gray-700">Deal Health</th>
-              </tr>
-            </thead>
-            <tbody>
-              {advisors.map((a, i) => (
-                <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-4 py-2 font-semibold text-gray-800">{a.name}</td>
-                  <td className="px-4 py-2 text-center"><PulseBadge pulse={a.pulse} /></td>
-                  <td className="px-4 py-2 text-center"><TrajectoryBadge trajectory={a.trajectory} /></td>
-                  <td className="px-4 py-2 text-center"><FrictionBadge level={a.friction} /></td>
-                  <td className="px-4 py-2 text-center"><DealHealthBadge health={a.dealHealth} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {intelSubTab === 'leader-touch' && (
+          <div className="space-y-4">
+            {(() => {
+              const impact = getLeaderTouchImpact();
+              return (
+                <>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-[10px] border border-green-200 p-4 text-center">
+                      <p className="text-[10px] text-gray-600 uppercase font-bold">Avg Cycle (Leader Touched)</p>
+                      <p className="text-[24px] font-bold text-gray-800 mt-2">{impact.avgCycleTouched}d</p>
+                      <p className="text-[9px] text-gray-500 mt-1">{impact.touchedCount} deals</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-[10px] border border-gray-200 p-4 text-center">
+                      <p className="text-[10px] text-gray-600 uppercase font-bold">Avg Cycle (No Touch)</p>
+                      <p className="text-[24px] font-bold text-gray-800 mt-2">{impact.avgCycleUntouched}d</p>
+                    </div>
+                    <div className={`rounded-[10px] border p-4 text-center ${impact.avgCycleTouched < impact.avgCycleUntouched ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                      <p className="text-[10px] text-gray-600 uppercase font-bold">Impact</p>
+                      <p className={`text-[24px] font-bold mt-2 ${impact.avgCycleTouched < impact.avgCycleUntouched ? 'text-green-700' : 'text-red-700'}`}>
+                        {impact.avgCycleUntouched - impact.avgCycleTouched > 0 ? '−' : '+'}{Math.abs(impact.avgCycleUntouched - impact.avgCycleTouched)}d
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-12px font-bold text-gray-800">Recent Leader Notes</p>
+                      <button
+                        onClick={() => setShowLogInteractionModal(true)}
+                        className="px-2 py-1 text-[10px] font-bold text-white bg-[#157A6E] rounded hover:bg-[#126a5f]"
+                      >
+                        + Log Interaction
+                      </button>
+                    </div>
+                    {leaderInteractions.length > 0 ? (
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                        {leaderInteractions.slice(-5).reverse().map(interaction => {
+                          const advisor = advisors.find(a => a.id === interaction.advisorId);
+                          const deal = allDeals.find(d => d.id === interaction.dealId);
+                          return (
+                            <div key={interaction.id} className="p-2 bg-gray-50 rounded text-[10px] border border-gray-100">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <p className="font-bold text-gray-800">{advisor?.name || 'Unknown'}</p>
+                                  <p className="text-gray-600 mt-0.5">{interaction.note}</p>
+                                  {deal && <p className="text-[9px] text-gray-500 mt-1">Deal: {deal.name}</p>}
+                                </div>
+                                <p className="text-[9px] text-gray-500 whitespace-nowrap">{new Date(interaction.date).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-gray-400 py-2">No interactions logged yet</p>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        )}
+
+        {intelSubTab === 'diagnostics' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] overflow-x-auto">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="px-4 py-2 text-left font-bold text-gray-700">Advisor</th>
+                    <th className="px-4 py-2 text-center font-bold text-gray-700">Pulse</th>
+                    <th className="px-4 py-2 text-center font-bold text-gray-700">Trajectory</th>
+                    <th className="px-4 py-2 text-center font-bold text-gray-700">Friction</th>
+                    <th className="px-4 py-2 text-center font-bold text-gray-700">Deal Health</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {advisors.map((a, i) => (
+                    <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="px-4 py-2 font-semibold text-gray-800">{a.name}</td>
+                      <td className="px-4 py-2 text-center"><PulseBadge pulse={a.pulse} /></td>
+                      <td className="px-4 py-2 text-center"><TrajectoryBadge trajectory={a.trajectory} /></td>
+                      <td className="px-4 py-2 text-center"><FrictionBadge level={a.friction} /></td>
+                      <td className="px-4 py-2 text-center"><DealHealthBadge health={a.dealHealth} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Friction Insights */}
+            <div className="bg-white rounded-[10px] border border-[#e8e5e1] p-4">
+              <p className="text-12px font-bold text-gray-800 mb-4">Friction Insights</p>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-600 uppercase font-bold">Critical Friction</p>
+                  <p className="text-[24px] font-bold text-red-600 mt-2">{advisors.filter(a => a.friction === 'Critical').length}</p>
+                  <p className="text-[9px] text-gray-500 mt-1">advisors</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-600 uppercase font-bold">High Friction</p>
+                  <p className="text-[24px] font-bold text-orange-600 mt-2">{advisors.filter(a => a.friction === 'High').length}</p>
+                  <p className="text-[9px] text-gray-500 mt-1">advisors</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[10px] text-gray-600 uppercase font-bold">Fading/Flatline</p>
+                  <p className="text-[24px] font-bold text-amber-600 mt-2">{advisors.filter(a => ['fading', 'flatline'].includes(a.pulse.toLowerCase())).length}</p>
+                  <p className="text-[9px] text-gray-500 mt-1">advisors</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
